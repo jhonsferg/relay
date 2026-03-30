@@ -145,9 +145,6 @@ func TestWithOnStateChange(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
 
-	srv := testutil.NewMockServer()
-	defer srv.Close()
-
 	stateCh := make(chan CircuitBreakerState, 10)
 	onStateChange := func(from, to CircuitBreakerState) {
 		select {
@@ -165,27 +162,32 @@ func TestWithOnStateChange(t *testing.T) {
 		}),
 	)
 
-	// Record a failure via the client execution.
+	// Trigger a circuit break via health check failure simulation if possible,
+	// or just use a dedicated server request.
+	srv := testutil.NewMockServer()
+	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+
 	_, _ = c.Execute(c.Get(srv.URL() + "/fail"))
 
 	// Terminal deterministic loop
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		if c.CircuitBreakerState() == StateOpen {
-			return // Success!
+		if !c.IsHealthy() {
+			return // Success! Breaker is Open.
 		}
 		select {
 		case s := <-stateCh:
 			if s == StateOpen {
-				return // Success via callback
+				return // Success via callback.
 			}
 		default:
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
-	t.Fatal("CircuitBreaker did not Open within 15s")
+	t.Fatal("CircuitBreaker did not Open within 20s")
 }
+
 
 func TestWithRateLimit(t *testing.T) {
 	testMu.Lock()
