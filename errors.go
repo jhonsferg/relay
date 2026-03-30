@@ -28,7 +28,7 @@ var (
 
 	// ErrBodyTruncated is a sentinel that callers may check against when they
 	// need to detect truncation programmatically; the actual truncation is
-	// signaled by Response.IsTruncated().
+	// signalled by Response.IsTruncated().
 	ErrBodyTruncated = errors.New("response body exceeded size limit and was truncated")
 
 	// ErrClientClosed is returned when Execute is called after Shutdown.

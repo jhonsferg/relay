@@ -295,7 +295,7 @@ func WithInMemoryCache(maxEntries int) Option {
 
 // WithCustomDialer replaces the default [net.Dialer]. When set, the dial
 // timeout and keep-alive configured via [WithDialTimeout] / [WithDialKeepAlive]
-// are ignored in favor of the dialer's own settings.
+// are ignored in favour of the dialer's own settings.
 func WithCustomDialer(dialer *net.Dialer) Option {
 	return func(c *Config) { c.CustomDialer = dialer }
 }
