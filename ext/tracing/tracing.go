@@ -10,9 +10,19 @@
 //	    relaytracing "github.com/jhonsferg/relay/ext/tracing"
 //	)
 //
+//	// Default instrumentation name:
 //	client := relay.New(
 //	    relay.WithBaseURL("https://api.example.com"),
-//	    relaytracing.WithTracing(nil, nil), // nil = use global provider/propagator
+//	    relaytracing.WithTracing(nil, nil),
+//	)
+//
+//	// Custom instrumentation name and version:
+//	client := relay.New(
+//	    relay.WithBaseURL("https://api.example.com"),
+//	    relaytracing.WithTracing(nil, nil,
+//	        relaytracing.WithInstrumentationName("my-service"),
+//	        relaytracing.WithInstrumentationVersion("1.0.0"),
+//	    ),
 //	)
 package tracing
 
@@ -29,19 +39,64 @@ import (
 	"github.com/jhonsferg/relay"
 )
 
-const instrumentationName = "github.com/jhonsferg/relay"
+const defaultInstrumentationName = "github.com/jhonsferg/relay"
+
+// Option configures the tracing middleware.
+type Option func(*tracingConfig)
+
+type tracingConfig struct {
+	instrumentationName    string
+	instrumentationVersion string
+}
+
+// WithInstrumentationName sets the OpenTelemetry instrumentation scope name
+// used when creating the tracer. If empty, defaults to
+// "github.com/jhonsferg/relay".
+func WithInstrumentationName(name string) Option {
+	return func(c *tracingConfig) {
+		if name != "" {
+			c.instrumentationName = name
+		}
+	}
+}
+
+// WithInstrumentationVersion sets the instrumentation scope version string
+// attached to every span produced by this middleware (e.g. "1.0.0").
+func WithInstrumentationVersion(version string) Option {
+	return func(c *tracingConfig) {
+		c.instrumentationVersion = version
+	}
+}
 
 // WithTracing returns a [relay.Option] that adds OpenTelemetry client spans to
 // every outgoing request. Pass nil for tp to use the global TracerProvider;
 // pass nil for prop to use the global TextMapPropagator.
-func WithTracing(tp trace.TracerProvider, prop propagation.TextMapPropagator) relay.Option {
+//
+// Use the functional [Option] helpers to customise the instrumentation scope:
+//
+//	relaytracing.WithTracing(tp, prop,
+//	    relaytracing.WithInstrumentationName("my-service"),
+//	    relaytracing.WithInstrumentationVersion("2.0.0"),
+//	)
+func WithTracing(tp trace.TracerProvider, prop propagation.TextMapPropagator, opts ...Option) relay.Option {
 	if tp == nil {
 		tp = otel.GetTracerProvider()
 	}
 	if prop == nil {
 		prop = otel.GetTextMapPropagator()
 	}
-	tracer := tp.Tracer(instrumentationName)
+
+	cfg := &tracingConfig{instrumentationName: defaultInstrumentationName}
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	var tracerOpts []trace.TracerOption
+	if cfg.instrumentationVersion != "" {
+		tracerOpts = append(tracerOpts, trace.WithInstrumentationVersion(cfg.instrumentationVersion))
+	}
+	tracer := tp.Tracer(cfg.instrumentationName, tracerOpts...)
+
 	return relay.WithTransportMiddleware(func(next http.RoundTripper) http.RoundTripper {
 		return &tracingTransport{base: next, tracer: tracer, propagator: prop}
 	})

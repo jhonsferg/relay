@@ -158,3 +158,83 @@ func TestWithTracing_WithContentLength(t *testing.T) {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 }
+
+func TestWithTracing_CustomInstrumentationName(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relaytracing.WithTracing(
+			noop.NewTracerProvider(), nil,
+			relaytracing.WithInstrumentationName("my-service"),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	resp, err := c.Execute(c.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestWithTracing_CustomInstrumentationVersion(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relaytracing.WithTracing(
+			noop.NewTracerProvider(), nil,
+			relaytracing.WithInstrumentationName("my-service"),
+			relaytracing.WithInstrumentationVersion("2.0.0"),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	resp, err := c.Execute(c.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestWithTracing_EmptyNameUsesDefault(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	// Empty string must fall back to the default instrumentation name.
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relaytracing.WithTracing(
+			noop.NewTracerProvider(), nil,
+			relaytracing.WithInstrumentationName(""),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	resp, err := c.Execute(c.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
