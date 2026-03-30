@@ -150,7 +150,7 @@ func TestWithSigV4_PostBodyStillReadableByServer(t *testing.T) {
 		t.Fatalf("Execute: %v", err)
 	}
 	if receivedBody == "" {
-		t.Error("server received empty body — body was not restored after hashing")
+		t.Error("server received empty body - body was not restored after hashing")
 	}
 	if !strings.Contains(receivedBody, "hello") {
 		t.Errorf("received body %q, expected to contain 'hello'", receivedBody)

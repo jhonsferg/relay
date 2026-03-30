@@ -117,7 +117,7 @@ func TestWithBrotliDecompression_NonBrotliResponsePassthrough(t *testing.T) {
 
 	const want = "plain text response"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// No Content-Encoding header — plain text.
+		// No Content-Encoding header - plain text.
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(want)) //nolint:errcheck

@@ -286,7 +286,7 @@ func TestReset(t *testing.T) {
 	if mt.CallCount() != 0 {
 		t.Errorf("call count after Reset = %d, want 0", mt.CallCount())
 	}
-	// Rules are also reset — now ErrNoMatchingRule.
+	// Rules are also reset - now ErrNoMatchingRule.
 	_, err := c.Execute(c.Get("/"))
 	if !errors.Is(err, relaymock.ErrNoMatchingRule) {
 		t.Errorf("after Reset: error = %v, want ErrNoMatchingRule", err)
@@ -309,7 +309,7 @@ func TestFallback(t *testing.T) {
 	})
 
 	mt := relaymock.New().WithFallback(fallback)
-	// No rules — all requests go to fallback.
+	// No rules - all requests go to fallback.
 	c := client(mt)
 
 	resp, err := c.Execute(c.Get("/unmatched"))

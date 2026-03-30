@@ -1,5 +1,5 @@
 // Package main demonstrates relay's HTTP Digest Authentication support.
-// Digest auth (RFC 7616) is a challenge-response mechanism — the server sends
+// Digest auth (RFC 7616) is a challenge-response mechanism - the server sends
 // a 401 with a WWW-Authenticate: Digest header, and the client computes an
 // HMAC response using the credentials and the nonce, then retries.
 //
@@ -8,7 +8,7 @@
 package main
 
 import (
-	"crypto/md5" //nolint:gosec — MD5 is required by the Digest Auth RFC
+	"crypto/md5" //nolint:gosec - MD5 is required by the Digest Auth RFC
 	"fmt"
 	"log"
 	"math/rand"
@@ -29,7 +29,7 @@ func digestServer(realm, username, password string) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Digest ") {
-			// No credentials yet — issue the challenge.
+			// No credentials yet - issue the challenge.
 			w.Header().Set("WWW-Authenticate", fmt.Sprintf(
 				`Digest realm=%q, nonce=%q, algorithm=MD5, qop="auth"`,
 				realm, nonce,
@@ -92,7 +92,7 @@ func main() {
 	defer srv.Close()
 
 	// -------------------------------------------------------------------------
-	// 2. Client without auth — receives 401.
+	// 2. Client without auth - receives 401.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Without auth → 401 Unauthorized ===")
 	bare := relay.New(relay.WithBaseURL(srv.URL), relay.WithDisableRetry())
@@ -103,7 +103,7 @@ func main() {
 	fmt.Printf("  status: %d %s\n  body:   %s\n\n", resp.StatusCode, resp.Status, resp.String())
 
 	// -------------------------------------------------------------------------
-	// 3. Client with correct Digest credentials — relay handles the
+	// 3. Client with correct Digest credentials - relay handles the
 	//    challenge/response cycle transparently.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== With correct Digest credentials → 200 OK ===")
@@ -119,7 +119,7 @@ func main() {
 	fmt.Printf("  status: %d %s\n  body:   %s\n\n", resp.StatusCode, resp.Status, resp.String())
 
 	// -------------------------------------------------------------------------
-	// 4. Multiple requests — the client reuses the auth state.
+	// 4. Multiple requests - the client reuses the auth state.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Multiple authenticated requests ===")
 	paths := []string{"/api/users", "/api/orders", "/api/products"}

@@ -1,7 +1,7 @@
 // Package relay provides a production-grade, declarative HTTP client for Go.
 //
 // relay is designed with the ergonomics of Python's requests, Kotlin's OkHttp,
-// and Java's OpenFeign — batteries included.
+// and Java's OpenFeign - batteries included.
 //
 // Quick start:
 //

@@ -41,9 +41,9 @@ func main() {
 		log.Fatalf("GET /posts/1 failed: %v", err)
 	}
 
-	// Execute never returns an error for HTTP 4xx/5xx — check IsError() instead.
+	// Execute never returns an error for HTTP 4xx/5xx - check IsError() instead.
 	if resp.IsError() {
-		log.Fatalf("server returned error status: %s — body: %s", resp.Status, resp.String())
+		log.Fatalf("server returned error status: %s - body: %s", resp.Status, resp.String())
 	}
 
 	fmt.Printf("GET /posts/1 → %d %s\n", resp.StatusCode, resp.Status)
@@ -70,7 +70,7 @@ func main() {
 	}
 	fmt.Printf("ExecuteJSON /posts/2 → id=%d title=%q\n\n", post.ID, post.Title)
 
-	// ExecuteAs is the generic alternative — no explicit target variable needed.
+	// ExecuteAs is the generic alternative - no explicit target variable needed.
 	post2, resp2, err := relay.ExecuteAs[Post](client, client.Get("/posts/3"))
 	if err != nil {
 		log.Fatalf("ExecuteAs /posts/3 failed: %v", err)

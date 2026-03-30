@@ -29,7 +29,7 @@ func ExecuteAs[T any](c *Client, req *Request) (T, *Response, error) {
 // ExecuteAsStream sends req and decodes the response body as newline-delimited
 // JSON (JSONL / NDJSON), invoking handler for each decoded value of type T.
 //
-// The stream is consumed lazily — each line is decoded on demand rather than
+// The stream is consumed lazily - each line is decoded on demand rather than
 // buffering the entire response. handler is called synchronously in the
 // goroutine that called ExecuteAsStream.
 //

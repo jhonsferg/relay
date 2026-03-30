@@ -85,7 +85,7 @@ func TestWithPrometheus_DuplicateRegistrationNoError(t *testing.T) {
 	reg := newRegistry()
 
 	// Creating two clients sharing the same registry and namespace should not
-	// panic — AlreadyRegisteredError is silently ignored.
+	// panic - AlreadyRegisteredError is silently ignored.
 	c1 := relay.New(
 		relay.WithBaseURL(srv.URL()),
 		relayprom.WithPrometheus(reg, "dup"),

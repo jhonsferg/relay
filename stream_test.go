@@ -116,7 +116,7 @@ func TestExecuteStream_WithRateLimit_Cancel(t *testing.T) {
 	}
 	_ = stream.Body.Close() //nolint:errcheck
 
-	// Second request must wait — cancel quickly via timeout.
+	// Second request must wait - cancel quickly via timeout.
 	req := c.Get(srv.URL() + "/").WithTimeout(10 * time.Millisecond)
 	_, err = c.ExecuteStream(req)
 	if err == nil {

@@ -77,7 +77,7 @@ func main() {
 	defer apiServer.Close()
 
 	// ---------------------------------------------------------------------------
-	// relayoauth.Config — all fields documented.
+	// relayoauth.Config - all fields documented.
 	// ---------------------------------------------------------------------------
 	oauthCfg := relayoauth.Config{
 		// The token endpoint that implements RFC 6749 Client Credentials.
@@ -86,7 +86,7 @@ func main() {
 		// OAuth 2.0 client identifier registered with the authorization server.
 		ClientID: "my-client-id",
 
-		// Client secret — in production, load from a secret manager or env var.
+		// Client secret - in production, load from a secret manager or env var.
 		ClientSecret: "s3cr3t",
 
 		// Scopes requested from the authorization server.
@@ -126,11 +126,11 @@ func main() {
 		fmt.Printf("GET %-15s → %d: %s\n", path, resp.StatusCode, resp.String())
 	}
 
-	fmt.Printf("\nToken requests to authorization server: %d (expected 1 — cached)\n",
+	fmt.Printf("\nToken requests to authorization server: %d (expected 1 - cached)\n",
 		tokenRequestCount.Load())
 
 	// ---------------------------------------------------------------------------
-	// POST with JSON body — token injection works for all HTTP methods.
+	// POST with JSON body - token injection works for all HTTP methods.
 	// ---------------------------------------------------------------------------
 	type OrderRequest struct {
 		Item     string `json:"item"`

@@ -3,7 +3,7 @@
 //
 // relay emits internal log events (request started, retry attempt, circuit
 // breaker state change, etc.) at the Debug, Info, Warn, and Error levels. Any
-// *zap.Logger — development, production, or custom — can be plugged in with
+// *zap.Logger - development, production, or custom - can be plugged in with
 // a single option.
 package main
 
@@ -82,7 +82,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute: %v", err)
 	}
-	fmt.Printf("\nFinal response: %d — %s\n", resp.StatusCode, resp.String())
+	fmt.Printf("\nFinal response: %d - %s\n", resp.StatusCode, resp.String())
 
 	// ---------------------------------------------------------------------------
 	// 4. Named child logger per request context.
@@ -104,7 +104,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute client2: %v", err)
 	}
-	fmt.Printf("Final response: %d — %s\n", resp2.StatusCode, resp2.String())
+	fmt.Printf("Final response: %d - %s\n", resp2.StatusCode, resp2.String())
 
 	// ---------------------------------------------------------------------------
 	// 5. SugaredLogger variant.
@@ -125,5 +125,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute client3: %v", err)
 	}
-	fmt.Printf("Final response: %d — %s\n", resp3.StatusCode, resp3.String())
+	fmt.Printf("Final response: %d - %s\n", resp3.StatusCode, resp3.String())
 }

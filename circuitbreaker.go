@@ -61,7 +61,7 @@ type CircuitBreakerConfig struct {
 
 	// OnStateChange is an optional callback invoked on every state transition.
 	// It receives the previous and new states. The callback is invoked OUTSIDE
-	// the breaker's internal mutex — it is safe to call breaker methods from
+	// the breaker's internal mutex - it is safe to call breaker methods from
 	// within it.
 	OnStateChange func(from, to CircuitBreakerState)
 }

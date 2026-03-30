@@ -39,13 +39,13 @@ func main() {
 	fmt.Printf("Server certificate pin: %s\n\n", correctPin)
 
 	// -------------------------------------------------------------------------
-	// 2. Client with the correct pin — request succeeds.
+	// 2. Client with the correct pin - request succeeds.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Correct pin → request succeeds ===")
 	pinnedClient := relay.New(
 		relay.WithBaseURL(srv.URL),
 		relay.WithCertificatePinning([]string{correctPin}),
-		// The test server uses a self-signed cert — skip normal chain validation
+		// The test server uses a self-signed cert - skip normal chain validation
 		// so only our pin check matters. In production you do NOT skip verify.
 		relay.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}), //nolint:gosec
 	)
@@ -57,7 +57,7 @@ func main() {
 	fmt.Printf("  status: %d\n  body:   %s\n\n", resp.StatusCode, resp.String())
 
 	// -------------------------------------------------------------------------
-	// 3. Client with a wrong pin — connection is rejected.
+	// 3. Client with a wrong pin - connection is rejected.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Wrong pin → connection rejected ===")
 	wrongClient := relay.New(
@@ -79,7 +79,7 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// 4. Multiple pins — allows rolling key rotation.
+	// 4. Multiple pins - allows rolling key rotation.
 	//
 	// Pin both the current and next certificate so that rotation can happen
 	// on the server without taking clients down. Clients accept either pin.

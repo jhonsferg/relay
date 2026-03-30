@@ -117,7 +117,7 @@ func (r *Request) Method() string { return r.method }
 func (r *Request) URL() string { return r.rawURL }
 
 // WithContext sets the context used for this request. If the context carries a
-// deadline it races with any timeout set via [Request.WithTimeout] — whichever
+// deadline it races with any timeout set via [Request.WithTimeout] - whichever
 // fires first cancels the request.
 func (r *Request) WithContext(ctx context.Context) *Request { r.ctx = ctx; return r }
 
@@ -149,7 +149,7 @@ func (r *Request) WithPathParams(params map[string]string) *Request {
 }
 
 // WithTag attaches a client-side key/value label to the request.
-// Tags are NOT sent as HTTP headers — they are visible to [Config.OnBeforeRequest]
+// Tags are NOT sent as HTTP headers - they are visible to [Config.OnBeforeRequest]
 // and [Config.OnAfterResponse] hooks for logging, metrics labelling, etc.
 //
 //	req.WithTag("operation", "CreateOrder").WithTag("team", "payments")

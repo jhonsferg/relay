@@ -22,7 +22,7 @@ func TestHealthCheck_ResetsOpenCircuit(t *testing.T) {
 	client := relay.New(
 		relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
 			MaxFailures:      1,
-			ResetTimeout:     10 * time.Minute, // long — health check must beat this
+			ResetTimeout:     10 * time.Minute, // long - health check must beat this
 			HalfOpenRequests: 1,
 			SuccessThreshold: 1,
 		}),
@@ -65,7 +65,7 @@ func TestHealthCheck_DoesNotPollWhenClosed(t *testing.T) {
 		relay.WithHealthCheck(health.URL, 10*time.Millisecond, time.Second, 200),
 	)
 
-	// Circuit is closed — health check goroutine should not probe.
+	// Circuit is closed - health check goroutine should not probe.
 	time.Sleep(60 * time.Millisecond)
 
 	if n := probes.Load(); n > 0 {
@@ -103,7 +103,7 @@ func TestHealthCheck_UnhealthyEndpointDoesNotReset(t *testing.T) {
 		t.Fatal("expected circuit to be open")
 	}
 
-	// Wait a bit — health check should NOT reset the breaker.
+	// Wait a bit - health check should NOT reset the breaker.
 	time.Sleep(120 * time.Millisecond)
 
 	if client.CircuitBreakerState() != relay.StateOpen {

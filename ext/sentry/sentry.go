@@ -32,10 +32,10 @@
 //
 // The behavior can be tuned with [Option] functions:
 //
-//   - [WithCaptureTransportErrors] — capture network/timeout errors (default: true)
-//   - [WithCaptureServerErrors]    — capture 5xx responses as events (default: true)
-//   - [WithCaptureClientErrors]    — capture 4xx responses as events (default: false)
-//   - [WithBreadcrumbs]            — add breadcrumb for every request (default: true)
+//   - [WithCaptureTransportErrors] - capture network/timeout errors (default: true)
+//   - [WithCaptureServerErrors]    - capture 5xx responses as events (default: true)
+//   - [WithCaptureClientErrors]    - capture 4xx responses as events (default: false)
+//   - [WithBreadcrumbs]            - add breadcrumb for every request (default: true)
 package sentry
 
 import (

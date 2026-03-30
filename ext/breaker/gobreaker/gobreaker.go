@@ -57,7 +57,7 @@ import (
 
 // WithGoBreaker returns a [relay.Option] that installs a sony/gobreaker circuit
 // breaker as a transport middleware. Each HTTP call (after relay's retrier) is
-// executed inside cb.Execute — failures recorded by the breaker are determined
+// executed inside cb.Execute - failures recorded by the breaker are determined
 // by the IsSuccessful setting in the provided Settings.
 //
 // By default (when IsSuccessful is nil) the breaker counts any error OR any
@@ -99,7 +99,7 @@ func (t *gobreakerTransport) RoundTrip(req *http.Request) (*http.Response, error
 	})
 
 	if err != nil {
-		// If the error is our own httpStatusError the breaker tripped on a 5xx —
+		// If the error is our own httpStatusError the breaker tripped on a 5xx -
 		// unwrap and return the response + no error so relay can inspect it.
 		if se, ok := err.(*httpStatusError); ok {
 			return se.resp, nil

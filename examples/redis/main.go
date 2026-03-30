@@ -44,7 +44,7 @@ func main() {
 	// ---------------------------------------------------------------------------
 	// 2. Build the relay CacheStore backed by Redis.
 	//
-	// The prefix "demo:http:" namespaces all cache keys — safe to share a Redis
+	// The prefix "demo:http:" namespaces all cache keys - safe to share a Redis
 	// instance with other apps. Multiple relay clients can use different prefixes
 	// on the same rdb connection.
 	// ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ func main() {
 	}
 
 	// ---------------------------------------------------------------------------
-	// 5. Cache MISS — first request goes to the origin.
+	// 5. Cache MISS - first request goes to the origin.
 	// ---------------------------------------------------------------------------
 	fmt.Println("=== Request 1: cache MISS ===")
 	resp, err := client.Execute(client.Get("/products/1"))
@@ -94,10 +94,10 @@ func main() {
 		log.Fatalf("request 1: %v", err)
 	}
 	fmt.Printf("  Status: %d   Body: %s\n", resp.StatusCode, resp.String())
-	printHits("(expected 1 — first request)", serverHits)
+	printHits("(expected 1 - first request)", serverHits)
 
 	// ---------------------------------------------------------------------------
-	// 6. Cache HIT — same URL served from Redis, origin not contacted.
+	// 6. Cache HIT - same URL served from Redis, origin not contacted.
 	// ---------------------------------------------------------------------------
 	fmt.Println("\n=== Request 2: cache HIT (same URL) ===")
 	resp, err = client.Execute(client.Get("/products/1"))
@@ -105,10 +105,10 @@ func main() {
 		log.Fatalf("request 2: %v", err)
 	}
 	fmt.Printf("  Status: %d   Body: %s\n", resp.StatusCode, resp.String())
-	printHits("(expected 1 — served from Redis cache)", serverHits)
+	printHits("(expected 1 - served from Redis cache)", serverHits)
 
 	// ---------------------------------------------------------------------------
-	// 7. Different URL — new cache MISS.
+	// 7. Different URL - new cache MISS.
 	// ---------------------------------------------------------------------------
 	fmt.Println("\n=== Request 3: cache MISS (different path) ===")
 	resp, err = client.Execute(client.Get("/products/2"))
@@ -116,7 +116,7 @@ func main() {
 		log.Fatalf("request 3: %v", err)
 	}
 	fmt.Printf("  Status: %d   Body: %s\n", resp.StatusCode, resp.String())
-	printHits("(expected 2 — new path)", serverHits)
+	printHits("(expected 2 - new path)", serverHits)
 
 	// ---------------------------------------------------------------------------
 	// 8. Cache-Control: no-cache forces revalidation even if cached.
@@ -129,7 +129,7 @@ func main() {
 		log.Fatalf("request 4: %v", err)
 	}
 	fmt.Printf("  Status: %d   Body: %s\n", resp.StatusCode, resp.String())
-	printHits("(expected 3 — revalidated with origin)", serverHits)
+	printHits("(expected 3 - revalidated with origin)", serverHits)
 
 	// ---------------------------------------------------------------------------
 	// 9. TTL expiry: fast-forward miniredis clock past max-age.
@@ -142,7 +142,7 @@ func main() {
 		log.Fatalf("request 5: %v", err)
 	}
 	fmt.Printf("  Status: %d   Body: %s\n", resp.StatusCode, resp.String())
-	printHits("(expected 4 — Redis TTL expired, fetched fresh)", serverHits)
+	printHits("(expected 4 - Redis TTL expired, fetched fresh)", serverHits)
 
 	// ---------------------------------------------------------------------------
 	// 10. Manual cache invalidation via store.Delete / store.Clear.
@@ -158,7 +158,7 @@ func main() {
 	store.Delete("GET:" + srv.URL + "/products/10")
 	fmt.Println("  Deleted /products/10 from cache.")
 
-	// Clear ALL keys under the "demo:http:" prefix — other Redis data unaffected.
+	// Clear ALL keys under the "demo:http:" prefix - other Redis data unaffected.
 	store.Clear()
 	fmt.Println("  Cleared all demo:http: keys.")
 
