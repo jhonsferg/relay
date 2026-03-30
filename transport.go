@@ -10,7 +10,7 @@ import (
 )
 
 // overrideDialer is a [net.Dialer] wrapper that substitutes specific hostnames
-// with fixed IP addresses before dialing, effectively bypassing DNS resolution
+// with fixed IP addresses before dialling, effectively bypassing DNS resolution
 // for those hosts. See [WithDNSOverride].
 type overrideDialer struct {
 	// base is the underlying dialer used for the actual TCP connection.
@@ -22,7 +22,7 @@ type overrideDialer struct {
 }
 
 // DialContext resolves the target hostname against the override map. If a
-// match is found the fixed IP replaces the hostname before dialing; otherwise
+// match is found the fixed IP replaces the hostname before dialling; otherwise
 // the address is passed to the base dialer unchanged.
 func (d *overrideDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if host, port, err := net.SplitHostPort(addr); err == nil {
@@ -56,12 +56,15 @@ func buildTransport(cfg *Config) http.RoundTripper {
 	if len(cfg.DNSOverrides) > 0 {
 		od := &overrideDialer{base: dialer, hosts: cfg.DNSOverrides}
 		dialFn = od.DialContext
+	} else if cfg.DNSCache != nil {
+		cd := &cachedDialer{base: dialer, cache: newDNSCache(cfg.DNSCache.TTL)}
+		dialFn = cd.DialContext
 	}
 
 	tlsCfg := cfg.TLSConfig
 	if tlsCfg == nil {
 		// Enforce TLS 1.2 minimum when no explicit config is provided.
-		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
+		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12} //nolint:gosec
 	}
 
 	proxyFunc := http.ProxyFromEnvironment

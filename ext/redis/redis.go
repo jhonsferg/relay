@@ -1,5 +1,5 @@
 // Package redis provides a Redis-backed [relay.CacheStore] for the relay HTTP
-// client. Cache entries are serialised as JSON blobs and stored with a TTL
+// client. Cache entries are serialized as JSON blobs and stored with a TTL
 // derived from each entry's ExpiresAt field. Keys are namespaced with a
 // caller-supplied prefix so multiple clients can share one Redis instance
 // without collisions.

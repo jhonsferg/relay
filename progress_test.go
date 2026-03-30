@@ -11,7 +11,6 @@ import (
 )
 
 func TestUploadProgress_CallbackReceivesBytes(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -49,7 +48,6 @@ func TestUploadProgress_CallbackReceivesBytes(t *testing.T) {
 }
 
 func TestUploadProgress_TransferredNeverExceedsTotal(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -72,7 +70,6 @@ func TestUploadProgress_TransferredNeverExceedsTotal(t *testing.T) {
 }
 
 func TestDownloadProgress_CallbackReceivesBytes(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -110,7 +107,6 @@ func TestDownloadProgress_CallbackReceivesBytes(t *testing.T) {
 }
 
 func TestDownloadProgress_UnknownContentLength(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -147,7 +143,6 @@ func TestDownloadProgress_UnknownContentLength(t *testing.T) {
 }
 
 func TestProgressReader_MonotonicTransferred(t *testing.T) {
-	t.Parallel()
 
 	content := []byte(strings.Repeat("z", 256))
 	var prev int64
@@ -176,7 +171,6 @@ func TestProgressReader_MonotonicTransferred(t *testing.T) {
 }
 
 func TestProgressReadCloser_Close(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "data"})

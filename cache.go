@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// CachedResponse holds a serialized HTTP response for replay. It is stored by
+// CachedResponse holds a serialised HTTP response for replay. It is stored by
 // [cachingTransport] after a cache-eligible response is received and returned
 // on subsequent matching requests until the entry expires.
 type CachedResponse struct {
@@ -224,7 +224,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	// 304 Not Modified — serve the existing cached entry without re-storing.
 	if resp.StatusCode == http.StatusNotModified {
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck
 		if hasCached {
 			return replayResponse(req, cached), nil
 		}
@@ -249,7 +249,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 // the body cannot be read.
 func buildCacheEntry(resp *http.Response) *CachedResponse {
 	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close() //nolint:errcheck
 	if err != nil {
 		return nil
 	}

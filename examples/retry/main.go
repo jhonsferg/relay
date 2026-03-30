@@ -57,16 +57,16 @@ func main() {
 
 		// Retry these specific HTTP status codes in addition to network errors.
 		RetryableStatus: []int{
-			http.StatusTooManyRequests,      // 429
-			http.StatusInternalServerError,  // 500
-			http.StatusBadGateway,           // 502
-			http.StatusServiceUnavailable,   // 503
-			http.StatusGatewayTimeout,       // 504
+			http.StatusTooManyRequests,     // 429
+			http.StatusInternalServerError, // 500
+			http.StatusBadGateway,          // 502
+			http.StatusServiceUnavailable,  // 503
+			http.StatusGatewayTimeout,      // 504
 		},
 
 		// RetryIf is an optional veto: return false to skip a retry even when
 		// the status or error is in the retryable set.
-		// Here we never retry if the context was explicitly cancelled.
+		// Here we never retry if the context was explicitly canceled.
 		RetryIf: func(resp *http.Response, err error) bool {
 			if err != nil {
 				// Skip retrying on context cancellation — that was intentional.

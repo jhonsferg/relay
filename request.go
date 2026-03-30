@@ -89,6 +89,10 @@ type Request struct {
 	// it is reused across retry attempts. Set via WithIdempotencyKey or
 	// auto-generated when WithAutoIdempotencyKey is configured.
 	idempotencyKey string
+
+	// maxBodyBytes is a per-request override for [Config.MaxResponseBodyBytes].
+	// Zero means use the client-level default.
+	maxBodyBytes int64
 }
 
 // newRequest allocates a Request with all maps initialised and a background
@@ -104,6 +108,13 @@ func newRequest(method, rawURL string) *Request {
 		pathParams: make(map[string]string),
 	}
 }
+
+// Method returns the HTTP verb for this request (e.g. "GET", "POST").
+func (r *Request) Method() string { return r.method }
+
+// URL returns the raw URL string as provided to the builder, before path
+// parameters are substituted or query parameters are appended.
+func (r *Request) URL() string { return r.rawURL }
 
 // WithContext sets the context used for this request. If the context carries a
 // deadline it races with any timeout set via [Request.WithTimeout] — whichever
@@ -340,6 +351,49 @@ func (r *Request) WithDownloadProgress(fn ProgressFunc) *Request {
 func (r *Request) WithIdempotencyKey(key string) *Request {
 	r.idempotencyKey = key
 	return r
+}
+
+// WithMaxBodySize overrides the client-level [Config.MaxResponseBodyBytes] for
+// this single request. Pass 0 to fall back to the client default (10 MB).
+// Pass -1 to remove the limit entirely for this request.
+func (r *Request) WithMaxBodySize(n int64) *Request { r.maxBodyBytes = n; return r }
+
+// Clone returns a deep copy of the request. All maps and slices are
+// independently duplicated so mutations to the clone do not affect the
+// original, and vice-versa. The body bytes slice is also copied.
+//
+// Clone is useful when the same base request needs to be dispatched with
+// different headers, query params, or bodies without constructing from scratch.
+func (r *Request) Clone() *Request {
+	clone := *r
+
+	clone.headers = make(map[string]string, len(r.headers))
+	for k, v := range r.headers {
+		clone.headers[k] = v
+	}
+
+	clone.query = make(url.Values, len(r.query))
+	for k, v := range r.query {
+		clone.query[k] = append([]string(nil), v...)
+	}
+
+	clone.pathParams = make(map[string]string, len(r.pathParams))
+	for k, v := range r.pathParams {
+		clone.pathParams[k] = v
+	}
+
+	if r.tags != nil {
+		clone.tags = make(map[string]string, len(r.tags))
+		for k, v := range r.tags {
+			clone.tags[k] = v
+		}
+	}
+
+	if r.bodyBytes != nil {
+		clone.bodyBytes = append([]byte(nil), r.bodyBytes...)
+	}
+
+	return &clone
 }
 
 // withCtx returns a shallow clone of r with the context replaced. Used

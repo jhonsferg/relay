@@ -36,7 +36,7 @@ func TestRequest_WithPathParam(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL() + "/users/{id}").WithPathParam("id", "42")
+	req := c.Get(srv.URL()+"/users/{id}").WithPathParam("id", "42")
 	c.Execute(req) //nolint:errcheck
 	rec, _ := srv.TakeRequest(time.Second)
 	if rec.Path != "/users/42" {
@@ -51,7 +51,7 @@ func TestRequest_WithPathParams(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL()+"/orgs/{org}/users/{id}").WithPathParams(map[string]string{
+	req := c.Get(srv.URL() + "/orgs/{org}/users/{id}").WithPathParams(map[string]string{
 		"org": "acme",
 		"id":  "99",
 	})
@@ -132,7 +132,7 @@ func TestRequest_WithQueryParamValues(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL() + "/").WithQueryParamValues("ids", []string{"1", "2", "3"})
+	req := c.Get(srv.URL()+"/").WithQueryParamValues("ids", []string{"1", "2", "3"})
 	c.Execute(req) //nolint:errcheck
 	rec, _ := srv.TakeRequest(time.Second)
 	if len(rec.Query["ids"]) != 3 {
@@ -147,7 +147,7 @@ func TestRequest_WithContentType(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Post(srv.URL()+"/").WithBody([]byte("data")).WithContentType("text/plain")
+	req := c.Post(srv.URL() + "/").WithBody([]byte("data")).WithContentType("text/plain")
 	c.Execute(req) //nolint:errcheck
 	rec, _ := srv.TakeRequest(time.Second)
 	if rec.Headers.Get("Content-Type") != "text/plain" {
@@ -207,7 +207,7 @@ func TestRequest_WithAPIKey(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL() + "/").WithAPIKey("X-API-Key", "secret123")
+	req := c.Get(srv.URL()+"/").WithAPIKey("X-API-Key", "secret123")
 	c.Execute(req) //nolint:errcheck
 	rec, _ := srv.TakeRequest(time.Second)
 	if rec.Headers.Get("X-API-Key") != "secret123" {
@@ -324,7 +324,7 @@ func TestRequest_WithBasicAuth(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL() + "/").WithBasicAuth("user", "pass")
+	req := c.Get(srv.URL()+"/").WithBasicAuth("user", "pass")
 	c.Execute(req) //nolint:errcheck
 	rec, _ := srv.TakeRequest(time.Second)
 	auth := rec.Headers.Get("Authorization")

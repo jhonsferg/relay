@@ -91,7 +91,7 @@ func (m *managedReadCloser) Close() error {
 // been consumed when ExecuteStream returns.
 //
 // If a per-request timeout is set via [Request.WithTimeout], the deadline
-// context is cancelled automatically when Body.Close() is called.
+// context is canceled automatically when Body.Close() is called.
 func (c *Client) ExecuteStream(req *Request) (*StreamResponse, error) {
 	if req == nil {
 		return nil, ErrNilRequest

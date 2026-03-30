@@ -9,7 +9,6 @@ import (
 )
 
 func TestTiming_TotalIsPositiveAfterExecute(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "timing-body"})
@@ -26,7 +25,6 @@ func TestTiming_TotalIsPositiveAfterExecute(t *testing.T) {
 }
 
 func TestTiming_TotalReflectsActualElapsed(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -56,7 +54,6 @@ func TestTiming_TotalReflectsActualElapsed(t *testing.T) {
 }
 
 func TestTiming_NonNegativeBreakdown(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "breakdown"})
@@ -87,7 +84,6 @@ func TestTiming_NonNegativeBreakdown(t *testing.T) {
 }
 
 func TestBuildTiming_TotalSet(t *testing.T) {
-	t.Parallel()
 	col := &timingCollector{}
 	total := 42 * time.Millisecond
 
@@ -98,7 +94,6 @@ func TestBuildTiming_TotalSet(t *testing.T) {
 }
 
 func TestBuildTiming_DNSLookupComputed(t *testing.T) {
-	t.Parallel()
 	now := time.Now()
 	col := &timingCollector{
 		dnsStart: now,
@@ -112,7 +107,6 @@ func TestBuildTiming_DNSLookupComputed(t *testing.T) {
 }
 
 func TestBuildTiming_TCPConnectComputed(t *testing.T) {
-	t.Parallel()
 	now := time.Now()
 	col := &timingCollector{
 		connStart: now,
@@ -126,7 +120,6 @@ func TestBuildTiming_TCPConnectComputed(t *testing.T) {
 }
 
 func TestBuildTiming_ZeroWhenTimestampsMissing(t *testing.T) {
-	t.Parallel()
 	col := &timingCollector{} // all zero times
 
 	timing := buildTiming(col, 50*time.Millisecond)
@@ -142,7 +135,6 @@ func TestBuildTiming_ZeroWhenTimestampsMissing(t *testing.T) {
 }
 
 func TestTiming_MultipleRequests(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 

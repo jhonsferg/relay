@@ -38,7 +38,7 @@ func (c Config) Next(attempt int) time.Duration {
 
 	if c.RandomFactor > 0 {
 		// Full jitter: random value in [0, base * RandomFactor]
-		jitter := rand.Float64() * c.RandomFactor * base
+		jitter := rand.Float64() * c.RandomFactor * base //nolint:gosec
 		base = base - (c.RandomFactor*base)/2 + jitter
 	}
 

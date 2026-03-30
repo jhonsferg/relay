@@ -16,7 +16,7 @@ const (
 	ErrorClassTransient                     // may succeed on a subsequent attempt
 	ErrorClassPermanent                     // will not succeed on retry (4xx)
 	ErrorClassRateLimited                   // 429 Too Many Requests
-	ErrorClassCanceled                      // caller cancelled the context
+	ErrorClassCanceled                      // caller canceled the context
 )
 
 // String returns the human-readable class name.
@@ -104,7 +104,7 @@ func IsTransientError(err error, resp *Response) bool {
 }
 
 // IsPermanentError reports whether the error will not succeed on retry
-// (e.g. 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found).
+// (e.g. 400 Bad Request, 401 Unauthorised, 403 Forbidden, 404 Not Found).
 func IsPermanentError(err error, resp *Response) bool {
 	return ClassifyError(err, resp) == ErrorClassPermanent
 }

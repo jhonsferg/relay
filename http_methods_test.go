@@ -9,7 +9,6 @@ import (
 )
 
 func TestClient_Put(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -29,7 +28,6 @@ func TestClient_Put(t *testing.T) {
 }
 
 func TestClient_Patch(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -49,7 +47,6 @@ func TestClient_Patch(t *testing.T) {
 }
 
 func TestClient_Delete(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusNoContent})
@@ -69,7 +66,6 @@ func TestClient_Delete(t *testing.T) {
 }
 
 func TestClient_Head(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -89,7 +85,6 @@ func TestClient_Head(t *testing.T) {
 }
 
 func TestClient_Options(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -109,7 +104,6 @@ func TestClient_Options(t *testing.T) {
 }
 
 func TestClient_CloseIdleConnections(t *testing.T) {
-	t.Parallel()
 	c := New()
 	// Should not panic.
 	c.CloseIdleConnections()

@@ -2,6 +2,7 @@ package zerolog_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -160,11 +161,16 @@ func TestNewAdapter_IntegrationWithRelayClient(t *testing.T) {
 	var buf bytes.Buffer
 	adapter := newBufAdapter(&buf, zerolog.DebugLevel)
 
+	// Emit a log entry via OnBeforeRequest to verify the adapter is wired up.
 	c := relay.New(
 		relay.WithBaseURL(srv.URL),
 		relay.WithLogger(adapter),
 		relay.WithDisableRetry(),
 		relay.WithDisableCircuitBreaker(),
+		relay.WithOnBeforeRequest(func(_ context.Context, req *relay.Request) error {
+			adapter.Debug("before request", "url", req.URL())
+			return nil
+		}),
 	)
 
 	_, err := c.Execute(c.Get("/ping"))
@@ -173,7 +179,7 @@ func TestNewAdapter_IntegrationWithRelayClient(t *testing.T) {
 	}
 
 	if buf.Len() == 0 {
-		t.Error("expected at least one log entry from relay client")
+		t.Error("expected at least one log entry from OnBeforeRequest hook")
 	}
 
 	// Verify output is valid JSON.
