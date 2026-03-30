@@ -161,7 +161,7 @@ func TestTakeRequest_BlocksUntilRequestArrives(t *testing.T) {
 
 	c := relay.New(relay.WithDisableRetry(), relay.WithDisableCircuitBreaker())
 
-	// TakeRequest before the request fires — it should block briefly.
+	// TakeRequest before the request fires - it should block briefly.
 	go func() {
 		time.Sleep(20 * time.Millisecond)
 		c.Execute(c.Get(srv.URL() + "/")) //nolint:errcheck
@@ -181,7 +181,7 @@ func TestTakeRequest_TimeoutWhenNoRequest(t *testing.T) {
 	srv := NewMockServer()
 	defer srv.Close()
 
-	// Don't send any request — TakeRequest should time out.
+	// Don't send any request - TakeRequest should time out.
 	_, err := srv.TakeRequest(50 * time.Millisecond)
 	if err == nil {
 		t.Error("expected timeout error when no request arrives")
@@ -223,7 +223,7 @@ func TestMockServer_DefaultResponseWhenQueueEmpty(t *testing.T) {
 	srv := NewMockServer()
 	defer srv.Close()
 
-	// Don't enqueue anything — server should return 200 OK by default.
+	// Don't enqueue anything - server should return 200 OK by default.
 	c := relay.New(relay.WithDisableRetry(), relay.WithDisableCircuitBreaker())
 	resp, err := c.Execute(c.Get(srv.URL() + "/"))
 	if err != nil {

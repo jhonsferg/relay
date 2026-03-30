@@ -19,7 +19,7 @@ import (
 
 func main() {
 	// -------------------------------------------------------------------------
-	// 1. Basic usage — 30-second DNS TTL.
+	// 1. Basic usage - 30-second DNS TTL.
 	// -------------------------------------------------------------------------
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -42,7 +42,7 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// 2. Concurrency — many goroutines dial simultaneously.
+	// 2. Concurrency - many goroutines dial simultaneously.
 	//    Without caching each goroutine would trigger its own OS DNS lookup.
 	//    With the cache only the first lookup goes to the resolver; the rest
 	//    read from the in-memory cache.
@@ -68,7 +68,7 @@ func main() {
 	fmt.Printf("  %d/20 requests succeeded\n", success.Load())
 
 	// -------------------------------------------------------------------------
-	// 3. Short TTL — cache expires and triggers fresh lookups.
+	// 3. Short TTL - cache expires and triggers fresh lookups.
 	// -------------------------------------------------------------------------
 	fmt.Println("\n=== Short TTL (10 ms) ===")
 	shortClient := relay.New(
@@ -90,7 +90,7 @@ func main() {
 	//
 	// WithDNSOverride pins a specific IP for a hostname (bypasses DNS entirely).
 	// WithDNSCache caches the result of normal DNS resolution.
-	// They are mutually exclusive in transport wiring — use one or the other.
+	// They are mutually exclusive in transport wiring - use one or the other.
 	// -------------------------------------------------------------------------
 	fmt.Println("\n=== DNS cache vs DNS override ===")
 

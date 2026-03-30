@@ -209,7 +209,7 @@ func TestCacheStore_AlreadyExpiredEntryNotStored(t *testing.T) {
 	t.Parallel()
 	store, _ := newTestStore(t)
 
-	// ExpiresAt in the past — Set should be a no-op.
+	// ExpiresAt in the past - Set should be a no-op.
 	entry := sampleEntry(0)
 	entry.ExpiresAt = time.Now().Add(-time.Second)
 	store.Set("past", entry)
@@ -269,7 +269,7 @@ func TestCacheStore_IntegrationWithRelayClient(t *testing.T) {
 		relay.WithDisableCircuitBreaker(),
 	)
 
-	// First request: cache miss — hits the server.
+	// First request: cache miss - hits the server.
 	resp, err := c.Execute(c.Get("/resource"))
 	if err != nil {
 		t.Fatalf("first Execute: %v", err)
@@ -281,7 +281,7 @@ func TestCacheStore_IntegrationWithRelayClient(t *testing.T) {
 		t.Errorf("hits after first request = %d, want 1", hits)
 	}
 
-	// Second request: cache hit — server not contacted.
+	// Second request: cache hit - server not contacted.
 	resp, err = c.Execute(c.Get("/resource"))
 	if err != nil {
 		t.Fatalf("second Execute: %v", err)

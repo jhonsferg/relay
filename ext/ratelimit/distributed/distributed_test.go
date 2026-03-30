@@ -46,7 +46,7 @@ func TestAllow_ExceedsLimit(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		limiter.Allow(ctx) //nolint:errcheck — consume quota
+		limiter.Allow(ctx) //nolint:errcheck - consume quota
 	}
 
 	err := limiter.Allow(ctx)
@@ -66,7 +66,7 @@ func TestAllow_WindowExpiry(t *testing.T) {
 	limiter.Allow(ctx) //nolint:errcheck
 	limiter.Allow(ctx) //nolint:errcheck
 
-	// Window is full — should be rate limited.
+	// Window is full - should be rate limited.
 	if err := limiter.Allow(ctx); !errors.Is(err, relaydist.ErrRateLimited) {
 		t.Fatalf("expected ErrRateLimited before window expiry, got %v", err)
 	}
@@ -74,14 +74,14 @@ func TestAllow_WindowExpiry(t *testing.T) {
 	// Fast-forward past the window.
 	mr.FastForward(150 * time.Millisecond)
 
-	// Window has reset — should be allowed again.
+	// Window has reset - should be allowed again.
 	if err := limiter.Allow(ctx); err != nil {
 		t.Fatalf("expected allow after window reset, got %v", err)
 	}
 }
 
 func TestAllow_FailOpen_OnRedisError(t *testing.T) {
-	// Use a Redis client pointing at a closed port — simulates Redis unavailability.
+	// Use a Redis client pointing at a closed port - simulates Redis unavailability.
 	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"})
 	limiter := relaydist.New(rdb, "rl:failopen", 1, time.Second)
 
@@ -136,7 +136,7 @@ func TestWithRateLimit_IntegrationWithRelay(t *testing.T) {
 func TestWithRateLimit_IsolatedKeys(t *testing.T) {
 	_, rdb := newRedis(t)
 
-	// Two limiters with different keys — isolated quotas.
+	// Two limiters with different keys - isolated quotas.
 	l1 := relaydist.New(rdb, "rl:user:alice", 2, time.Second)
 	l2 := relaydist.New(rdb, "rl:user:bob", 2, time.Second)
 
@@ -176,6 +176,6 @@ func TestWithRateLimit_ConcurrentRequests(t *testing.T) {
 	wg.Wait()
 
 	if int(allowed.Load()) > limit {
-		t.Errorf("allowed %d requests, limit is %d — sliding window violated", allowed.Load(), limit)
+		t.Errorf("allowed %d requests, limit is %d - sliding window violated", allowed.Load(), limit)
 	}
 }

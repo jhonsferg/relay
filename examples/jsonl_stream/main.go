@@ -35,7 +35,7 @@ type ChatDelta struct {
 
 func main() {
 	// -------------------------------------------------------------------------
-	// 1. JSONL log stream — read all records.
+	// 1. JSONL log stream - read all records.
 	// -------------------------------------------------------------------------
 	logs := []LogLine{
 		{Level: "info", Message: "server started", Service: "api", Code: 0},
@@ -80,7 +80,7 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// 2. Stop early — read only until first error line.
+	// 2. Stop early - read only until first error line.
 	// -------------------------------------------------------------------------
 	fmt.Println("\n=== stop on first error ===")
 	count := 0

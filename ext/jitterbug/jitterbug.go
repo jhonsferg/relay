@@ -2,9 +2,9 @@
 // client. The built-in relay retry uses exponential backoff with full jitter.
 // This package adds:
 //
-//   - [WithDecorrelatedJitter] — AWS-recommended decorrelated jitter
-//   - [WithLinearBackoff] — linearly growing delay with optional jitter
-//   - [WithRetryBudget] — hard total-time ceiling across all attempts
+//   - [WithDecorrelatedJitter] - AWS-recommended decorrelated jitter
+//   - [WithLinearBackoff] - linearly growing delay with optional jitter
+//   - [WithRetryBudget] - hard total-time ceiling across all attempts
 //
 // All strategies implement an [http.RoundTripper] transport middleware and plug
 // in via [relay.WithTransportMiddleware]. Because they manage their own retry

@@ -111,7 +111,7 @@ func main() {
 		}
 	}
 
-	fmt.Printf("\nBatch summary — elapsed: %s\n", elapsed.Round(time.Millisecond))
+	fmt.Printf("\nBatch summary - elapsed: %s\n", elapsed.Round(time.Millisecond))
 	fmt.Printf("  success      : %d\n", successCount)
 	fmt.Printf("  HTTP errors  : %d\n", httpErrCount)
 	fmt.Printf("  transport err: %d\n", errorCount)

@@ -35,7 +35,7 @@ func main() {
 	defer srv.Close()
 
 	// ---------------------------------------------------------------------------
-	// CircuitBreakerConfig — every field documented.
+	// CircuitBreakerConfig - every field documented.
 	// ---------------------------------------------------------------------------
 	cbCfg := &relay.CircuitBreakerConfig{
 		// Trip to Open after this many consecutive failures in the Closed state.
@@ -52,7 +52,7 @@ func main() {
 		SuccessThreshold: 2,
 
 		// OnStateChange is called on every transition. The callback runs with
-		// the circuit breaker's internal mutex held — do NOT call back into the
+		// the circuit breaker's internal mutex held - do NOT call back into the
 		// client from inside this callback.
 		OnStateChange: func(from, to relay.CircuitBreakerState) {
 			fmt.Printf("[circuit breaker] %s → %s\n", from, to)
@@ -76,7 +76,7 @@ func main() {
 		healthy := client.IsHealthy()
 
 		if errors.Is(err, relay.ErrCircuitOpen) {
-			fmt.Printf("  request %d: circuit is OPEN — rejected without network call\n", i)
+			fmt.Printf("  request %d: circuit is OPEN - rejected without network call\n", i)
 			fmt.Printf("  IsHealthy()=%v  State=%s\n", healthy, state)
 			continue
 		}
@@ -115,9 +115,9 @@ func main() {
 	}
 
 	// ---------------------------------------------------------------------------
-	// Phase 4: circuit is Closed again — normal operation resumes.
+	// Phase 4: circuit is Closed again - normal operation resumes.
 	// ---------------------------------------------------------------------------
-	fmt.Println("\n=== Phase 4: circuit closed — normal operation ===")
+	fmt.Println("\n=== Phase 4: circuit closed - normal operation ===")
 	resp, err := client.Execute(client.Get("/api"))
 	if err != nil {
 		log.Fatalf("unexpected error after recovery: %v", err)

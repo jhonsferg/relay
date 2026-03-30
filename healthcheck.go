@@ -17,7 +17,7 @@ import (
 type HealthCheckConfig struct {
 	// URL is the HTTP endpoint to probe. It must be a fully-qualified URL
 	// (e.g. "https://api.example.com/health"). The client issues a plain GET
-	// using the standard library — not through the relay pipeline — so the
+	// using the standard library - not through the relay pipeline - so the
 	// probe is not subject to the main circuit breaker, retries, or rate limiter.
 	URL string
 
@@ -50,7 +50,7 @@ func (c *Client) runHealthCheck(ctx context.Context, cfg *HealthCheckConfig) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Only probe when the circuit is actually open — no-op otherwise.
+			// Only probe when the circuit is actually open - no-op otherwise.
 			if c.CircuitBreakerState() != StateOpen {
 				continue
 			}

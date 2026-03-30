@@ -8,7 +8,7 @@
 //     (see the "Redis equivalent" comments throughout).
 //  3. Wire it in identically: relay.WithCache(store)
 //
-// No Redis package is imported here — the example compiles with zero
+// No Redis package is imported here - the example compiles with zero
 // extra dependencies.
 package main
 
@@ -182,7 +182,7 @@ func main() {
 	// Build the relay client with our custom CacheStore.
 	//
 	// relay.WithCache(store) accepts any type that satisfies the CacheStore
-	// interface — there is no dependency on the concrete type.
+	// interface - there is no dependency on the concrete type.
 	// ---------------------------------------------------------------------------
 	store := newCustomCacheStore()
 
@@ -196,7 +196,7 @@ func main() {
 	)
 
 	// ---------------------------------------------------------------------------
-	// First request: cache miss — goes to the server.
+	// First request: cache miss - goes to the server.
 	// ---------------------------------------------------------------------------
 	fmt.Println("=== Request 1: cache MISS (first request) ===")
 	resp, err := client.Execute(client.Get("/products/42"))
@@ -207,7 +207,7 @@ func main() {
 	fmt.Printf("  Server hits: %d   Cache size: %d\n\n", serverHits, store.Size())
 
 	// ---------------------------------------------------------------------------
-	// Second request (same URL): cache HIT — served from the store.
+	// Second request (same URL): cache HIT - served from the store.
 	// ---------------------------------------------------------------------------
 	fmt.Println("=== Request 2: cache HIT (same URL) ===")
 	resp, err = client.Execute(client.Get("/products/42"))

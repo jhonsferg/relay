@@ -65,7 +65,7 @@ func BenchmarkExecute_Simple(b *testing.B) {
 //
 // Measures the cost of a request that fails once with 503 and then succeeds.
 // This exercises the full retry loop: backoff computation, sleep (skipped in
-// tests because the sleep is real — keep MaxAttempts low), and response
+// tests because the sleep is real - keep MaxAttempts low), and response
 // re-parsing.
 //
 // Note: the benchmark uses a 0-duration initial interval so the retry fires
@@ -118,7 +118,7 @@ func BenchmarkExecute_WithRetry(b *testing.B) {
 // BenchmarkExecute_WithCache
 //
 // Measures the cost when the second request (and beyond) is served entirely
-// from the in-memory cache — no network round trip occurs after the first hit.
+// from the in-memory cache - no network round trip occurs after the first hit.
 // ---------------------------------------------------------------------------
 func BenchmarkExecute_WithCache(b *testing.B) {
 	srv := testutil.NewMockServer()
@@ -148,7 +148,7 @@ func BenchmarkExecute_WithCache(b *testing.B) {
 		b.Fatalf("cache prime failed: %v", err)
 	}
 
-	// All subsequent requests in the benchmark loop are cache hits —
+	// All subsequent requests in the benchmark loop are cache hits -
 	// no more server responses need to be enqueued.
 	b.ResetTimer()
 	b.ReportAllocs()

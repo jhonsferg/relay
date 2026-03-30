@@ -1,6 +1,6 @@
 // Package main demonstrates relay's request coalescing (deduplication) feature.
 // When many goroutines concurrently request the same URL, WithRequestCoalescing
-// ensures that only one real HTTP call is made — all callers share the result.
+// ensures that only one real HTTP call is made - all callers share the result.
 // This eliminates redundant load on upstream services during traffic spikes,
 // cache stampedes, and fan-out scenarios.
 package main
@@ -36,7 +36,7 @@ func main() {
 	defer srv.Close()
 
 	// -------------------------------------------------------------------------
-	// 2. Without coalescing — each goroutine hits the server independently.
+	// 2. Without coalescing - each goroutine hits the server independently.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Without coalescing (10 concurrent requests) ===")
 	serverHits.Store(0)
@@ -59,11 +59,11 @@ func main() {
 	}
 	wg.Wait()
 
-	fmt.Printf("  server hits: %d (expected 10 — every goroutine sent its own request)\n\n",
+	fmt.Printf("  server hits: %d (expected 10 - every goroutine sent its own request)\n\n",
 		serverHits.Load())
 
 	// -------------------------------------------------------------------------
-	// 3. With coalescing — 10 concurrent requests → 1 actual upstream call.
+	// 3. With coalescing - 10 concurrent requests → 1 actual upstream call.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== With coalescing (10 concurrent requests) ===")
 	serverHits.Store(0)
@@ -104,7 +104,7 @@ func main() {
 	fmt.Printf("  shared body: %s\n\n", coalResults[0])
 
 	// -------------------------------------------------------------------------
-	// 4. Different URLs are NOT coalesced — each is a distinct request.
+	// 4. Different URLs are NOT coalesced - each is a distinct request.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Different URLs are never coalesced ===")
 	serverHits.Store(0)
@@ -122,7 +122,7 @@ func main() {
 		serverHits.Load())
 
 	// -------------------------------------------------------------------------
-	// 5. POST requests are never coalesced — only GET and HEAD are idempotent.
+	// 5. POST requests are never coalesced - only GET and HEAD are idempotent.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== POST requests are never coalesced ===")
 	serverHits.Store(0)
@@ -137,14 +137,14 @@ func main() {
 		}()
 	}
 	wg.Wait()
-	fmt.Printf("  server hits: %d (POST is not idempotent — every call goes through)\n\n",
+	fmt.Printf("  server hits: %d (POST is not idempotent - every call goes through)\n\n",
 		serverHits.Load())
 
 	// -------------------------------------------------------------------------
 	// 6. Authorization header forms part of the coalesce key.
 	//
 	// Requests with different Authorization values are NOT coalesced even for
-	// the same URL — this prevents one user from receiving another's data.
+	// the same URL - this prevents one user from receiving another's data.
 	// -------------------------------------------------------------------------
 	fmt.Println("=== Different Authorization headers are never coalesced ===")
 	serverHits.Store(0)
@@ -164,7 +164,7 @@ func main() {
 		serverHits.Load())
 
 	// -------------------------------------------------------------------------
-	// 7. Coalescing + caching — a powerful combination.
+	// 7. Coalescing + caching - a powerful combination.
 	//
 	// Coalescing collapses the thundering herd at the instant of a cache miss;
 	// caching prevents repeated upstream calls on subsequent requests.
@@ -179,7 +179,7 @@ func main() {
 		relay.WithDisableRetry(),
 	)
 
-	// Wave 1: 10 concurrent requests — all coalesce into 1 upstream call,
+	// Wave 1: 10 concurrent requests - all coalesce into 1 upstream call,
 	// and the result is written to the cache.
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -191,7 +191,7 @@ func main() {
 	wg.Wait()
 	wave1 := serverHits.Load()
 
-	// Wave 2: 10 more concurrent requests — served entirely from cache.
+	// Wave 2: 10 more concurrent requests - served entirely from cache.
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {

@@ -16,7 +16,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// fakeClient — in-memory Client implementation for tests.
+// fakeClient - in-memory Client implementation for tests.
 //
 // Avoids a real memcached daemon while exercising all CacheStore methods.
 // ---------------------------------------------------------------------------

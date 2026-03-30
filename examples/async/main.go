@@ -1,6 +1,6 @@
 // Package main demonstrates relay's async execution patterns:
-//   - ExecuteAsync   — returns a channel; caller selects on it
-//   - ExecuteAsyncCallback — fires callbacks on success or error
+//   - ExecuteAsync   - returns a channel; caller selects on it
+//   - ExecuteAsyncCallback - fires callbacks on success or error
 //
 // Async execution is useful for fire-and-forget notifications, fan-out
 // parallelism where you want fine-grained control over each result channel,
@@ -46,12 +46,12 @@ func main() {
 	)
 
 	// -------------------------------------------------------------------------
-	// 1. ExecuteAsync — single fire-and-forget with a timeout.
+	// 1. ExecuteAsync - single fire-and-forget with a timeout.
 	//
 	// ExecuteAsync returns a buffered channel that delivers exactly one result.
 	// Use a select to impose an external deadline without canceling the request.
 	// -------------------------------------------------------------------------
-	fmt.Println("=== ExecuteAsync — single request with timeout ===")
+	fmt.Println("=== ExecuteAsync - single request with timeout ===")
 
 	ch := client.ExecuteAsync(client.Get("/fast"))
 
@@ -67,12 +67,12 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// 2. Fan-out — launch multiple requests concurrently, collect in order.
+	// 2. Fan-out - launch multiple requests concurrently, collect in order.
 	//
 	// Each ExecuteAsync call returns its own channel. Collecting them in a
 	// slice preserves the original request order in the output.
 	// -------------------------------------------------------------------------
-	fmt.Println("=== Fan-out — 5 concurrent requests ===")
+	fmt.Println("=== Fan-out - 5 concurrent requests ===")
 
 	endpoints := []string{"/users/1", "/users/2", "/users/3", "/users/4", "/users/5"}
 	channels := make([]<-chan relay.AsyncResult, len(endpoints))
@@ -117,12 +117,12 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// 4. ExecuteAsyncCallback — callbacks on success and error.
+	// 4. ExecuteAsyncCallback - callbacks on success and error.
 	//
 	// Useful for fire-and-forget event patterns where you do not need to wait
 	// for the result in the calling goroutine.
 	// -------------------------------------------------------------------------
-	fmt.Println("=== ExecuteAsyncCallback — success callback ===")
+	fmt.Println("=== ExecuteAsyncCallback - success callback ===")
 
 	var cbWg sync.WaitGroup
 
@@ -141,16 +141,16 @@ func main() {
 	cbWg.Wait()
 
 	// -------------------------------------------------------------------------
-	// 5. ExecuteAsyncCallback — error callback.
+	// 5. ExecuteAsyncCallback - error callback.
 	// -------------------------------------------------------------------------
-	fmt.Println("\n=== ExecuteAsyncCallback — HTTP error callback ===")
+	fmt.Println("\n=== ExecuteAsyncCallback - HTTP error callback ===")
 
 	cbWg.Add(1)
 	client.ExecuteAsyncCallback(
 		client.Get("/error"),
 		func(resp *relay.Response) {
 			defer cbWg.Done()
-			// HTTP errors (4xx/5xx) are NOT transport errors — they land in
+			// HTTP errors (4xx/5xx) are NOT transport errors - they land in
 			// onSuccess. Inspect resp.IsError() to distinguish them.
 			fmt.Printf("  onSuccess: status=%d (IsError=%v) body=%s\n",
 				resp.StatusCode, resp.IsError(), resp.String())
@@ -165,7 +165,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	// 6. Context-scoped async batch with early cancellation.
 	//
-	// Cancel the context after 60 ms — slow requests in-flight are abandoned
+	// Cancel the context after 60 ms - slow requests in-flight are abandoned
 	// at the caller side (they may still complete in the background).
 	// -------------------------------------------------------------------------
 	fmt.Println("\n=== Context-scoped async batch with cancellation ===")

@@ -110,7 +110,7 @@ func TestDownloadProgress_UnknownContentLength(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
-	// Server does not set Content-Length — total should be -1.
+	// Server does not set Content-Length - total should be -1.
 	srv.Enqueue(testutil.MockResponse{
 		Status: http.StatusOK,
 		Body:   "no-length",

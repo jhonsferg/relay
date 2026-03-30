@@ -1,6 +1,6 @@
 // Package main demonstrates relay's WithHealthCheck option, which starts a
 // background goroutine that probes a health endpoint while the circuit breaker
-// is open and resets it automatically once the upstream recovers — without
+// is open and resets it automatically once the upstream recovers - without
 // waiting for the full ResetTimeout to elapse.
 package main
 
@@ -18,7 +18,7 @@ import (
 
 func main() {
 	// -------------------------------------------------------------------------
-	// 1. Upstream server — starts unhealthy, recovers after 400 ms.
+	// 1. Upstream server - starts unhealthy, recovers after 400 ms.
 	// -------------------------------------------------------------------------
 	var healthy atomic.Bool
 
@@ -51,7 +51,7 @@ func main() {
 	// -------------------------------------------------------------------------
 	// 3. Build a relay client with:
 	//    - Aggressive circuit breaker (trips after 2 failures, 10-min reset).
-	//    - Health check probe every 100 ms — beats the 10-min reset timeout.
+	//    - Health check probe every 100 ms - beats the 10-min reset timeout.
 	// -------------------------------------------------------------------------
 	client := relay.New(
 		relay.WithBaseURL(upstream.URL),
@@ -83,11 +83,11 @@ func main() {
 	}
 
 	// -------------------------------------------------------------------------
-	// 5. Upstream recovers — health check resets the circuit automatically.
+	// 5. Upstream recovers - health check resets the circuit automatically.
 	// -------------------------------------------------------------------------
 	fmt.Println("\n=== Phase 2: upstream recovers ===")
 	healthy.Store(true)
-	fmt.Println("  upstream is now healthy — waiting for health check probe…")
+	fmt.Println("  upstream is now healthy - waiting for health check probe…")
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) && client.CircuitBreakerState() != relay.StateClosed {

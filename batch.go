@@ -23,7 +23,7 @@ type BatchResult struct {
 //
 // ctx governs how long to wait for a concurrency slot. Individual request
 // timeouts and contexts are set on each [Request] via [Request.WithTimeout]
-// or [Request.WithContext] — they are independent of the batch ctx.
+// or [Request.WithContext] - they are independent of the batch ctx.
 //
 // All results are populated before ExecuteBatch returns; no result slot is
 // ever left at its zero value.

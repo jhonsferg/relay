@@ -33,7 +33,7 @@ func TestDNSCache_ReusedAcrossRequests(t *testing.T) {
 
 	client := relay.New(relay.WithDNSCache(30 * time.Second))
 
-	// Send multiple requests — all should succeed regardless of cache state.
+	// Send multiple requests - all should succeed regardless of cache state.
 	for i := 0; i < 5; i++ {
 		resp, err := client.Execute(client.Get(srv.URL))
 		if err != nil {
@@ -51,7 +51,7 @@ func TestDNSCache_ShortTTLExpires(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Very short TTL — cache expires between requests but client should still work.
+	// Very short TTL - cache expires between requests but client should still work.
 	client := relay.New(relay.WithDNSCache(1 * time.Millisecond))
 
 	for i := 0; i < 3; i++ {

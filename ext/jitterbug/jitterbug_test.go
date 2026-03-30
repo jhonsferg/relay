@@ -173,7 +173,7 @@ func TestDecorrelatedJitter_PostBodyReplay(t *testing.T) {
 	}
 	for i, b := range bodiesReceived {
 		if b == "" {
-			t.Errorf("attempt %d received empty body — body not replayed", i+1)
+			t.Errorf("attempt %d received empty body - body not replayed", i+1)
 		}
 	}
 }
@@ -217,7 +217,7 @@ func TestLinearBackoff_WithJitter(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// jitterFactor=0.5 — just verify it doesn't panic and makes the calls.
+	// jitterFactor=0.5 - just verify it doesn't panic and makes the calls.
 	c := newClient(srv, jitterbug.WithLinearBackoff(jitterbug.Config{
 		MaxAttempts: 3,
 		Base:        1 * time.Millisecond,
@@ -233,7 +233,7 @@ func TestLinearBackoff_WithJitter(t *testing.T) {
 func TestLinearBackoff_JitterFactorClamped(t *testing.T) {
 	t.Parallel()
 
-	// jitterFactor > 1 should be clamped to 1 — no panic.
+	// jitterFactor > 1 should be clamped to 1 - no panic.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -263,7 +263,7 @@ func TestRetryBudget_StopsWhenBudgetExhausted(t *testing.T) {
 
 	c := newClient(srv, jitterbug.WithRetryBudget(jitterbug.BudgetConfig{
 		Config: jitterbug.Config{
-			MaxAttempts: 20, // high — budget should kick in first
+			MaxAttempts: 20, // high - budget should kick in first
 			Base:        1 * time.Millisecond,
 			Cap:         5 * time.Millisecond,
 		},
@@ -307,7 +307,7 @@ func TestRetryBudget_SucceedsWithinBudget(t *testing.T) {
 func TestRetryBudget_DefaultBudgetApplied(t *testing.T) {
 	t.Parallel()
 
-	// Zero TotalBudget should default to 10 s — enough for this test.
+	// Zero TotalBudget should default to 10 s - enough for this test.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

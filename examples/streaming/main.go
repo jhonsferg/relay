@@ -2,7 +2,7 @@
 // responses. The example simulates an SSE (Server-Sent Events) feed: it reads
 // the response body line by line without buffering the entire payload in memory.
 //
-// Key rule: always close StreamResponse.Body — forgetting it leaks the TCP
+// Key rule: always close StreamResponse.Body - forgetting it leaks the TCP
 // connection and an open goroutine.
 package main
 
@@ -53,7 +53,7 @@ func main() {
 
 	// ---------------------------------------------------------------------------
 	// ExecuteStream returns a *StreamResponse with a live Body reader.
-	// The body is NOT buffered — data arrives as the server writes it.
+	// The body is NOT buffered - data arrives as the server writes it.
 	// ---------------------------------------------------------------------------
 	stream, err := client.ExecuteStream(
 		client.Get("/events").
@@ -72,7 +72,7 @@ func main() {
 	if stream.IsError() {
 		log.Fatalf("server returned error: %s", stream.Status)
 	}
-	fmt.Printf("Connected to stream — status: %d %s\n", stream.StatusCode, stream.Status)
+	fmt.Printf("Connected to stream - status: %d %s\n", stream.StatusCode, stream.Status)
 	fmt.Printf("Content-Type: %s\n\n", stream.ContentType())
 
 	// ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ func main() {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// SSE blank lines separate events — skip them.
+		// SSE blank lines separate events - skip them.
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -101,7 +101,7 @@ func main() {
 		log.Fatalf("error reading stream: %v", err)
 	}
 
-	fmt.Printf("\nStream complete — received %d events\n", eventCount)
+	fmt.Printf("\nStream complete - received %d events\n", eventCount)
 
 	// ---------------------------------------------------------------------------
 	// Download-progress variant

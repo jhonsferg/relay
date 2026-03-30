@@ -222,7 +222,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return nil, err
 	}
 
-	// 304 Not Modified — serve the existing cached entry without re-storing.
+	// 304 Not Modified - serve the existing cached entry without re-storing.
 	if resp.StatusCode == http.StatusNotModified {
 		_ = resp.Body.Close() //nolint:errcheck
 		if hasCached {

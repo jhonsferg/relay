@@ -180,7 +180,7 @@ func buildClient(cfg *Config) *Client {
 //
 // A non-nil error is returned for transport-level failures, context
 // cancellations, and when the circuit breaker is open. HTTP error status codes
-// (4xx, 5xx) are NOT converted to errors — inspect [Response.IsError] or call
+// (4xx, 5xx) are NOT converted to errors - inspect [Response.IsError] or call
 // [Response.AsHTTPError] to handle them.
 func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if req == nil {
@@ -340,11 +340,11 @@ func (c *Client) ExecuteJSON(req *Request, out interface{}) (*Response, error) {
 
 // Shutdown gracefully stops the client. It marks the client as closed (new
 // [Execute] calls immediately return [ErrClientClosed]), cancels all background
-// goroutines (health check, etc.), waits for all in-flight requests — including
-// open streaming bodies — to finish, then closes idle connections in the pool.
+// goroutines (health check, etc.), waits for all in-flight requests - including
+// open streaming bodies - to finish, then closes idle connections in the pool.
 //
 // If ctx expires before the drain completes, Shutdown returns ctx.Err() but
-// does NOT forcefully abort in-flight requests — their own contexts govern that.
+// does NOT forcefully abort in-flight requests - their own contexts govern that.
 func (c *Client) Shutdown(ctx context.Context) error {
 	c.closed.Store(true)
 	c.bgCancel() // stop health check and any other background goroutines

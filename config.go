@@ -125,7 +125,7 @@ type Config struct {
 	MaxResponseBodyBytes int64
 
 	// TransportMiddlewares is a chain of [http.RoundTripper] wrappers applied
-	// around the core transport. Middleware is applied outermost-last — the last
+	// around the core transport. Middleware is applied outermost-last - the last
 	// appended middleware is the first to intercept a request.
 	TransportMiddlewares []func(http.RoundTripper) http.RoundTripper
 
@@ -410,7 +410,7 @@ func WithMaxResponseBodyBytes(n int64) Option {
 }
 
 // WithTransportMiddleware appends one or more [http.RoundTripper] middleware
-// functions. Middleware is applied outermost-last — the last appended
+// functions. Middleware is applied outermost-last - the last appended
 // middleware is the first to intercept a request.
 func WithTransportMiddleware(mw ...func(http.RoundTripper) http.RoundTripper) Option {
 	return func(c *Config) {

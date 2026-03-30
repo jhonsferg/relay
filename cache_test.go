@@ -54,7 +54,7 @@ func TestCache_NoStoreMissesCache(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
-	// Two responses with Cache-Control: no-store — never cached.
+	// Two responses with Cache-Control: no-store - never cached.
 	srv.Enqueue(testutil.MockResponse{
 		Status:  http.StatusOK,
 		Headers: map[string]string{"Cache-Control": "no-store"},
