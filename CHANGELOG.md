@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-03-30 (ext/tracing, ext/metrics)
+
+### Fixed
+
+- `ext/tracing`: updated `require github.com/jhonsferg/relay` to `v0.1.1` - fixes broken dependency chain from proxy-cached `v0.2.0` that referenced `relay@v0.1.0`
+- `ext/metrics`: updated `require github.com/jhonsferg/relay` to `v0.1.1` - same fix as above
+
+## [0.1.1] - 2026-03-30
+
+### Fixed
+
+- Core `go.mod` now contains only `golang.org/x/sync` as a direct dependency; removes the 11 ext-module `require` lines that `go work sync` incorrectly injected into the original `v0.1.0` release, which were cached permanently by the Go module proxy
+
 ## [0.2.0] - 2026-03-30 (ext/tracing, ext/metrics)
 
 ### Added
