@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/sigv4
 
-go 1.25.0
+go 1.24
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.4
