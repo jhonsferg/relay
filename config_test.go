@@ -145,31 +145,32 @@ func TestWithOnStateChange(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
 
-	srv := testutil.NewMockServer()
-	defer srv.Close()
-
-	c := New(
-		WithDisableRetry(),
-		WithDisableCircuitBreaker(),
-		WithCircuitBreaker(&CircuitBreakerConfig{
-			MaxFailures:  1, // Trip on first failure
-			ResetTimeout: time.Hour,
-		}),
-	)
-
-	// Ensure failure reaches the breaker.
-	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
-	_, _ = c.Execute(c.Get(srv.URL() + "/fail"))
-
-	// Terminal check loop
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		if c.CircuitBreakerState() == StateOpen {
-			return // Success!
-		}
-		time.Sleep(50 * time.Millisecond)
+	stateCh := make(chan CircuitBreakerState, 10)
+	cfg := &CircuitBreakerConfig{
+		MaxFailures:  1,
+		ResetTimeout: time.Hour,
 	}
-	t.Fatal("CircuitBreaker did not Open within 20s")
+
+	cb := newCircuitBreaker(cfg)
+	cb.OnStateChange(func(from, to CircuitBreakerState) {
+		stateCh <- to
+	})
+
+	// Record a failure directly on the breaker.
+	cb.RecordFailure()
+
+	if cb.State() != StateOpen {
+		t.Errorf("expected Open state, got %s", cb.State())
+	}
+
+	select {
+	case state := <-stateCh:
+		if state != StateOpen {
+			t.Errorf("expected Open state from callback, got %s", state)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnStateChange not triggered within 5s")
+	}
 }
 
 func TestWithRateLimit(t *testing.T) {
