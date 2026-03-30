@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/brotli
 
-go 1.25.0
+go 1.24
 
 require (
 	github.com/andybalholm/brotli v1.2.0
