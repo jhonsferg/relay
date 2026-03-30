@@ -23,28 +23,8 @@ jobs:
       - name: Sync workspace dependencies
         run: go work sync
 
-      - name: Run core + testutil tests
-        run: >
-          go test -race
-          -coverprofile=coverage.out
-          -covermode=atomic
-          github.com/jhonsferg/relay
-          github.com/jhonsferg/relay/testutil
-
-      - name: Run extension module tests
-        run: |
-          go test -race github.com/jhonsferg/relay/ext/oauth
-          go test -race github.com/jhonsferg/relay/ext/tracing
-          go test -race github.com/jhonsferg/relay/ext/metrics
-          go test -race github.com/jhonsferg/relay/ext/prometheus
-          go test -race github.com/jhonsferg/relay/ext/brotli
-          go test -race github.com/jhonsferg/relay/ext/zap
-          go test -race github.com/jhonsferg/relay/ext/zerolog
-          go test -race github.com/jhonsferg/relay/ext/redis
-          go test -race github.com/jhonsferg/relay/ext/jitterbug
-          go test -race github.com/jhonsferg/relay/ext/sentry
-          go test -race github.com/jhonsferg/relay/ext/sigv4
-          go test -race github.com/jhonsferg/relay/ext/memcached
+      - name: Run all tests in workspace
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -61,10 +41,20 @@ jobs:
         with:
           go-version: '1.24'
 
-      - uses: golangci/golangci-lint-action@v6
+      - name: golangci-lint (root)
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
           args: --timeout=5m
+
+      - name: golangci-lint (extensions)
+        run: |
+          for dir in ext/*; do
+            if [ -d "$dir" ]; then
+              echo "Linting $dir..."
+              docker run --rm -v $(pwd):/app -w /app/$dir golangci/golangci-lint:latest golangci-lint run --timeout=5m
+            fi
+          done
 
   vet:
     name: Vet
@@ -76,8 +66,8 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: go vet (all workspace packages)
-        run: go vet github.com/jhonsferg/relay/...
+      - name: go vet (workspace)
+        run: go vet ./...
 
   build-examples:
     name: Build Examples
@@ -89,8 +79,5 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Sync workspace dependencies
-        run: go work sync
-
-      - name: Build all examples
-        run: go build github.com/jhonsferg/relay/examples/...
+      - name: Build examples module
+        run: cd examples && go build ./...
