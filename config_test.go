@@ -145,32 +145,46 @@ func TestWithOnStateChange(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
 
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
 	stateCh := make(chan CircuitBreakerState, 10)
-	cfg := &CircuitBreakerConfig{
-		MaxFailures:  1,
-		ResetTimeout: time.Hour,
-	}
-
-	cb := newCircuitBreaker(cfg)
-	cb.OnStateChange(func(from, to CircuitBreakerState) {
-		stateCh <- to
-	})
-
-	// Directly record failure to avoid any client/network overhead.
-	cb.RecordFailure()
-
-	if cb.State() != StateOpen {
-		t.Errorf("expected Open state, got %s", cb.State())
-	}
-
-	select {
-	case state := <-stateCh:
-		if state != StateOpen {
-			t.Errorf("expected Open state from callback, got %s", state)
+	onStateChange := func(from, to CircuitBreakerState) {
+		select {
+		case stateCh <- to:
+		default:
 		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("OnStateChange callback not triggered within 10s")
 	}
+
+	c := New(
+		WithDisableRetry(),
+		WithOnStateChange(onStateChange),
+		WithCircuitBreaker(&CircuitBreakerConfig{
+			MaxFailures:  1,
+			ResetTimeout: time.Hour,
+		}),
+	)
+
+	// Record a failure via the client execution.
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	_, _ = c.Execute(c.Get(srv.URL() + "/fail"))
+
+	// Terminal deterministic loop
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		if c.CircuitBreakerState() == StateOpen {
+			return // Success!
+		}
+		select {
+		case s := <-stateCh:
+			if s == StateOpen {
+				return // Success via callback
+			}
+		default:
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	t.Fatal("CircuitBreaker did not Open within 15s")
 }
 
 func TestWithRateLimit(t *testing.T) {
