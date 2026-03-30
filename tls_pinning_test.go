@@ -69,7 +69,7 @@ func TestTLSPinning_CorrectPinSucceeds(t *testing.T) {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	srv.TLS = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{tlsCert}, MinVersion: tls.VersionTLS12} //nolint:gosec
 	srv.StartTLS()
 	defer srv.Close()
 
@@ -109,7 +109,7 @@ func TestTLSPinning_WrongPinFails(t *testing.T) {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	srv.TLS = &tls.Config{Certificates: []tls.Certificate{tlsCert}}
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{tlsCert}, MinVersion: tls.VersionTLS12} //nolint:gosec
 	srv.StartTLS()
 	defer srv.Close()
 

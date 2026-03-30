@@ -312,7 +312,8 @@ func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
 	c.ExecuteAsyncCallback(
 		c.Get(srv.URL()+"/"),
 		func(resp *Response) {
-			atomic.StoreInt32(&gotStatus, int32(resp.StatusCode))
+			atomic.StoreInt32(&gotStatus, int32(resp.StatusCode)) //nolint:gosec
+
 			close(done)
 		},
 		func(err error) {

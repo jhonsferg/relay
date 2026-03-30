@@ -251,7 +251,8 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	})
 
 	if err != nil {
-		// Do not penalise the circuit breaker for redirect-policy stops: those
+		// Do not penalize the circuit breaker for redirect-policy stops: those
+
 		// are configuration-level decisions, not downstream failures. A *url.Error
 		// whose Err does not contain a network-level cause indicates a redirect
 		// stop or similar policy error.

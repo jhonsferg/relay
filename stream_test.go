@@ -79,7 +79,7 @@ func TestExecuteStream_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteStream: %v", err)
 	}
-	defer stream.Body.Close()
+	defer func() { _ = stream.Body.Close() }() //nolint:errcheck
 
 	if stream.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", stream.StatusCode)

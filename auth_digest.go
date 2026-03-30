@@ -1,7 +1,7 @@
 package relay
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"

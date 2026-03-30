@@ -91,7 +91,7 @@ type Request struct {
 	idempotencyKey string
 }
 
-// newRequest allocates a Request with all maps initialised and a background
+// newRequest allocates a Request with all maps initialized and a background
 // context. It is the single construction point; callers never create Request
 // literals directly.
 func newRequest(method, rawURL string) *Request {
