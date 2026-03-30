@@ -28,9 +28,6 @@ jobs:
       - name: Pin toolchain to installed Go
         run: go env -w GOTOOLCHAIN=local
 
-      - name: Sync workspace
-        run: go work sync
-
       # ── Core module ────────────────────────────────────────────────────────
       - name: Test core module
         run: go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
@@ -70,11 +67,15 @@ jobs:
 
       - name: golangci-lint (core)
         uses: golangci/golangci-lint-action@v6
+        env:
+          GOWORK: "off"
         with:
           version: latest
           args: --timeout=5m ./...
 
       - name: golangci-lint (extensions)
+        env:
+          GOWORK: "off"
         run: |
           find ext -name "go.mod" | while read modfile; do
             dir=$(dirname "$modfile")
@@ -116,7 +117,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           cache: false
 
       - name: Pin toolchain

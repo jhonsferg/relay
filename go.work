@@ -2,7 +2,6 @@ go 1.24
 
 use (
 	.
-	./examples
 	./ext/breaker/gobreaker
 	./ext/brotli
 	./ext/cache/lru
