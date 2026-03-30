@@ -1,0 +1,6 @@
+# .github/CODEOWNERS
+# Any changes to Go code
+* @jhonsferg
+
+# Any changes to CI workflows
+/.github/workflows/ @jhonsferg

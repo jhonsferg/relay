@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.22', '1.23', '1.24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Sync workspace dependencies
+        run: go work sync
+
+      - name: Run core + testutil tests
+        run: >
+          go test -race
+          -coverprofile=coverage.out
+          -covermode=atomic
+          github.com/jhonsferg/relay
+          github.com/jhonsferg/relay/testutil
+
+      - name: Run extension module tests
+        run: |
+          go test -race github.com/jhonsferg/relay/ext/oauth
+          go test -race github.com/jhonsferg/relay/ext/tracing
+          go test -race github.com/jhonsferg/relay/ext/metrics
+          go test -race github.com/jhonsferg/relay/ext/prometheus
+          go test -race github.com/jhonsferg/relay/ext/brotli
+          go test -race github.com/jhonsferg/relay/ext/zap
+          go test -race github.com/jhonsferg/relay/ext/zerolog
+          go test -race github.com/jhonsferg/relay/ext/redis
+          go test -race github.com/jhonsferg/relay/ext/jitterbug
+          go test -race github.com/jhonsferg/relay/ext/sentry
+          go test -race github.com/jhonsferg/relay/ext/sigv4
+          go test -race github.com/jhonsferg/relay/ext/memcached
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  vet:
+    name: Vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: go vet (all workspace packages)
+        run: go vet github.com/jhonsferg/relay/...
+
+  build-examples:
+    name: Build Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Sync workspace dependencies
+        run: go work sync
+
+      - name: Build all examples
+        run: go build github.com/jhonsferg/relay/examples/...
