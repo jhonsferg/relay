@@ -115,7 +115,12 @@ func TestWithRetryIf(t *testing.T) {
 func TestWithOnRetry(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
-	callCount := 0
+
+	var (
+		mu        sync.Mutex
+		callCount int
+	)
+
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	// Return 500 to trigger retries.
@@ -131,11 +136,16 @@ func TestWithOnRetry(t *testing.T) {
 			MaxInterval:     0,
 			RetryableStatus: []int{http.StatusInternalServerError},
 			OnRetry: func(attempt int, resp *http.Response, err error) {
+				mu.Lock()
 				callCount++
+				mu.Unlock()
 			},
 		}),
 	)
-	c.Execute(c.Get(srv.URL() + "/")) //nolint:errcheck
+	_, _ = c.Execute(c.Get(srv.URL() + "/"))
+
+	mu.Lock()
+	defer mu.Unlock()
 	if callCount == 0 {
 		t.Error("expected OnRetry to be called at least once")
 	}

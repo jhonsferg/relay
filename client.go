@@ -52,6 +52,10 @@ type Client struct {
 	// closed is set to true by [Shutdown]. New Execute calls check this flag
 	// and return [ErrClientClosed] immediately without sending a request.
 	closed atomic.Bool
+
+	// bgCancel cancels the context shared by all background goroutines
+	// (health check, etc.). Called by Shutdown to stop them gracefully.
+	bgCancel context.CancelFunc
 }
 
 // New creates a Client from the provided functional options. Options are applied
@@ -145,11 +149,14 @@ func buildClient(cfg *Config) *Client {
 		Jar:           cfg.CookieJar,
 	}
 
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+
 	c := &Client{
 		httpClient:     httpClient,
 		config:         cfg,
 		circuitBreaker: newCircuitBreaker(cfg.CircuitBreakerConfig),
 		retrier:        newRetrier(cfg.RetryConfig),
+		bgCancel:       bgCancel,
 	}
 
 	if cfg.RateLimitConfig != nil {
@@ -157,6 +164,10 @@ func buildClient(cfg *Config) *Client {
 			cfg.RateLimitConfig.RequestsPerSecond,
 			cfg.RateLimitConfig.Burst,
 		)
+	}
+
+	if cfg.HealthCheck != nil && cfg.CircuitBreakerConfig != nil {
+		go c.runHealthCheck(bgCtx, cfg.HealthCheck)
 	}
 
 	return c
@@ -284,7 +295,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 
 	// Read the body before computing totalDur so ContentTransfer includes
 	// the actual body download time and not just the time-to-first-byte.
-	resp, err = newResponse(httpResp, c.config.MaxResponseBodyBytes, redirectCount)
+	maxBody := c.config.MaxResponseBodyBytes
+	if req.maxBodyBytes != 0 {
+		maxBody = req.maxBodyBytes
+	}
+	resp, err = newResponse(httpResp, maxBody, redirectCount)
 	if err != nil {
 		return nil, err
 	}
@@ -324,14 +339,15 @@ func (c *Client) ExecuteJSON(req *Request, out interface{}) (*Response, error) {
 }
 
 // Shutdown gracefully stops the client. It marks the client as closed (new
-// [Execute] calls immediately return [ErrClientClosed]), waits for all
-// in-flight requests — including open streaming bodies — to finish, then
-// closes idle connections in the pool.
+// [Execute] calls immediately return [ErrClientClosed]), cancels all background
+// goroutines (health check, etc.), waits for all in-flight requests — including
+// open streaming bodies — to finish, then closes idle connections in the pool.
 //
 // If ctx expires before the drain completes, Shutdown returns ctx.Err() but
 // does NOT forcefully abort in-flight requests — their own contexts govern that.
 func (c *Client) Shutdown(ctx context.Context) error {
 	c.closed.Store(true)
+	c.bgCancel() // stop health check and any other background goroutines
 
 	done := make(chan struct{})
 	go func() {

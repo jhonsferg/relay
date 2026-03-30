@@ -56,6 +56,9 @@ func buildTransport(cfg *Config) http.RoundTripper {
 	if len(cfg.DNSOverrides) > 0 {
 		od := &overrideDialer{base: dialer, hosts: cfg.DNSOverrides}
 		dialFn = od.DialContext
+	} else if cfg.DNSCache != nil {
+		cd := &cachedDialer{base: dialer, cache: newDNSCache(cfg.DNSCache.TTL)}
+		dialFn = cd.DialContext
 	}
 
 	tlsCfg := cfg.TLSConfig

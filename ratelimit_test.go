@@ -9,7 +9,6 @@ import (
 )
 
 func TestRateLimit_AllowsRequestsWithinBurst(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	for i := 0; i < 3; i++ {
@@ -30,7 +29,6 @@ func TestRateLimit_AllowsRequestsWithinBurst(t *testing.T) {
 }
 
 func TestRateLimit_ContextCancelDuringWait(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -54,7 +52,6 @@ func TestRateLimit_ContextCancelDuringWait(t *testing.T) {
 }
 
 func TestRateLimit_TryAcquire(t *testing.T) {
-	t.Parallel()
 	// Create a token bucket with 100 rps and burst=1.
 	tb := newTokenBucket(100, 1)
 	// First token should be immediately available.
@@ -79,8 +76,7 @@ func TestCircuitBreakerState_String(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.want, func(t *testing.T) {
-			t.Parallel()
-			if got := tc.state.String(); got != tc.want {
+					if got := tc.state.String(); got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})

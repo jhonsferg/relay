@@ -34,7 +34,7 @@ linters-settings:
     excludes:
       - G104 # Errors unhandled (often duplicated by errcheck)
   misspell:
-    locale: US
+    locale: UK
 
 issues:
   exclude-use-default: false
