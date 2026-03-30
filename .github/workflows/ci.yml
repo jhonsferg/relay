@@ -41,20 +41,11 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: golangci-lint (root)
+      - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          args: --timeout=5m
-
-      - name: golangci-lint (extensions)
-        run: |
-          for dir in ext/*; do
-            if [ -d "$dir" ]; then
-              echo "Linting $dir..."
-              docker run --rm -v $(pwd):/app -w /app/$dir golangci/golangci-lint:latest golangci-lint run --timeout=5m
-            fi
-          done
+          args: --timeout=5m ./...
 
   vet:
     name: Vet
