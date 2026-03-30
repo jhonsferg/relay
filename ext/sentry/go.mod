@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/sentry
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/getsentry/sentry-go v0.28.1
