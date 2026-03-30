@@ -60,7 +60,7 @@ type Request struct {
 	// query holds URL query parameters accumulated via WithQueryParam* methods.
 	query url.Values
 
-	// bodyBytes is the serialized request body. Nil means no body.
+	// bodyBytes is the serialised request body. Nil means no body.
 	bodyBytes []byte
 
 	// ctx is the context governing cancellation, deadline, and value propagation.
@@ -95,7 +95,7 @@ type Request struct {
 	maxBodyBytes int64
 }
 
-// newRequest allocates a Request with all maps initialized and a background
+// newRequest allocates a Request with all maps initialised and a background
 // context. It is the single construction point; callers never create Request
 // literals directly.
 func newRequest(method, rawURL string) *Request {
@@ -150,7 +150,7 @@ func (r *Request) WithPathParams(params map[string]string) *Request {
 
 // WithTag attaches a client-side key/value label to the request.
 // Tags are NOT sent as HTTP headers — they are visible to [Config.OnBeforeRequest]
-// and [Config.OnAfterResponse] hooks for logging, metrics labeling, etc.
+// and [Config.OnAfterResponse] hooks for logging, metrics labelling, etc.
 //
 //	req.WithTag("operation", "CreateOrder").WithTag("team", "payments")
 func (r *Request) WithTag(key, value string) *Request {
@@ -259,7 +259,7 @@ func (r *Request) WithBodyReader(reader io.Reader) *Request {
 }
 
 // WithJSON marshals v to JSON, sets the body, and sets Content-Type to
-// application/json. If marshaling fails the body is left unchanged.
+// application/json. If marshalling fails the body is left unchanged.
 func (r *Request) WithJSON(v interface{}) *Request {
 	data, err := json.Marshal(v)
 	if err != nil {

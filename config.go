@@ -87,7 +87,7 @@ type Config struct {
 	CacheStore CacheStore
 
 	// CustomDialer replaces the default net.Dialer. When set, DialTimeout and
-	// DialKeepAlive are ignored in favor of the dialer's own settings.
+	// DialKeepAlive are ignored in favour of the dialer's own settings.
 	CustomDialer *net.Dialer
 
 	// DNSOverrides maps hostnames to fixed IP addresses, bypassing DNS
@@ -320,7 +320,7 @@ func WithDNSOverride(hosts map[string]string) Option {
 // the package defaults (3 attempts, exponential backoff).
 func WithRetry(rc *RetryConfig) Option { return func(c *Config) { c.RetryConfig = rc } }
 
-// WithDisableRetry disables all retry behavior so only a single attempt is
+// WithDisableRetry disables all retry behaviour so only a single attempt is
 // made.
 func WithDisableRetry() Option {
 	return func(c *Config) { c.RetryConfig = &RetryConfig{MaxAttempts: 1} }
@@ -458,7 +458,7 @@ func WithDigestAuth(username, password string) Option {
 }
 
 // WithHARRecording attaches a [HARRecorder] that captures every request and
-// response in HAR 1.2 format. Call [HARRecorder.Export] to serialize.
+// response in HAR 1.2 format. Call [HARRecorder.Export] to serialise.
 func WithHARRecording(rec *HARRecorder) Option {
 	return func(c *Config) { c.HARRecorder = rec }
 }

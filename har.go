@@ -108,7 +108,7 @@ func (r *HARRecorder) Entries() []HAREntry {
 	return out
 }
 
-// Export serializes all recorded entries as a HAR 1.2 JSON document.
+// Export serialises all recorded entries as a HAR 1.2 JSON document.
 func (r *HARRecorder) Export() ([]byte, error) {
 	r.mu.Lock()
 	entries := make([]HAREntry, len(r.entries))

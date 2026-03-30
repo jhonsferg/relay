@@ -10,7 +10,7 @@ import (
 )
 
 // overrideDialer is a [net.Dialer] wrapper that substitutes specific hostnames
-// with fixed IP addresses before dialing, effectively bypassing DNS resolution
+// with fixed IP addresses before dialling, effectively bypassing DNS resolution
 // for those hosts. See [WithDNSOverride].
 type overrideDialer struct {
 	// base is the underlying dialer used for the actual TCP connection.
@@ -22,7 +22,7 @@ type overrideDialer struct {
 }
 
 // DialContext resolves the target hostname against the override map. If a
-// match is found the fixed IP replaces the hostname before dialing; otherwise
+// match is found the fixed IP replaces the hostname before dialling; otherwise
 // the address is passed to the base dialer unchanged.
 func (d *overrideDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if host, port, err := net.SplitHostPort(addr); err == nil {

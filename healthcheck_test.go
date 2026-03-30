@@ -36,7 +36,7 @@ func TestHealthCheck_ResetsOpenCircuit(t *testing.T) {
 	}))
 	defer srv500.Close()
 
-	client.Execute(client.Get(srv500.URL)) //nolint:errcheck — intentional 500
+	client.Execute(client.Get(srv500.URL)) //nolint:errcheck // intentional 500
 
 	if client.CircuitBreakerState() != relay.StateOpen {
 		t.Fatal("expected circuit to be open after 500")

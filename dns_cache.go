@@ -68,7 +68,7 @@ func (c *dnsCache) lookup(ctx context.Context, host string) ([]string, error) {
 }
 
 // cachedDialer wraps a [net.Dialer] and uses a [dnsCache] to resolve hostnames
-// before dialing, so that repeated dials to the same host skip the OS resolver.
+// before dialling, so that repeated dials to the same host skip the OS resolver.
 type cachedDialer struct {
 	base  *net.Dialer
 	cache *dnsCache
