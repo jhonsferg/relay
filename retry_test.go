@@ -120,7 +120,6 @@ func TestRetry_RetryAfterHeaderHonored(t *testing.T) {
 }
 
 func TestRetry_RetryAfterDelayRespected(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 

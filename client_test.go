@@ -396,17 +396,23 @@ func TestShutdown_WaitsForInFlightRequests(t *testing.T) {
 
 	// Use a channel to signal when the request has actually started.
 	started := make(chan struct{})
+	done := make(chan struct{})
 	c := New(
 		WithDisableRetry(),
 		WithDisableCircuitBreaker(),
 		WithOnBeforeRequest(func(ctx context.Context, req *Request) error {
-			close(started)
+			select {
+			case <-started:
+			default:
+				close(started)
+			}
 			return nil
 		}),
 	)
 
 	go func() {
 		_, _ = c.Execute(c.Get(srv.URL() + "/slow"))
+		close(done)
 	}()
 
 	// Wait for the request to start and register in c.inFlight.
@@ -421,6 +427,7 @@ func TestShutdown_WaitsForInFlightRequests(t *testing.T) {
 	if err := c.Shutdown(ctx); err != nil {
 		t.Errorf("Shutdown should succeed after in-flight completes: %v", err)
 	}
+	<-done
 }
 
 func TestExecute_POSTWithBody(t *testing.T) {

@@ -68,7 +68,6 @@ func TestRateLimit_TryAcquire(t *testing.T) {
 }
 
 func TestCircuitBreakerState_String(t *testing.T) {
-	t.Parallel()
 	cases := []struct {
 		state CircuitBreakerState
 		want  string

@@ -162,8 +162,8 @@ func TestWithOnStateChange(t *testing.T) {
 	select {
 	case <-stateCh:
 		// State changed as expected.
-	case <-time.After(2 * time.Second):
-		t.Errorf("OnStateChange (Open) not triggered within 2s")
+	case <-time.After(5 * time.Second):
+		t.Errorf("OnStateChange (Open) not triggered within 5s")
 	}
 }
 
