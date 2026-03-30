@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -306,11 +308,11 @@ func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	done := make(chan struct{})
-	var gotStatus int
+	var gotStatus int32
 	c.ExecuteAsyncCallback(
 		c.Get(srv.URL()+"/"),
 		func(resp *Response) {
-			gotStatus = resp.StatusCode
+			atomic.StoreInt32(&gotStatus, int32(resp.StatusCode))
 			close(done)
 		},
 		func(err error) {
@@ -323,8 +325,8 @@ func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for callback")
 	}
-	if gotStatus != http.StatusOK {
-		t.Errorf("expected 200, got %d", gotStatus)
+	if atomic.LoadInt32(&gotStatus) != http.StatusOK {
+		t.Errorf("expected 200, got %d", atomic.LoadInt32(&gotStatus))
 	}
 }
 
@@ -336,6 +338,7 @@ func TestExecuteAsyncCallback_OnError(t *testing.T) {
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	done := make(chan struct{})
+	var mu sync.Mutex
 	var gotErr error
 	c.ExecuteAsyncCallback(
 		c.Get(srv.URL()+"/"),
@@ -344,7 +347,9 @@ func TestExecuteAsyncCallback_OnError(t *testing.T) {
 			close(done)
 		},
 		func(err error) {
+			mu.Lock()
 			gotErr = err
+			mu.Unlock()
 			close(done)
 		},
 	)
@@ -353,7 +358,10 @@ func TestExecuteAsyncCallback_OnError(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for error callback")
 	}
-	if gotErr == nil {
+	mu.Lock()
+	err := gotErr
+	mu.Unlock()
+	if err == nil {
 		t.Error("expected error from connection-close, got nil")
 	}
 }
@@ -382,23 +390,35 @@ func TestShutdown_WaitsForInFlightRequests(t *testing.T) {
 
 	srv.Enqueue(testutil.MockResponse{
 		Status: http.StatusOK,
-		Delay:  80 * time.Millisecond,
+		Delay:  100 * time.Millisecond,
 	})
 
-	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	// Use a channel to signal when the request has actually started.
 	started := make(chan struct{})
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithOnBeforeRequest(func(ctx context.Context, req *Request) error {
+			close(started)
+			return nil
+		}),
+	)
+
 	go func() {
-		close(started)
-		c.Execute(c.Get(srv.URL() + "/slow")) //nolint:errcheck
+		_, _ = c.Execute(c.Get(srv.URL() + "/slow"))
 	}()
-	<-started
-	// Give the goroutine time to call Execute and register in-flight.
-	time.Sleep(10 * time.Millisecond)
+
+	// Wait for the request to start and register in c.inFlight.
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("request failed to start within 2s")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := c.Shutdown(ctx); err != nil {
-		t.Errorf("Shutdown should succeed before in-flight completes: %v", err)
+		t.Errorf("Shutdown should succeed after in-flight completes: %v", err)
 	}
 }
 

@@ -132,14 +132,17 @@ func TestWithOnStateChange(t *testing.T) {
 	t.Parallel()
 	stateCh := make(chan struct{}, 1)
 	onStateChange := func(from, to CircuitBreakerState) {
-		select {
-		case stateCh <- struct{}{}:
-		default:
+		if to == StateOpen {
+			select {
+			case stateCh <- struct{}{}:
+			default:
+			}
 		}
 	}
 	srv := testutil.NewMockServer()
 	defer srv.Close()
-	for i := 0; i < 5; i++ {
+	// Need 3 failures to trip when MaxFailures=2 (1st failure, 2nd failure trips).
+	for i := 0; i < 3; i++ {
 		srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
 	}
 
@@ -153,13 +156,14 @@ func TestWithOnStateChange(t *testing.T) {
 	)
 	// Trigger enough failures to open the circuit.
 	for i := 0; i < 3; i++ {
-		c.Execute(c.Get(srv.URL() + "/")) //nolint:errcheck
+		_, _ = c.Execute(c.Get(srv.URL() + "/"))
 	}
+
 	select {
 	case <-stateCh:
 		// State changed as expected.
-	case <-time.After(time.Second):
-		t.Log("OnStateChange not triggered within 1s — circuit may need more failures")
+	case <-time.After(2 * time.Second):
+		t.Errorf("OnStateChange (Open) not triggered within 2s")
 	}
 }
 
