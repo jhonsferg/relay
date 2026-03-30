@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/jitterbug
 
-go 1.25.0
+go 1.24
 
 require github.com/jhonsferg/relay v0.0.0
 
