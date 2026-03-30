@@ -11,13 +11,12 @@ import (
 )
 
 func TestStreamResponse_StatusHelpers(t *testing.T) {
-	t.Parallel()
 	cases := []struct {
-		code       int
-		success    bool
-		isErr      bool
-		clientErr  bool
-		serverErr  bool
+		code      int
+		success   bool
+		isErr     bool
+		clientErr bool
+		serverErr bool
 	}{
 		{200, true, false, false, false},
 		{201, true, false, false, false},
@@ -45,7 +44,6 @@ func TestStreamResponse_StatusHelpers(t *testing.T) {
 }
 
 func TestStreamResponse_Header(t *testing.T) {
-	t.Parallel()
 	h := http.Header{}
 	h.Set("X-Custom", "value")
 	s := &StreamResponse{StatusCode: 200, Headers: h}
@@ -55,7 +53,6 @@ func TestStreamResponse_Header(t *testing.T) {
 }
 
 func TestStreamResponse_ContentType(t *testing.T) {
-	t.Parallel()
 	h := http.Header{}
 	h.Set("Content-Type", "application/json")
 	s := &StreamResponse{StatusCode: 200, Headers: h}
@@ -65,7 +62,6 @@ func TestStreamResponse_ContentType(t *testing.T) {
 }
 
 func TestExecuteStream_Basic(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{
@@ -79,7 +75,7 @@ func TestExecuteStream_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteStream: %v", err)
 	}
-	defer stream.Body.Close()
+	defer func() { _ = stream.Body.Close() }() //nolint:errcheck
 
 	if stream.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", stream.StatusCode)
@@ -91,7 +87,6 @@ func TestExecuteStream_Basic(t *testing.T) {
 }
 
 func TestExecuteStream_NilRequest(t *testing.T) {
-	t.Parallel()
 	c := New()
 	_, err := c.ExecuteStream(nil)
 	if err != ErrNilRequest {
@@ -100,7 +95,6 @@ func TestExecuteStream_NilRequest(t *testing.T) {
 }
 
 func TestExecuteStream_AfterShutdown(t *testing.T) {
-	t.Parallel()
 	c := New()
 	c.Shutdown(context.Background()) //nolint:errcheck
 	_, err := c.ExecuteStream(c.Get("http://example.com/"))
@@ -110,7 +104,6 @@ func TestExecuteStream_AfterShutdown(t *testing.T) {
 }
 
 func TestExecuteStream_WithRateLimit_Cancel(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -121,18 +114,17 @@ func TestExecuteStream_WithRateLimit_Cancel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first stream: %v", err)
 	}
-	stream.Body.Close()
+	_ = stream.Body.Close() //nolint:errcheck
 
 	// Second request must wait — cancel quickly via timeout.
 	req := c.Get(srv.URL() + "/").WithTimeout(10 * time.Millisecond)
 	_, err = c.ExecuteStream(req)
 	if err == nil {
-		t.Error("expected rate-limit wait to be cancelled")
+		t.Error("expected rate-limit wait to be canceled")
 	}
 }
 
 func TestManagedReadCloser_ClosedOnce(t *testing.T) {
-	t.Parallel()
 	closedCount := 0
 	rc := io.NopCloser(io.LimitReader(nil, 0))
 	m := &managedReadCloser{
@@ -148,7 +140,6 @@ func TestManagedReadCloser_ClosedOnce(t *testing.T) {
 }
 
 func TestManagedReadCloser_NilCleanupSkipped(t *testing.T) {
-	t.Parallel()
 	rc := io.NopCloser(io.LimitReader(nil, 0))
 	m := &managedReadCloser{
 		ReadCloser: rc,
@@ -161,7 +152,6 @@ func TestManagedReadCloser_NilCleanupSkipped(t *testing.T) {
 }
 
 func TestWithCustomDialer(t *testing.T) {
-	t.Parallel()
 	c := New(WithCustomDialer(nil))
 	if c == nil {
 		t.Fatal("New with WithCustomDialer returned nil")

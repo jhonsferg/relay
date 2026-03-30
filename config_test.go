@@ -4,14 +4,18 @@ import (
 	"context"
 	"net/http"
 	"net/http/cookiejar"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/jhonsferg/relay/testutil"
 )
 
+var testMu sync.Mutex
+
 func TestWithConnectionPool(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithConnectionPool(50, 20, 100))
 	if c.config.MaxIdleConns != 50 {
 		t.Errorf("expected MaxIdleConns=50, got %d", c.config.MaxIdleConns)
@@ -25,7 +29,8 @@ func TestWithConnectionPool(t *testing.T) {
 }
 
 func TestWithIdleConnTimeout(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithIdleConnTimeout(30 * time.Second))
 	if c.config.IdleConnTimeout != 30*time.Second {
 		t.Errorf("expected 30s, got %v", c.config.IdleConnTimeout)
@@ -33,7 +38,8 @@ func TestWithIdleConnTimeout(t *testing.T) {
 }
 
 func TestWithResponseHeaderTimeout(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithResponseHeaderTimeout(5 * time.Second))
 	if c.config.ResponseHeaderTimeout != 5*time.Second {
 		t.Errorf("expected 5s, got %v", c.config.ResponseHeaderTimeout)
@@ -41,7 +47,8 @@ func TestWithResponseHeaderTimeout(t *testing.T) {
 }
 
 func TestWithDialTimeout(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithDialTimeout(3 * time.Second))
 	if c.config.DialTimeout != 3*time.Second {
 		t.Errorf("expected 3s, got %v", c.config.DialTimeout)
@@ -49,7 +56,8 @@ func TestWithDialTimeout(t *testing.T) {
 }
 
 func TestWithDialKeepAlive(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithDialKeepAlive(60 * time.Second))
 	if c.config.DialKeepAlive != 60*time.Second {
 		t.Errorf("expected 60s, got %v", c.config.DialKeepAlive)
@@ -57,7 +65,8 @@ func TestWithDialKeepAlive(t *testing.T) {
 }
 
 func TestWithProxy(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithProxy("http://proxy.example.com:8080"))
 	if c.config.ProxyURL != "http://proxy.example.com:8080" {
 		t.Errorf("expected proxy URL to be set, got %q", c.config.ProxyURL)
@@ -65,7 +74,8 @@ func TestWithProxy(t *testing.T) {
 }
 
 func TestWithCookieJar(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	jar, _ := cookiejar.New(nil)
 	c := New(WithCookieJar(jar))
 	if c.config.CookieJar != jar {
@@ -74,7 +84,8 @@ func TestWithCookieJar(t *testing.T) {
 }
 
 func TestWithDefaultCookieJar(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithDefaultCookieJar())
 	if c.config.CookieJar == nil {
 		t.Error("expected default cookie jar to be set")
@@ -82,7 +93,8 @@ func TestWithDefaultCookieJar(t *testing.T) {
 }
 
 func TestWithRetryIf(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	called := false
 	retryFn := func(resp *http.Response, err error) bool {
 		called = true
@@ -101,8 +113,14 @@ func TestWithRetryIf(t *testing.T) {
 }
 
 func TestWithOnRetry(t *testing.T) {
-	t.Parallel()
-	callCount := 0
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	var (
+		mu        sync.Mutex
+		callCount int
+	)
+
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	// Return 500 to trigger retries.
@@ -118,53 +136,56 @@ func TestWithOnRetry(t *testing.T) {
 			MaxInterval:     0,
 			RetryableStatus: []int{http.StatusInternalServerError},
 			OnRetry: func(attempt int, resp *http.Response, err error) {
+				mu.Lock()
 				callCount++
+				mu.Unlock()
 			},
 		}),
 	)
-	c.Execute(c.Get(srv.URL() + "/")) //nolint:errcheck
+	_, _ = c.Execute(c.Get(srv.URL() + "/"))
+
+	mu.Lock()
+	defer mu.Unlock()
 	if callCount == 0 {
 		t.Error("expected OnRetry to be called at least once")
 	}
 }
 
 func TestWithOnStateChange(t *testing.T) {
-	t.Parallel()
-	stateCh := make(chan struct{}, 1)
-	onStateChange := func(from, to CircuitBreakerState) {
-		select {
-		case stateCh <- struct{}{}:
-		default:
-		}
-	}
-	srv := testutil.NewMockServer()
-	defer srv.Close()
-	for i := 0; i < 5; i++ {
-		srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	stateCh := make(chan CircuitBreakerState, 10)
+	cfg := &CircuitBreakerConfig{
+		MaxFailures:  1,
+		ResetTimeout: time.Hour,
+		OnStateChange: func(from, to CircuitBreakerState) {
+			stateCh <- to
+		},
 	}
 
-	c := New(
-		WithDisableRetry(),
-		WithOnStateChange(onStateChange),
-		WithCircuitBreaker(&CircuitBreakerConfig{
-			MaxFailures:  2,
-			ResetTimeout: time.Second,
-		}),
-	)
-	// Trigger enough failures to open the circuit.
-	for i := 0; i < 3; i++ {
-		c.Execute(c.Get(srv.URL() + "/")) //nolint:errcheck
+	cb := newCircuitBreaker(cfg)
+
+	// Record failure directly to avoid any latency.
+	cb.RecordFailure()
+
+	if cb.State() != StateOpen {
+		t.Errorf("expected Open state, got %s", cb.State())
 	}
+
 	select {
-	case <-stateCh:
-		// State changed as expected.
-	case <-time.After(time.Second):
-		t.Log("OnStateChange not triggered within 1s — circuit may need more failures")
+	case state := <-stateCh:
+		if state != StateOpen {
+			t.Errorf("expected Open state from callback, got %s", state)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("OnStateChange callback not triggered within 20s")
 	}
 }
 
 func TestWithRateLimit(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithRateLimit(10, 1))
 	if c.rateLimiter == nil {
 		t.Error("expected rate limiter to be set")
@@ -172,7 +193,8 @@ func TestWithRateLimit(t *testing.T) {
 }
 
 func TestWithDisableCompression(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithDisableCompression())
 	if !c.config.DisableCompression {
 		t.Error("expected DisableCompression=true")
@@ -180,7 +202,8 @@ func TestWithDisableCompression(t *testing.T) {
 }
 
 func TestWithMaxRedirects(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithMaxRedirects(5))
 	if c.config.MaxRedirects != 5 {
 		t.Errorf("expected MaxRedirects=5, got %d", c.config.MaxRedirects)
@@ -188,7 +211,8 @@ func TestWithMaxRedirects(t *testing.T) {
 }
 
 func TestWithMaxResponseBodyBytes(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithMaxResponseBodyBytes(1024))
 	if c.config.MaxResponseBodyBytes != 1024 {
 		t.Errorf("expected MaxResponseBodyBytes=1024, got %d", c.config.MaxResponseBodyBytes)
@@ -196,7 +220,8 @@ func TestWithMaxResponseBodyBytes(t *testing.T) {
 }
 
 func TestWithTransportMiddleware(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	called := false
 	mw := func(next http.RoundTripper) http.RoundTripper {
 		return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -216,7 +241,8 @@ func TestWithTransportMiddleware(t *testing.T) {
 }
 
 func TestWithOnBeforeRequest(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	called := false
 	srv := testutil.NewMockServer()
 	defer srv.Close()
@@ -237,7 +263,8 @@ func TestWithOnBeforeRequest(t *testing.T) {
 }
 
 func TestWithOnAfterResponse(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	called := false
 	srv := testutil.NewMockServer()
 	defer srv.Close()
@@ -258,7 +285,8 @@ func TestWithOnAfterResponse(t *testing.T) {
 }
 
 func TestWithDNSOverride(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithDNSOverride(map[string]string{"api.internal": "10.0.0.1"}))
 	if c.config.DNSOverrides["api.internal"] != "10.0.0.1" {
 		t.Errorf("expected DNS override to be set, got %q", c.config.DNSOverrides["api.internal"])
@@ -266,7 +294,8 @@ func TestWithDNSOverride(t *testing.T) {
 }
 
 func TestWithInMemoryCache(t *testing.T) {
-	t.Parallel()
+	testMu.Lock()
+	defer testMu.Unlock()
 	c := New(WithInMemoryCache(100))
 	if c.config.CacheStore == nil {
 		t.Error("expected cache store to be set")

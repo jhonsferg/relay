@@ -38,7 +38,7 @@ func TestEnqueue_TakeRequestRoundTrip(t *testing.T) {
 		relay.WithDisableCircuitBreaker(),
 	)
 
-	req := c.Post(srv.URL() + "/items").
+	req := c.Post(srv.URL()+"/items").
 		WithHeader("X-Request-Header", "req-value").
 		WithBody([]byte("request-body"))
 
@@ -263,7 +263,7 @@ func TestMockServer_QueryParamsRecorded(t *testing.T) {
 	srv.Enqueue(MockResponse{Status: http.StatusOK})
 
 	c := relay.New(relay.WithDisableRetry(), relay.WithDisableCircuitBreaker())
-	_, err := c.Execute(c.Get(srv.URL() + "/search").
+	_, err := c.Execute(c.Get(srv.URL()+"/search").
 		WithQueryParam("q", "relay").
 		WithQueryParam("page", "3"))
 	if err != nil {

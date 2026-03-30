@@ -51,11 +51,14 @@ func (c *Client) ExecuteBatch(ctx context.Context, requests []*Request, maxConcu
 	results := make([]BatchResult, n)
 	sem := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	for i, req := range requests {
 		// Short-circuit remaining requests when the batch context is already done.
 		if ctx.Err() != nil {
+			mu.Lock()
 			results[i] = BatchResult{Index: i, Err: ctx.Err()}
+			mu.Unlock()
 			continue
 		}
 
@@ -68,13 +71,17 @@ func (c *Client) ExecuteBatch(ctx context.Context, requests []*Request, maxConcu
 			select {
 			case sem <- struct{}{}:
 			case <-ctx.Done():
+				mu.Lock()
 				results[i] = BatchResult{Index: i, Err: ctx.Err()}
+				mu.Unlock()
 				return
 			}
 			defer func() { <-sem }()
 
 			resp, err := c.Execute(req)
+			mu.Lock()
 			results[i] = BatchResult{Index: i, Response: resp, Err: err}
+			mu.Unlock()
 		}()
 	}
 

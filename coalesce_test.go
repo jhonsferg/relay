@@ -66,7 +66,6 @@ func TestCoalesce_ConcurrentRequestsProduceSingleRealRequest(t *testing.T) {
 }
 
 func TestCoalesce_EachGoroutineGetsOwnBodyCopy(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 

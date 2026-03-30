@@ -43,7 +43,7 @@ func (r *RequestRecorder) Middleware() func(http.RoundTripper) http.RoundTripper
 			// still receives the full payload.
 			if req.Body != nil && req.Body != http.NoBody {
 				body, err := io.ReadAll(req.Body)
-				req.Body.Close()
+				_ = req.Body.Close() //nolint:errcheck
 				if err == nil {
 					recorded.Body = body
 					req.Body = io.NopCloser(bytes.NewReader(body))

@@ -78,7 +78,7 @@ func BenchmarkExecute_WithRetry(b *testing.B) {
 	client := relay.New(
 		relay.WithBaseURL(srv.URL()),
 		relay.WithRetry(&relay.RetryConfig{
-			MaxAttempts:     2,            // 1 failure + 1 success
+			MaxAttempts:     2,                // 1 failure + 1 success
 			InitialInterval: time.Microsecond, // near-zero backoff for benchmarks
 			MaxInterval:     time.Microsecond,
 			Multiplier:      1.0,

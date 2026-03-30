@@ -121,7 +121,7 @@ func main() {
 	// Batch with context cancellation
 	//
 	// Pass a cancelable context to abort remaining requests when the caller
-	// no longer needs the results (e.g., the parent request was cancelled).
+	// no longer needs the results (e.g., the parent request was canceled).
 	// ---------------------------------------------------------------------------
 	fmt.Println("\n=== Batch with context cancellation ===")
 
@@ -140,19 +140,19 @@ func main() {
 		slowReqs[i] = slowClient.Get("/slow")
 	}
 
-	cancelledResults := slowClient.ExecuteBatch(cancelCtx, slowReqs, 2)
+	canceledResults := slowClient.ExecuteBatch(cancelCtx, slowReqs, 2)
 
-	var cancelled, completed int
-	for _, r := range cancelledResults {
+	var canceled, completed int
+	for _, r := range canceledResults {
 		if r.Err != nil {
-			cancelled++
+			canceled++
 		} else {
 			completed++
 		}
 	}
-	fmt.Printf("  completed: %d, cancelled/error: %d\n", completed, cancelled)
+	fmt.Printf("  completed: %d, canceled/error: %d\n", completed, canceled)
 
-	if cancelled == 0 {
+	if canceled == 0 {
 		log.Println("  note: all requests completed before context expired")
 	}
 }

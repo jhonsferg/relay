@@ -205,7 +205,7 @@ func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*h
 
 		// Respect the Retry-After header (e.g. on 429 Too Many Requests).
 		pendingWait = r.retryAfterDelay(resp)
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck
 	}
 
 	if lastErr != nil {

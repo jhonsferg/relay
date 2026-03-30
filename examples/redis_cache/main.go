@@ -34,7 +34,7 @@ import (
 //   - Clear()
 // ---------------------------------------------------------------------------
 
-// cacheItem wraps a CachedResponse with its serialised form so we can
+// cacheItem wraps a CachedResponse with its serialized form so we can
 // demonstrate what would be stored in Redis as a JSON blob.
 type cacheItem struct {
 	entry     *relay.CachedResponse
@@ -100,7 +100,7 @@ func (s *customCacheStore) Set(key string, entry *relay.CachedResponse) {
 		item.expiresAt = entry.ExpiresAt
 	}
 
-	// Demonstrate what would be serialised to Redis.
+	// Demonstrate what would be serialized to Redis.
 	if data, err := json.Marshal(entry); err == nil {
 		_ = data // would be: s.rdb.Set(ctx, s.keyPrefix+key, data, ttl)
 	}
@@ -153,7 +153,7 @@ func (s *customCacheStore) Size() int {
 }
 
 // ---------------------------------------------------------------------------
-// main: wire the store into a relay client and demonstrate cache behaviour.
+// main: wire the store into a relay client and demonstrate cache behavior.
 // ---------------------------------------------------------------------------
 
 func main() {

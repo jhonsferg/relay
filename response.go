@@ -25,7 +25,7 @@ type Response struct {
 }
 
 func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Response, error) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 
 	var reader io.Reader = resp.Body
 	if maxBytes > 0 {
@@ -39,10 +39,8 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 	buf.Reset()
 
 	_, err := buf.ReadFrom(reader)
-	// Return the pool buffer immediately — buf has its own backing array.
-	pool.PutBuffer(poolBuf)
-
 	if err != nil {
+		pool.PutBuffer(poolBuf)
 		return nil, err
 	}
 
@@ -56,6 +54,9 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 		// Copy to a right-sized slice so the large buffer can be GC'd.
 		body = append([]byte(nil), body...)
 	}
+
+	// Return the pool buffer now that body is safely copied.
+	pool.PutBuffer(poolBuf)
 
 	return &Response{
 		raw:           resp,

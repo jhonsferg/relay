@@ -51,7 +51,7 @@ func main() {
 	fmt.Printf("  Body preview : %.80s…\n\n", resp.String())
 
 	// ---------------------------------------------------------------------------
-	// 3. Deserialise the response body into a typed struct
+	// 3. deserialize the response body into a typed struct
 	//
 	// ExecuteJSON calls Execute and, on a 2xx response, unmarshals the JSON
 	// body into the provided pointer.
