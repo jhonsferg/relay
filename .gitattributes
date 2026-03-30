@@ -1,0 +1,12 @@
+# .gitattributes
+# Handle line endings automatically
+* text=auto
+
+# Denote all files that are truly Go and not generated
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# Exclude documentation and examples from linguist statistics if you want to focus on the core
+examples/** linguist-documentation
+benchmarks/** linguist-documentation
