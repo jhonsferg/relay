@@ -162,6 +162,15 @@ type Config struct {
 	// AutoIdempotencyKey automatically injects an X-Idempotency-Key header on
 	// every request. The same key is reused across retry attempts.
 	AutoIdempotencyKey bool
+
+	// HealthCheck enables a background goroutine that proactively probes a
+	// health endpoint while the circuit breaker is open and resets it on
+	// success. Nil disables the feature.
+	HealthCheck *HealthCheckConfig
+
+	// DNSCache enables client-side DNS caching with a configurable TTL.
+	// Nil disables the feature (default: OS resolver on every dial).
+	DNSCache *DNSCacheConfig
 }
 
 // defaultConfig returns a Config populated with all production-ready defaults.
@@ -458,3 +467,35 @@ func WithHARRecording(rec *HARRecorder) Option {
 // (UUID v4) into every request. The same key is reused across retry attempts,
 // preventing duplicate side effects on servers that support idempotency keys.
 func WithAutoIdempotencyKey() Option { return func(c *Config) { c.AutoIdempotencyKey = true } }
+
+// WithHealthCheck enables a background health-probe goroutine. While the
+// circuit breaker is in the Open state the client periodically issues a GET
+// request to url with the given timeout. A response with expectedStatus (or
+// any 2xx when expectedStatus is 0) resets the circuit breaker to Closed
+// without waiting for the natural ResetTimeout to elapse.
+//
+// The probe goroutine stops automatically when [Client.Shutdown] is called.
+// WithHealthCheck has no effect when the circuit breaker is disabled.
+func WithHealthCheck(url string, interval, timeout time.Duration, expectedStatus int) Option {
+	return func(c *Config) {
+		c.HealthCheck = &HealthCheckConfig{
+			URL:            url,
+			Interval:       interval,
+			Timeout:        timeout,
+			ExpectedStatus: expectedStatus,
+		}
+	}
+}
+
+// WithDNSCache enables client-side DNS caching so that each unique hostname
+// is resolved at most once per ttl interval. This reduces DNS lookup latency
+// on keep-alive-heavy workloads and avoids thundering-herd re-resolution when
+// many goroutines dial the same host simultaneously.
+//
+// The cache is per-client; different [New] calls each maintain their own
+// cache. Entries are evicted lazily (on next access) when their TTL expires.
+func WithDNSCache(ttl time.Duration) Option {
+	return func(c *Config) {
+		c.DNSCache = &DNSCacheConfig{TTL: ttl}
+	}
+}

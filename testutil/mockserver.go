@@ -45,12 +45,12 @@ type RecordedRequest struct {
 // MockServer is a test HTTP server that serves queued responses in FIFO order
 // and records incoming requests.
 type MockServer struct {
-	server    *httptest.Server
-	mu        sync.Mutex
-	queue     []MockResponse
-	recorded  []RecordedRequest
-	count     atomic.Int64
-	newReqCh  chan struct{}
+	server   *httptest.Server
+	mu       sync.Mutex
+	queue    []MockResponse
+	recorded []RecordedRequest
+	count    atomic.Int64
+	newReqCh chan struct{}
 }
 
 // NewMockServer starts a new local HTTP test server. Call [MockServer.Close]
@@ -100,7 +100,7 @@ func (s *MockServer) handle(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			conn, _, _ := hj.Hijack()
 			if conn != nil {
-				conn.Close()
+				_ = conn.Close() //nolint:errcheck
 			}
 		}
 		return

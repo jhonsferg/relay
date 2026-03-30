@@ -202,7 +202,7 @@ func (t *baseTransport) doRetryLoop(
 			t.cfg.OnRetry(attempt+1, resp, err)
 		}
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		lastErr = err
 	}
@@ -367,7 +367,7 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if hi <= lo {
 				hi = lo + 1
 			}
-			d := time.Duration(lo + rand.Int63n(hi-lo))
+			d := time.Duration(lo + rand.Int63n(hi-lo)) //nolint:gosec
 			prevSleep = d
 
 			remaining := t.totalBudget - time.Since(start)
@@ -404,7 +404,7 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			t.cfg.OnRetry(attempt+1, resp, err)
 		}
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		lastErr = err
 	}

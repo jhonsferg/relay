@@ -318,7 +318,7 @@ func TestCacheStore_ConcurrentAccess(t *testing.T) {
 		go func(n int) {
 			key := "concurrent-key"
 			store.Set(key, sampleEntry(time.Minute))
-			store.Get(key)   //nolint:errcheck
+			store.Get(key) //nolint:errcheck
 			store.Delete(key)
 			done <- struct{}{}
 		}(i)
@@ -387,10 +387,10 @@ func TestConcreteClientSatisfiesInterface(t *testing.T) {
 // errClient is a Client that always returns errors.
 type errClient struct{}
 
-func (e *errClient) Get(_ string) (*memcache.Item, error)  { return nil, errors.New("get error") }
-func (e *errClient) Set(_ *memcache.Item) error            { return errors.New("set error") }
-func (e *errClient) Delete(_ string) error                 { return errors.New("delete error") }
-func (e *errClient) FlushAll() error                       { return errors.New("flush error") }
+func (e *errClient) Get(_ string) (*memcache.Item, error) { return nil, errors.New("get error") }
+func (e *errClient) Set(_ *memcache.Item) error           { return errors.New("set error") }
+func (e *errClient) Delete(_ string) error                { return errors.New("delete error") }
+func (e *errClient) FlushAll() error                      { return errors.New("flush error") }
 
 func TestCacheStore_ClientErrorsAreHandledGracefully(t *testing.T) {
 	t.Parallel()

@@ -30,7 +30,7 @@
 //
 // # Functional options
 //
-// The behaviour can be tuned with [Option] functions:
+// The behavior can be tuned with [Option] functions:
 //
 //   - [WithCaptureTransportErrors] — capture network/timeout errors (default: true)
 //   - [WithCaptureServerErrors]    — capture 5xx responses as events (default: true)
@@ -94,7 +94,7 @@ func WithBreadcrumbs(enabled bool) Option {
 // the relay transport chain. hub is cloned for each request to keep scopes
 // isolated. Pass [sentrygo.CurrentHub] or a pre-configured Hub.
 //
-// Additional behaviour can be tuned with [Option] values.
+// Additional behavior can be tuned with [Option] values.
 func WithSentry(hub *sentrygo.Hub, opts ...Option) relay.Option {
 	cfg := defaultConfig()
 	for _, o := range opts {

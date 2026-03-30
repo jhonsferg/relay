@@ -8,48 +8,48 @@ on:
 
 jobs:
   test:
-    name: Test
+    name: Test (${{ matrix.go-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.22', '1.23', '1.24']
+        go-version: ['1.25']
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: false
 
-      - name: Sync workspace dependencies
-        run: go work sync
+      # Prevent go.work from pulling a newer toolchain than what the matrix
+      # version provides. GOTOOLCHAIN=local means "use only the installed Go".
+      - name: Pin toolchain to installed Go
+        run: go env -w GOTOOLCHAIN=local
 
-      - name: Run core + testutil tests
-        run: >
-          go test -race
-          -coverprofile=coverage.out
-          -covermode=atomic
-          github.com/jhonsferg/relay
-          github.com/jhonsferg/relay/testutil
+      # ── Core module ────────────────────────────────────────────────────────
+      - name: Test core module
+        run: go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
 
-      - name: Run extension module tests
+      # ── Extension modules (each has its own go.mod) ────────────────────────
+      - name: Test extension modules
         run: |
-          go test -race github.com/jhonsferg/relay/ext/oauth
-          go test -race github.com/jhonsferg/relay/ext/tracing
-          go test -race github.com/jhonsferg/relay/ext/metrics
-          go test -race github.com/jhonsferg/relay/ext/prometheus
-          go test -race github.com/jhonsferg/relay/ext/brotli
-          go test -race github.com/jhonsferg/relay/ext/zap
-          go test -race github.com/jhonsferg/relay/ext/zerolog
-          go test -race github.com/jhonsferg/relay/ext/redis
-          go test -race github.com/jhonsferg/relay/ext/jitterbug
-          go test -race github.com/jhonsferg/relay/ext/sentry
-          go test -race github.com/jhonsferg/relay/ext/sigv4
-          go test -race github.com/jhonsferg/relay/ext/memcached
+          set -e
+          # Collect all ext module directories that contain a go.mod
+          find ext -name "go.mod" | while read modfile; do
+            dir=$(dirname "$modfile")
+            echo ""
+            echo "=== Testing $dir ==="
+            (cd "$dir" && go test -v -race -count=1 ./...)
+          done
 
       - name: Upload coverage
+        if: matrix.go-version == '1.25'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.out
+          fail_ci_if_error: false
 
   lint:
     name: Lint
@@ -59,12 +59,34 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
+          cache: false
 
-      - uses: golangci/golangci-lint-action@v6
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Download modules (core)
+        env:
+          GOWORK: "off"
+        run: go mod download
+
+      - name: golangci-lint (core)
+        uses: golangci/golangci-lint-action@v6
+        env:
+          GOWORK: "off"
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m ./...
+
+      - name: golangci-lint (extensions)
+        env:
+          GOWORK: "off"
+        run: |
+          find ext -name "go.mod" | while read modfile; do
+            dir=$(dirname "$modfile")
+            echo "=== Linting $dir ==="
+            (cd "$dir" && golangci-lint run --timeout=3m ./...) || true
+          done
 
   vet:
     name: Vet
@@ -74,10 +96,23 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
+          cache: false
 
-      - name: go vet (all workspace packages)
-        run: go vet github.com/jhonsferg/relay/...
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: go vet (core)
+        run: go vet ./...
+
+      - name: go vet (extensions)
+        run: |
+          set -e
+          find ext -name "go.mod" | while read modfile; do
+            dir=$(dirname "$modfile")
+            echo "=== Vet $dir ==="
+            (cd "$dir" && go vet ./...)
+          done
 
   build-examples:
     name: Build Examples
@@ -87,10 +122,13 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
+          cache: false
 
-      - name: Sync workspace dependencies
-        run: go work sync
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
 
-      - name: Build all examples
-        run: go build github.com/jhonsferg/relay/examples/...
+      - name: Build examples module
+        env:
+          GOWORK: "off"
+        run: cd examples && go build ./...

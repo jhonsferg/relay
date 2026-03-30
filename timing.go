@@ -32,13 +32,13 @@ type RequestTiming struct {
 
 // timingCollector is used internally to accumulate timing checkpoints.
 type timingCollector struct {
-	dnsStart   time.Time
-	dnsDone    time.Time
-	connStart  time.Time
-	connDone   time.Time
-	tlsStart   time.Time
-	tlsDone    time.Time
-	firstByte  time.Time
+	dnsStart     time.Time
+	dnsDone      time.Time
+	connStart    time.Time
+	connDone     time.Time
+	tlsStart     time.Time
+	tlsDone      time.Time
+	firstByte    time.Time
 	requestStart time.Time
 }
 

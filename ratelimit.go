@@ -71,7 +71,7 @@ func (tb *tokenBucket) refill() {
 }
 
 // Wait blocks until a token is available or ctx is done. It returns ctx.Err()
-// if the context is cancelled or its deadline expires while waiting.
+// if the context is canceled or its deadline expires while waiting.
 func (tb *tokenBucket) Wait(ctx context.Context) error {
 	for {
 		tb.mu.Lock()
@@ -82,7 +82,7 @@ func (tb *tokenBucket) Wait(ctx context.Context) error {
 			return nil
 		}
 		// Compute how long to wait for the next token to become available.
-		wait := time.Duration((1-tb.tokens) / tb.rate * float64(time.Second))
+		wait := time.Duration((1 - tb.tokens) / tb.rate * float64(time.Second))
 		tb.mu.Unlock()
 
 		select {

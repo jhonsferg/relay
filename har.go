@@ -20,14 +20,14 @@ type HAREntry struct {
 
 // HARRequest is the HAR 1.2 request object.
 type HARRequest struct {
-	Method      string        `json:"method"`
-	URL         string        `json:"url"`
-	HTTPVersion string        `json:"httpVersion"`
-	Headers     []HARNameVal  `json:"headers"`
-	QueryString []HARNameVal  `json:"queryString"`
-	PostData    *HARPostData  `json:"postData,omitempty"`
-	BodySize    int           `json:"bodySize"`
-	HeadersSize int           `json:"headersSize"`
+	Method      string       `json:"method"`
+	URL         string       `json:"url"`
+	HTTPVersion string       `json:"httpVersion"`
+	Headers     []HARNameVal `json:"headers"`
+	QueryString []HARNameVal `json:"queryString"`
+	PostData    *HARPostData `json:"postData,omitempty"`
+	BodySize    int          `json:"bodySize"`
+	HeadersSize int          `json:"headersSize"`
 }
 
 // HARResponse is the HAR 1.2 response object.
@@ -108,7 +108,7 @@ func (r *HARRecorder) Entries() []HAREntry {
 	return out
 }
 
-// Export serializes all recorded entries as a HAR 1.2 JSON document.
+// Export serialises all recorded entries as a HAR 1.2 JSON document.
 func (r *HARRecorder) Export() ([]byte, error) {
 	r.mu.Lock()
 	entries := make([]HAREntry, len(r.entries))
@@ -157,7 +157,7 @@ func (t *harTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Read and restore response body for recording.
 	body, readErr := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close() //nolint:errcheck
 	if readErr != nil {
 		return nil, fmt.Errorf("relay: har recording: %w", readErr)
 	}
@@ -210,7 +210,7 @@ func buildHARRequest(req *http.Request) HARRequest {
 	// actual transport still gets the full payload.
 	if req.Body != nil && req.Body != http.NoBody {
 		bodyBytes, err := io.ReadAll(req.Body)
-		req.Body.Close()
+		_ = req.Body.Close() //nolint:errcheck
 		if err == nil && len(bodyBytes) > 0 {
 			req.Body = io.NopCloser(newBytesReader(bodyBytes))
 			harReq.BodySize = len(bodyBytes)

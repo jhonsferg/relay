@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,7 +14,6 @@ import (
 )
 
 func TestNew_DefaultsApplied(t *testing.T) {
-	t.Parallel()
 	c := New()
 	if c == nil {
 		t.Fatal("New() returned nil")
@@ -26,7 +27,6 @@ func TestNew_DefaultsApplied(t *testing.T) {
 }
 
 func TestNew_WithOptions(t *testing.T) {
-	t.Parallel()
 	c := New(
 		WithTimeout(5*time.Second),
 		WithBaseURL("https://example.com"),
@@ -44,7 +44,6 @@ func TestNew_WithOptions(t *testing.T) {
 }
 
 func TestWith_InheritsParentConfig(t *testing.T) {
-	t.Parallel()
 	parent := New(
 		WithTimeout(10*time.Second),
 		WithBaseURL("https://parent.example.com"),
@@ -68,7 +67,6 @@ func TestWith_InheritsParentConfig(t *testing.T) {
 }
 
 func TestWith_IsolatesFromParent(t *testing.T) {
-	t.Parallel()
 	parent := New(WithDefaultHeaders(map[string]string{"X-Shared": "a"}))
 	child := parent.With(WithDefaultHeaders(map[string]string{"X-Shared": "b"}))
 
@@ -81,7 +79,6 @@ func TestWith_IsolatesFromParent(t *testing.T) {
 }
 
 func TestExecute_BasicGET(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -115,7 +112,6 @@ func TestExecute_BasicGET(t *testing.T) {
 }
 
 func TestExecute_NilRequest(t *testing.T) {
-	t.Parallel()
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	_, err := c.Execute(nil)
 	if err != ErrNilRequest {
@@ -124,7 +120,6 @@ func TestExecute_NilRequest(t *testing.T) {
 }
 
 func TestExecute_DefaultHeadersInjected(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -145,7 +140,6 @@ func TestExecute_DefaultHeadersInjected(t *testing.T) {
 }
 
 func TestExecuteJSON_UnmarshalsBody(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -177,7 +171,6 @@ func TestExecuteJSON_UnmarshalsBody(t *testing.T) {
 }
 
 func TestExecuteJSON_NilOutSkipsUnmarshal(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{"x":1}`})
@@ -193,7 +186,6 @@ func TestExecuteJSON_NilOutSkipsUnmarshal(t *testing.T) {
 }
 
 func TestExecuteAs_Generic(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -220,7 +212,6 @@ func TestExecuteAs_Generic(t *testing.T) {
 }
 
 func TestExecuteBatch_AllSucceed(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -250,7 +241,6 @@ func TestExecuteBatch_AllSucceed(t *testing.T) {
 }
 
 func TestExecuteBatch_Empty(t *testing.T) {
-	t.Parallel()
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	results := c.ExecuteBatch(context.Background(), nil, 0)
 	if results != nil {
@@ -259,7 +249,6 @@ func TestExecuteBatch_Empty(t *testing.T) {
 }
 
 func TestExecuteAsync_ReceivesResult(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "async"})
@@ -283,7 +272,6 @@ func TestExecuteAsync_ReceivesResult(t *testing.T) {
 }
 
 func TestExecuteAsync_ChannelClosedAfterDelivery(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -299,18 +287,18 @@ func TestExecuteAsync_ChannelClosedAfterDelivery(t *testing.T) {
 }
 
 func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "callback-ok"})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	done := make(chan struct{})
-	var gotStatus int
+	var gotStatus int32
 	c.ExecuteAsyncCallback(
 		c.Get(srv.URL()+"/"),
 		func(resp *Response) {
-			gotStatus = resp.StatusCode
+			atomic.StoreInt32(&gotStatus, int32(resp.StatusCode)) //nolint:gosec
+
 			close(done)
 		},
 		func(err error) {
@@ -323,19 +311,19 @@ func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for callback")
 	}
-	if gotStatus != http.StatusOK {
-		t.Errorf("expected 200, got %d", gotStatus)
+	if atomic.LoadInt32(&gotStatus) != http.StatusOK {
+		t.Errorf("expected 200, got %d", atomic.LoadInt32(&gotStatus))
 	}
 }
 
 func TestExecuteAsyncCallback_OnError(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.EnqueueError()
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	done := make(chan struct{})
+	var mu sync.Mutex
 	var gotErr error
 	c.ExecuteAsyncCallback(
 		c.Get(srv.URL()+"/"),
@@ -344,7 +332,9 @@ func TestExecuteAsyncCallback_OnError(t *testing.T) {
 			close(done)
 		},
 		func(err error) {
+			mu.Lock()
 			gotErr = err
+			mu.Unlock()
 			close(done)
 		},
 	)
@@ -353,13 +343,15 @@ func TestExecuteAsyncCallback_OnError(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for error callback")
 	}
-	if gotErr == nil {
+	mu.Lock()
+	err := gotErr
+	mu.Unlock()
+	if err == nil {
 		t.Error("expected error from connection-close, got nil")
 	}
 }
 
 func TestShutdown_RejectsNewRequests(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -376,34 +368,51 @@ func TestShutdown_RejectsNewRequests(t *testing.T) {
 }
 
 func TestShutdown_WaitsForInFlightRequests(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
 	srv.Enqueue(testutil.MockResponse{
 		Status: http.StatusOK,
-		Delay:  80 * time.Millisecond,
+		Delay:  100 * time.Millisecond,
 	})
 
-	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	// Use a channel to signal when the request has actually started.
 	started := make(chan struct{})
+	done := make(chan struct{})
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithOnBeforeRequest(func(ctx context.Context, req *Request) error {
+			select {
+			case <-started:
+			default:
+				close(started)
+			}
+			return nil
+		}),
+	)
+
 	go func() {
-		close(started)
-		c.Execute(c.Get(srv.URL() + "/slow")) //nolint:errcheck
+		_, _ = c.Execute(c.Get(srv.URL() + "/slow"))
+		close(done)
 	}()
-	<-started
-	// Give the goroutine time to call Execute and register in-flight.
-	time.Sleep(10 * time.Millisecond)
+
+	// Wait for the request to start and register in c.inFlight.
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("request failed to start within 2s")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := c.Shutdown(ctx); err != nil {
-		t.Errorf("Shutdown should succeed before in-flight completes: %v", err)
+		t.Errorf("Shutdown should succeed after in-flight completes: %v", err)
 	}
+	<-done
 }
 
 func TestExecute_POSTWithBody(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusCreated})
@@ -427,13 +436,12 @@ func TestExecute_POSTWithBody(t *testing.T) {
 }
 
 func TestExecute_QueryParams(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL() + "/search").
+	req := c.Get(srv.URL()+"/search").
 		WithQueryParam("q", "relay").
 		WithQueryParam("page", "2")
 	_, err := c.Execute(req)
@@ -450,7 +458,6 @@ func TestExecute_QueryParams(t *testing.T) {
 }
 
 func TestIsHealthy_NoBreakerAlwaysTrue(t *testing.T) {
-	t.Parallel()
 	c := New(WithDisableCircuitBreaker())
 	if !c.IsHealthy() {
 		t.Error("client without circuit breaker should always be healthy")

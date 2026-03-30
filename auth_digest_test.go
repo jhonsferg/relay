@@ -143,7 +143,7 @@ func TestDigestTransport_RoundTrip_NoChallenge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RoundTrip error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
@@ -169,7 +169,7 @@ func TestDigestTransport_RoundTrip_DigestChallenge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RoundTrip error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 after digest auth, got %d", resp.StatusCode)
 	}
@@ -192,7 +192,7 @@ func TestDigestTransport_RoundTrip_NonDigest401(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RoundTrip error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 	// Should not retry for non-Digest challenge, return original 401.
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("expected 401 passthrough, got %d", resp.StatusCode)

@@ -16,7 +16,6 @@ var uuidV4Regexp = regexp.MustCompile(
 )
 
 func TestGenerateIdempotencyKey_ValidUUIDv4Format(t *testing.T) {
-	t.Parallel()
 
 	for i := 0; i < 10; i++ {
 		key, err := generateIdempotencyKey()
@@ -30,7 +29,6 @@ func TestGenerateIdempotencyKey_ValidUUIDv4Format(t *testing.T) {
 }
 
 func TestGenerateIdempotencyKey_Unique(t *testing.T) {
-	t.Parallel()
 
 	const n = 100
 	seen := make(map[string]struct{}, n)
@@ -47,7 +45,6 @@ func TestGenerateIdempotencyKey_Unique(t *testing.T) {
 }
 
 func TestGenerateIdempotencyKey_Version4Bits(t *testing.T) {
-	t.Parallel()
 
 	key, err := generateIdempotencyKey()
 	if err != nil {
@@ -66,7 +63,6 @@ func TestGenerateIdempotencyKey_Version4Bits(t *testing.T) {
 }
 
 func TestWithAutoIdempotencyKey_HeaderInjected(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -97,7 +93,6 @@ func TestWithAutoIdempotencyKey_HeaderInjected(t *testing.T) {
 }
 
 func TestWithAutoIdempotencyKey_SameKeyOnRetries(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -151,7 +146,6 @@ func TestWithAutoIdempotencyKey_SameKeyOnRetries(t *testing.T) {
 }
 
 func TestWithIdempotencyKey_ManualKeyUsed(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -180,7 +174,6 @@ func TestWithIdempotencyKey_ManualKeyUsed(t *testing.T) {
 }
 
 func TestIdempotencyKeyHeader_ConstantValue(t *testing.T) {
-	t.Parallel()
 	if idempotencyKeyHeader != "X-Idempotency-Key" {
 		t.Errorf("idempotencyKeyHeader should be 'X-Idempotency-Key', got %q", idempotencyKeyHeader)
 	}

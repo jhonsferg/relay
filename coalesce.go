@@ -44,7 +44,7 @@ func (t *coalesceTransport) RoundTrip(req *http.Request) (*http.Response, error)
 			return nil, err
 		}
 		body, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck
 		if readErr != nil {
 			return nil, readErr
 		}

@@ -30,7 +30,7 @@
 // ExpiresAt are stored with expiration 0, meaning they never expire unless
 // evicted by the server's memory pressure (LRU).
 //
-// # Clear behaviour
+// # Clear behavior
 //
 // [CacheStore.Clear] calls the underlying client's FlushAll which purges the
 // entire server. If this CacheStore shares a memcached instance with other

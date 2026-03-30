@@ -26,14 +26,15 @@ linters:
 
 linters-settings:
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
   goimports:
     local-prefixes: github.com/jhonsferg/relay
   gosec:
     excludes:
       - G104 # Errors unhandled (often duplicated by errcheck)
   misspell:
-    locale: US
+    locale: UK
 
 issues:
   exclude-use-default: false
@@ -41,4 +42,4 @@ issues:
   max-same-issues: 0
   exclude-dirs:
     - vendor
-    - internal/pool # Example of ignoring a specific internal package if needed
+    - internal/pool
