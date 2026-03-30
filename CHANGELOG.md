@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ext/zap` module (`github.com/jhonsferg/relay/ext/zap`) — go.uber.org/zap adapter implementing `relay.Logger` via `NewAdapter(*zap.Logger)` and `NewSugaredAdapter(*zap.SugaredLogger)`
 - `ext/zerolog` module (`github.com/jhonsferg/relay/ext/zerolog`) — github.com/rs/zerolog adapter implementing `relay.Logger` via `NewAdapter(zerolog.Logger)`; forwards key/value pairs using zerolog's `event.Fields()`
-- `ext/redis` module (`github.com/jhonsferg/relay/ext/redis`) — Redis-backed `relay.CacheStore` via `NewCacheStore(redis.Cmdable, prefix)` using github.com/redis/go-redis/v9; entries serialised as compact JSON with per-entry TTL derived from `ExpiresAt`; `Clear()` uses `SCAN + DEL` with the key prefix to avoid `FLUSHDB` on shared instances
+- `ext/redis` module (`github.com/jhonsferg/relay/ext/redis`) — Redis-backed `relay.CacheStore` via `NewCacheStore(redis.Cmdable, prefix)` using github.com/redis/go-redis/v9; entries serialized as compact JSON with per-entry TTL derived from `ExpiresAt`; `Clear()` uses `SCAN + DEL` with the key prefix to avoid `FLUSHDB` on shared instances
 
 ## [0.2.0] - 2026-03-29
 

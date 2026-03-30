@@ -87,7 +87,7 @@ type Config struct {
 	CacheStore CacheStore
 
 	// CustomDialer replaces the default net.Dialer. When set, DialTimeout and
-	// DialKeepAlive are ignored in favour of the dialer's own settings.
+	// DialKeepAlive are ignored in favor of the dialer's own settings.
 	CustomDialer *net.Dialer
 
 	// DNSOverrides maps hostnames to fixed IP addresses, bypassing DNS
