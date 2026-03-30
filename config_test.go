@@ -188,7 +188,6 @@ func TestWithOnStateChange(t *testing.T) {
 	t.Fatal("CircuitBreaker did not Open within 20s")
 }
 
-
 func TestWithRateLimit(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
