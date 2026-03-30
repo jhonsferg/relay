@@ -161,7 +161,7 @@ func TestRequestValidation_UnknownRoute_Passthrough(t *testing.T) {
 	defer srv.Close()
 
 	client := newTestClient(t, srv)
-	// /unknown is not in the spec — should pass through.
+	// /unknown is not in the spec - should pass through.
 	resp, err := client.Execute(client.Get("/unknown"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

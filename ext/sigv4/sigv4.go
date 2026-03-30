@@ -29,7 +29,7 @@
 // # Payload hashing
 //
 // By default the request body is read, SHA-256 hashed, and restored before
-// signing — this is required by services such as S3. For services that accept
+// signing - this is required by services such as S3. For services that accept
 // unsigned payloads (e.g. API Gateway over HTTPS) you can skip body hashing
 // with [WithUnsignedPayload]:
 //

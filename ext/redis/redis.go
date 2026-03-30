@@ -20,7 +20,7 @@
 //	    relay.WithCache(store),
 //	)
 //
-// The rdb argument may be any type that satisfies [redis.Cmdable] — a
+// The rdb argument may be any type that satisfies [redis.Cmdable] - a
 // *redis.Client, *redis.ClusterClient, *redis.Ring, etc.
 //
 // # TTL handling

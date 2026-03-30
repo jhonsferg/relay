@@ -69,7 +69,7 @@ func main() {
 		// Here we never retry if the context was explicitly canceled.
 		RetryIf: func(resp *http.Response, err error) bool {
 			if err != nil {
-				// Skip retrying on context cancellation — that was intentional.
+				// Skip retrying on context cancellation - that was intentional.
 				return !errors.Is(err, http.ErrServerClosed)
 			}
 			// Only retry 503 when the server sends a Retry-After header.
@@ -110,11 +110,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("request failed after all retries: %v", err)
 	}
-	fmt.Printf("Final status: %d — body: %s\n", resp.StatusCode, resp.String())
+	fmt.Printf("Final status: %d - body: %s\n", resp.StatusCode, resp.String())
 	fmt.Printf("Total server hits: %d\n\n", requestCount.Load())
 
 	// ---------------------------------------------------------------------------
-	// 2. WithDisableRetry — make a single-shot request without any retry logic.
+	// 2. WithDisableRetry - make a single-shot request without any retry logic.
 	//
 	// Useful for non-idempotent calls (e.g. payments, email) where retrying
 	// could cause duplicate side effects even with an idempotency key.
@@ -133,7 +133,7 @@ func main() {
 	}
 	// The first request hits a 503 from the test server because we reset the
 	// counter, and the client will NOT retry.
-	fmt.Printf("Status: %d — body: %s\n", resp.StatusCode, resp.String())
+	fmt.Printf("Status: %d - body: %s\n", resp.StatusCode, resp.String())
 	fmt.Printf("Total server hits: %d (expected 1)\n\n", requestCount.Load())
 
 	// ---------------------------------------------------------------------------
@@ -149,6 +149,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("derived no-retry request failed: %v", err)
 	}
-	fmt.Printf("Status: %d — body: %s\n", resp.StatusCode, resp.String())
+	fmt.Printf("Status: %d - body: %s\n", resp.StatusCode, resp.String())
 	fmt.Printf("Total server hits: %d (expected 1)\n", requestCount.Load())
 }

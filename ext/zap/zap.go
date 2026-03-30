@@ -18,7 +18,7 @@
 //	    relay.WithLogger(relayzap.NewAdapter(logger)),
 //	)
 //
-// relay passes structured log fields as alternating key/value pairs — the same
+// relay passes structured log fields as alternating key/value pairs - the same
 // convention as go.uber.org/zap's SugaredLogger.Debugw / Infow / Warnw /
 // Errorw family. The adapter forwards them without any extra allocation.
 package zap

@@ -10,7 +10,7 @@ import (
 )
 
 // StreamResponse holds a live HTTP response with an unconsumed body reader.
-// Unlike [Response], the body is NOT buffered in memory — it is streamed on
+// Unlike [Response], the body is NOT buffered in memory - it is streamed on
 // demand. Use this for large payloads (file downloads, SSE, JSONL, etc.).
 //
 // The caller MUST call Body.Close() when done to release the TCP connection
@@ -79,7 +79,7 @@ func (m *managedReadCloser) Close() error {
 }
 
 // ExecuteStream sends the request and returns a [StreamResponse] without
-// buffering the body. Retry logic is NOT applied — a streaming response cannot
+// buffering the body. Retry logic is NOT applied - a streaming response cannot
 // be replayed once partially consumed.
 //
 // The request participates in [Client.Shutdown]'s graceful drain: the

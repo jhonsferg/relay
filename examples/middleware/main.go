@@ -1,9 +1,9 @@
 // Package main demonstrates relay's middleware and hook system:
 //
-//   - WithTransportMiddleware — wraps the http.RoundTripper for request/response
+//   - WithTransportMiddleware - wraps the http.RoundTripper for request/response
 //     interception (logging, timing, header injection, response rewriting).
-//   - WithOnBeforeRequest — hook called before each attempt (including retries).
-//   - WithOnAfterResponse — hook called after a successful response.
+//   - WithOnBeforeRequest - hook called before each attempt (including retries).
+//   - WithOnAfterResponse - hook called after a successful response.
 //
 // Middleware is applied outermost-last: the LAST added middleware is the FIRST
 // to intercept a request and the LAST to see the response.
@@ -76,7 +76,7 @@ func (m *sizeguardMiddleware) RoundTrip(req *http.Request) (*http.Response, erro
 
 func main() {
 	// -------------------------------------------------------------------------
-	// Test server — echoes request metadata back in the response body.
+	// Test server - echoes request metadata back in the response body.
 	// -------------------------------------------------------------------------
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -89,7 +89,7 @@ func main() {
 	defer srv.Close()
 
 	// =========================================================================
-	// 1. WithTransportMiddleware — chaining multiple RoundTripper wrappers.
+	// 1. WithTransportMiddleware - chaining multiple RoundTripper wrappers.
 	//
 	// Order of wrapping: timing → requestID → relay internals → HTTP.
 	// Order of interception (outermost first): requestID → timing → HTTP.
@@ -124,7 +124,7 @@ func main() {
 	fmt.Printf("  body: %s\n\n", resp.String())
 
 	// =========================================================================
-	// 2. WithOnBeforeRequest — hook fired before each attempt (incl. retries).
+	// 2. WithOnBeforeRequest - hook fired before each attempt (incl. retries).
 	//
 	// Use for: dynamic token injection, request stamping, distributed tracing
 	// context propagation, per-attempt logging.
@@ -177,7 +177,7 @@ func main() {
 	}
 
 	// =========================================================================
-	// 3. WithOnAfterResponse — hook fired after every successful response.
+	// 3. WithOnAfterResponse - hook fired after every successful response.
 	//
 	// Use for: response validation, metrics recording, structured audit logging,
 	// automatic error promotion (convert 4xx/5xx to errors).

@@ -97,7 +97,7 @@ func (c *Client) ExecuteSSE(req *Request, handler SSEHandler) error {
 			continue
 		}
 
-		// Lines starting with ":" are comments — ignore.
+		// Lines starting with ":" are comments - ignore.
 		if strings.HasPrefix(line, ":") {
 			continue
 		}

@@ -83,7 +83,7 @@ func (d *cachedDialer) DialContext(ctx context.Context, network, addr string) (n
 		return d.base.DialContext(ctx, network, addr)
 	}
 
-	// Skip cache for IP-literal addresses — no DNS needed.
+	// Skip cache for IP-literal addresses - no DNS needed.
 	if net.ParseIP(host) != nil {
 		return d.base.DialContext(ctx, network, addr)
 	}

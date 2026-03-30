@@ -18,7 +18,7 @@
 
 ## Overview
 
-**Relay** is designed for developers who need more than just `http.Client`. It provides a fluent, batteries-included API for building resilient distributed systems. Retries, circuit breaking, caching, rate limiting, streaming, and observability are all built in — allowing you to focus on your business logic.
+**Relay** is designed for developers who need more than just `http.Client`. It provides a fluent, batteries-included API for building resilient distributed systems. Retries, circuit breaking, caching, rate limiting, streaming, and observability are all built in - allowing you to focus on your business logic.
 
 The core module has **zero external dependencies**. Every integration (Redis, OTel, Prometheus, gRPC, etc.) lives in its own optional extension module so you only pull in what you actually use.
 
@@ -48,7 +48,7 @@ Execute(Request)
   └─ *Response                 (body, status, timing, headers)
 ```
 
-Every layer is opt-in via `relay.Option` — compose exactly the behaviour your service needs.
+Every layer is opt-in via `relay.Option` - compose exactly the behaviour your service needs.
 
 ---
 
@@ -130,7 +130,7 @@ func main() {
         panic(err)
     }
 
-    fmt.Printf("%d %s — fetched in %v\n", user.ID, user.Name, resp.Timing.Total)
+    fmt.Printf("%d %s - fetched in %v\n", user.ID, user.Name, resp.Timing.Total)
 }
 ```
 
@@ -554,7 +554,7 @@ caller so your application can decide how to handle it.
 
 #### Distributed Rate Limiter (`ext/ratelimit/distributed`)
 
-Redis sliding-window rate limiter with atomic Lua script — safe across multiple
+Redis sliding-window rate limiter with atomic Lua script - safe across multiple
 service replicas:
 
 ```go
@@ -626,7 +626,7 @@ client := relay.New(
 
 ### OpenAPI Validation (`ext/openapi`)
 
-Validate every request — and optionally every response — against an OpenAPI 3.x spec
+Validate every request - and optionally every response - against an OpenAPI 3.x spec
 before it reaches the network. Route mismatches are passed through (the server will 404).
 
 ```go
@@ -659,7 +659,7 @@ if _, err := client.Execute(req); err != nil {
 
 #### Brotli (`ext/brotli`)
 
-Transparent `br` decompression — advertises `Accept-Encoding: br` and decompresses
+Transparent `br` decompression - advertises `Accept-Encoding: br` and decompresses
 the response body automatically:
 
 ```go
@@ -672,7 +672,7 @@ client := relay.New(relaybr.WithBrotliDecompression())
 
 ## Testing
 
-### testutil — Mock HTTP Server
+### testutil - Mock HTTP Server
 
 The built-in `testutil` package provides a mock HTTP server for unit tests without
 needing to set up a real server:
@@ -699,7 +699,7 @@ func TestMyAPI(t *testing.T) {
 }
 ```
 
-### ext/mock — Programmable Transport
+### ext/mock - Programmable Transport
 
 For unit tests that should never touch the network, `ext/mock` intercepts all
 requests inside the process:
@@ -717,7 +717,7 @@ mt := relaymock.New(t).
 
 client := relay.New(relaymock.WithMock(mt))
 
-// Make requests — no network calls are made
+// Make requests - no network calls are made
 resp, _ := client.Execute(client.Get("/users/1"))
 mt.AssertExpectations() // verify all rules were hit
 ```
@@ -743,7 +743,7 @@ The `examples/` directory contains runnable programs demonstrating every feature
 | `examples/tls_pinning/` | Certificate pinning (correct/wrong/rotation) |
 | `examples/digest_auth/` | HTTP Digest Authentication challenge/response |
 | `examples/progress/` | Upload and download progress bars |
-| `examples/coalescing/` | Request deduplication — hit counter shows upstream savings |
+| `examples/coalescing/` | Request deduplication - hit counter shows upstream savings |
 | `examples/async/` | `ExecuteAsync`, fan-out, first-to-respond, map-reduce |
 | `examples/middleware/` | Transport middleware chain, `OnBeforeRequest`, `OnAfterResponse` |
 | `examples/batch/` | Batch execution with `ExecuteBatch` |
@@ -768,11 +768,11 @@ cd examples/sse && go run .
 
 Relay is built for high-throughput services:
 
-- **Zero-allocation pooling** — `sync.Pool` for internal buffers keeps GC pressure low.
-- **Request coalescing** — collapses identical concurrent requests into a single upstream call, eliminating thundering-herd on cache warm-up.
-- **Optimized transport** — pre-tuned connection pool with keep-alive and native HTTP/2 support.
-- **Lazy body sizing** — response bodies are read into a capped buffer; oversized responses are rejected early without allocating.
-- **DNS caching** — optional client-side DNS cache eliminates repeated resolver round-trips for long-lived services.
+- **Zero-allocation pooling** - `sync.Pool` for internal buffers keeps GC pressure low.
+- **Request coalescing** - collapses identical concurrent requests into a single upstream call, eliminating thundering-herd on cache warm-up.
+- **Optimized transport** - pre-tuned connection pool with keep-alive and native HTTP/2 support.
+- **Lazy body sizing** - response bodies are read into a capped buffer; oversized responses are rejected early without allocating.
+- **DNS caching** - optional client-side DNS cache eliminates repeated resolver round-trips for long-lived services.
 
 ---
 

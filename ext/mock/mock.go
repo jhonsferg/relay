@@ -28,7 +28,7 @@
 // # Sequences
 //
 // [Rule.RespondSequence] lets a single rule return different responses on
-// consecutive calls — useful for testing retry logic:
+// consecutive calls - useful for testing retry logic:
 //
 //	mt.On(relaymock.MatchAny()).
 //	    RespondSequence(
@@ -60,7 +60,7 @@ type Matcher func(req *http.Request) bool
 
 // -- Matchers ------------------------------------------------------------------
 
-// MatchAny matches every request — use as a catch-all rule.
+// MatchAny matches every request - use as a catch-all rule.
 func MatchAny() Matcher { return func(*http.Request) bool { return true } }
 
 // MatchMethod matches requests with the given HTTP method (case-insensitive).
@@ -123,7 +123,7 @@ func Seq(statusCode int, body []byte, headers map[string]string) *SeqEntry {
 }
 
 // SeqError creates a sequence entry that returns a transport error instead of
-// an HTTP response — simulating network failures for retry testing.
+// an HTTP response - simulating network failures for retry testing.
 func SeqError(err error) *SeqEntry {
 	return &SeqEntry{err: err}
 }
@@ -337,7 +337,7 @@ func (mt *MockTransport) AssertCalled(t TB, matchers ...Matcher) bool {
 			return true
 		}
 	}
-	t.Errorf("mock: AssertCalled — no call matched all matchers")
+	t.Errorf("mock: AssertCalled - no call matched all matchers")
 	return false
 }
 
@@ -353,7 +353,7 @@ func (mt *MockTransport) AssertNotCalled(t TB, matchers ...Matcher) bool {
 			}
 		}
 		if allMatch {
-			t.Errorf("mock: AssertNotCalled — a call matched all matchers")
+			t.Errorf("mock: AssertNotCalled - a call matched all matchers")
 			return false
 		}
 	}

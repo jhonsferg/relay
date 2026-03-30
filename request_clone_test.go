@@ -31,7 +31,7 @@ func TestRequestClone_IndependentBody(t *testing.T) {
 	clone := base.Clone()
 	clone.WithBody([]byte("modified"))
 
-	// Issue both — server receives different bodies.
+	// Issue both - server receives different bodies.
 	var bodies []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 128)
@@ -59,7 +59,7 @@ func TestRequestClone_IndependentQueryParams(t *testing.T) {
 	clone := base.Clone()
 	clone.WithQueryParam("q", "dogs")
 
-	// The clone has its own query map — base is unchanged.
+	// The clone has its own query map - base is unchanged.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -77,7 +77,7 @@ func TestRequestClone_IndependentQueryParams(t *testing.T) {
 func TestRequestClone_NilTagsHandled(t *testing.T) {
 	client := relay.New()
 	base := client.Get("/api")
-	// No tags set — Tags() returns nil.
+	// No tags set - Tags() returns nil.
 	clone := base.Clone()
 	if clone == nil {
 		t.Fatal("Clone() returned nil")
@@ -95,7 +95,7 @@ func TestRequestWithMaxBodySize_PerRequestOverride(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Client default is 10 MB — override per-request to 20 bytes.
+	// Client default is 10 MB - override per-request to 20 bytes.
 	client := relay.New()
 	resp, err := client.Execute(
 		client.Get(srv.URL).WithMaxBodySize(20),

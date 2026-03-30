@@ -4,7 +4,7 @@
 //
 // This is an improvement over the built-in [relay.NewInMemoryCacheStore], which
 // uses insertion order (FIFO) eviction. Use this package when your workload has
-// temporal locality — popular entries are accessed frequently and should stay
+// temporal locality - popular entries are accessed frequently and should stay
 // in cache, while cold entries should be evicted first.
 //
 // Usage:
@@ -24,7 +24,7 @@
 // # Expiry
 //
 // Entries with a non-zero ExpiresAt are evicted lazily on access when their
-// deadline has passed — no background goroutine is required.
+// deadline has passed - no background goroutine is required.
 //
 // # Thread safety
 //

@@ -75,7 +75,7 @@ func TestWithTracing_NilProviderFallsBackToGlobal(t *testing.T) {
 
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
-	// Both nil — uses global providers (noop by default in tests)
+	// Both nil - uses global providers (noop by default in tests)
 	c := relay.New(
 		relay.WithBaseURL(srv.URL()),
 		relaytracing.WithTracing(nil, nil),

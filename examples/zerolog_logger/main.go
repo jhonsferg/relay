@@ -3,7 +3,7 @@
 //
 // zerolog is a zero-allocation JSON logger. relay emits internal log events as
 // alternating key/value pairs, which the adapter forwards directly to zerolog's
-// event.Fields() — keeping allocations minimal.
+// event.Fields() - keeping allocations minimal.
 package main
 
 import (
@@ -50,7 +50,7 @@ func main() {
 	// ---------------------------------------------------------------------------
 	// 3. Wire the zerolog adapter into a relay client.
 	//
-	// relayzl.NewAdapter copies the logger by value — later mutations to
+	// relayzl.NewAdapter copies the logger by value - later mutations to
 	// `logger` do not affect the client.
 	// ---------------------------------------------------------------------------
 	client := relay.New(
@@ -66,7 +66,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute: %v", err)
 	}
-	fmt.Printf("\nResponse: %d — %s\n\n", resp.StatusCode, resp.String())
+	fmt.Printf("\nResponse: %d - %s\n\n", resp.StatusCode, resp.String())
 
 	// ---------------------------------------------------------------------------
 	// 4. Sub-logger with additional context fields.
@@ -92,10 +92,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute client2: %v", err)
 	}
-	fmt.Printf("\nResponse: %d — %s\n\n", resp2.StatusCode, resp2.String())
+	fmt.Printf("\nResponse: %d - %s\n\n", resp2.StatusCode, resp2.String())
 
 	// ---------------------------------------------------------------------------
-	// 5. Level filtering — only Warn and above.
+	// 5. Level filtering - only Warn and above.
 	//
 	// Useful in production to suppress per-request Debug noise without removing
 	// the logger entirely.
@@ -141,5 +141,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute client4: %v", err)
 	}
-	fmt.Printf("\nResponse: %d — %s\n", resp4.StatusCode, resp4.String())
+	fmt.Printf("\nResponse: %d - %s\n", resp4.StatusCode, resp4.String())
 }
