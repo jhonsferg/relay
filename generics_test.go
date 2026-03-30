@@ -19,7 +19,7 @@ func TestExecuteAsStream_JSONL(t *testing.T) {
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		for i := 1; i <= 5; i++ {
 			b, _ := json.Marshal(Item{N: i})
-			fmt.Fprintf(w, "%s\n", b)
+			_, _ = fmt.Fprintf(w, "%s\n", b)
 		}
 	}))
 	defer srv.Close()
@@ -51,7 +51,7 @@ func TestExecuteAsStream_StopEarly(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for i := 1; i <= 100; i++ {
 			b, _ := json.Marshal(Item{N: i})
-			fmt.Fprintf(w, "%s\n", b)
+			_, _ = fmt.Fprintf(w, "%s\n", b)
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
@@ -79,7 +79,7 @@ func TestExecuteAsStream_BlankLinesSkipped(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"v":"a"}`+"\n\n"+`{"v":"b"}`+"\n")
+		_, _ = fmt.Fprint(w, `{"v":"a"}`+"\n\n"+`{"v":"b"}`+"\n")
 	}))
 	defer srv.Close()
 
@@ -99,7 +99,7 @@ func TestExecuteAsStream_BlankLinesSkipped(t *testing.T) {
 
 func TestExecuteAsStream_InvalidJSONReturnsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "not-json\n")
+		_, _ = fmt.Fprint(w, "not-json\n")
 	}))
 	defer srv.Close()
 
@@ -121,7 +121,7 @@ func TestExecuteAs_JSONResponse(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"id":7,"name":"Alice"}`)
+		_, _ = fmt.Fprint(w, `{"id":7,"name":"Alice"}`)
 	}))
 	defer srv.Close()
 

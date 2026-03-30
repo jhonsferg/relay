@@ -52,7 +52,7 @@ func ExecuteAsStream[T any](c *Client, req *Request, handler func(T) bool) error
 	if err != nil {
 		return err
 	}
-	defer stream.Body.Close()
+	defer func() { _ = stream.Body.Close() }()
 
 	scanner := bufio.NewScanner(stream.Body)
 	for scanner.Scan() {

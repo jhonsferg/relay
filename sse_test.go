@@ -14,7 +14,7 @@ func sseServer(events string) *httptest.Server {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		fmt.Fprint(w, events)
+		_, _ = fmt.Fprint(w, events)
 	}))
 }
 

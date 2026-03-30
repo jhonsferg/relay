@@ -55,7 +55,7 @@ func (c *Client) ExecuteSSE(req *Request, handler SSEHandler) error {
 	if err != nil {
 		return err
 	}
-	defer stream.Body.Close()
+	defer func() { _ = stream.Body.Close() }()
 
 	var (
 		id    string

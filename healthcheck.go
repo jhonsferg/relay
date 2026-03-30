@@ -79,7 +79,7 @@ func (c *Client) probeHealthEndpoint(ctx context.Context, hc *http.Client, cfg *
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if cfg.ExpectedStatus != 0 {
 		return resp.StatusCode == cfg.ExpectedStatus

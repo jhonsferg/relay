@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,11 +18,14 @@ import (
 // captureTransport records events sent to Sentry without making real network
 // calls, allowing tests to inspect what was captured.
 type captureTransport struct {
+	mu          sync.Mutex
 	events      []*sentrygo.Event
 	breadcrumbs []*sentrygo.Breadcrumb
 }
 
 func (t *captureTransport) SendEvent(event *sentrygo.Event) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.events = append(t.events, event)
 }
 
