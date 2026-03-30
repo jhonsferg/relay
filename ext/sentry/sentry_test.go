@@ -29,6 +29,14 @@ func (t *captureTransport) SendEvent(event *sentrygo.Event) {
 	t.events = append(t.events, event)
 }
 
+func (t *captureTransport) Events() []*sentrygo.Event {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]*sentrygo.Event, len(t.events))
+	copy(out, t.events)
+	return out
+}
+
 func (t *captureTransport) Flush(timeout time.Duration) bool { return true }
 
 func (t *captureTransport) Configure(options sentrygo.ClientOptions) {}
@@ -76,8 +84,8 @@ func TestWithSentry_CapturesTransportError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected connection error, got nil")
 	}
-	if len(ct.events) != 1 {
-		t.Errorf("captured events = %d, want 1", len(ct.events))
+	if len(ct.Events()) != 1 {
+		t.Errorf("captured events = %d, want 1", len(ct.Events()))
 	}
 }
 
@@ -96,8 +104,8 @@ func TestWithSentry_TransportErrorsDisabled(t *testing.T) {
 	)
 
 	client.Execute(client.Get("/")) //nolint:errcheck
-	if len(ct.events) != 0 {
-		t.Errorf("expected no events when transport error capture disabled, got %d", len(ct.events))
+	if len(ct.Events()) != 0 {
+		t.Errorf("expected no events when transport error capture disabled, got %d", len(ct.Events()))
 	}
 }
 
@@ -125,14 +133,14 @@ func TestWithSentry_Captures5xx(t *testing.T) {
 	if resp.StatusCode != 500 {
 		t.Errorf("status = %d, want 500", resp.StatusCode)
 	}
-	if len(ct.events) != 1 {
-		t.Errorf("captured events = %d, want 1", len(ct.events))
+	if len(ct.Events()) != 1 {
+		t.Errorf("captured events = %d, want 1", len(ct.Events()))
 	}
-	if ct.events[0].Level != sentrygo.LevelError {
-		t.Errorf("event level = %v, want error", ct.events[0].Level)
+	if ct.Events()[0].Level != sentrygo.LevelError {
+		t.Errorf("event level = %v, want error", ct.Events()[0].Level)
 	}
-	if !strings.Contains(ct.events[0].Message, "500") {
-		t.Errorf("event message %q should contain status code", ct.events[0].Message)
+	if !strings.Contains(ct.Events()[0].Message, "500") {
+		t.Errorf("event message %q should contain status code", ct.Events()[0].Message)
 	}
 }
 
@@ -149,8 +157,8 @@ func TestWithSentry_ServerErrorsDisabled(t *testing.T) {
 	c := newRelayClient(srv, hub, relaysentry.WithCaptureServerErrors(false))
 
 	c.Execute(c.Get("/")) //nolint:errcheck
-	if len(ct.events) != 0 {
-		t.Errorf("expected no events when server error capture disabled, got %d", len(ct.events))
+	if len(ct.Events()) != 0 {
+		t.Errorf("expected no events when server error capture disabled, got %d", len(ct.Events()))
 	}
 }
 
@@ -171,8 +179,8 @@ func TestWithSentry_Does_Not_Capture4xxByDefault(t *testing.T) {
 	c := newRelayClient(srv, hub) // default: captureClientErrors = false
 
 	c.Execute(c.Get("/missing")) //nolint:errcheck
-	if len(ct.events) != 0 {
-		t.Errorf("expected no events for 404 by default, got %d", len(ct.events))
+	if len(ct.Events()) != 0 {
+		t.Errorf("expected no events for 404 by default, got %d", len(ct.Events()))
 	}
 }
 
@@ -189,11 +197,11 @@ func TestWithSentry_Captures4xxWhenEnabled(t *testing.T) {
 	c := newRelayClient(srv, hub, relaysentry.WithCaptureClientErrors(true))
 
 	c.Execute(c.Get("/forbidden")) //nolint:errcheck
-	if len(ct.events) != 1 {
-		t.Errorf("captured events = %d, want 1", len(ct.events))
+	if len(ct.Events()) != 1 {
+		t.Errorf("captured events = %d, want 1", len(ct.Events()))
 	}
-	if ct.events[0].Level != sentrygo.LevelWarning {
-		t.Errorf("event level = %v, want warning", ct.events[0].Level)
+	if ct.Events()[0].Level != sentrygo.LevelWarning {
+		t.Errorf("event level = %v, want warning", ct.Events()[0].Level)
 	}
 }
 
@@ -222,8 +230,8 @@ func TestWithSentry_AddsBreadcrumbOnSuccess(t *testing.T) {
 	// Breadcrumbs aren't forwarded to transport directly; they're attached to
 	// the scope. Verify they don't cause panics or errors and the event path
 	// for 2xx is clean.
-	if len(ct.events) != 0 {
-		t.Errorf("expected no events for 200, got %d", len(ct.events))
+	if len(ct.Events()) != 0 {
+		t.Errorf("expected no events for 200, got %d", len(ct.Events()))
 	}
 }
 
@@ -247,8 +255,8 @@ func TestWithSentry_BreadcrumbsDisabled(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
-	if len(ct.events) != 0 {
-		t.Errorf("expected no events, got %d", len(ct.events))
+	if len(ct.Events()) != 0 {
+		t.Errorf("expected no events, got %d", len(ct.Events()))
 	}
 }
 
@@ -280,7 +288,7 @@ func TestWithSentry_HubIsClonedPerRequest(t *testing.T) {
 		<-done
 	}
 
-	if len(ct.events) != 3 {
-		t.Errorf("captured events = %d, want 3 (one per request)", len(ct.events))
+	if len(ct.Events()) != 3 {
+		t.Errorf("captured events = %d, want 3 (one per request)", len(ct.Events()))
 	}
 }
