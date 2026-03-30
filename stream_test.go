@@ -13,11 +13,11 @@ import (
 func TestStreamResponse_StatusHelpers(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		code       int
-		success    bool
-		isErr      bool
-		clientErr  bool
-		serverErr  bool
+		code      int
+		success   bool
+		isErr     bool
+		clientErr bool
+		serverErr bool
 	}{
 		{200, true, false, false, false},
 		{201, true, false, false, false},
@@ -121,13 +121,13 @@ func TestExecuteStream_WithRateLimit_Cancel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first stream: %v", err)
 	}
-	stream.Body.Close()
+	_ = stream.Body.Close() //nolint:errcheck
 
 	// Second request must wait — cancel quickly via timeout.
 	req := c.Get(srv.URL() + "/").WithTimeout(10 * time.Millisecond)
 	_, err = c.ExecuteStream(req)
 	if err == nil {
-		t.Error("expected rate-limit wait to be cancelled")
+		t.Error("expected rate-limit wait to be canceled")
 	}
 }
 

@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go tool:*)",
+      "Bash(sort -k3 -n)",
+      "Bash(go vet:*)",
+      "Bash(go mod:*)",
+      "Bash(ls E:/Projects/jhonsferg/relay/relay/*.go)",
+      "Bash(grep -r \"otel\\\\|prometheus\\\\|brotli\" E:/Projects/jhonsferg/relay/relay/*.go)",
+      "Bash(cd:*)",
+      "Bash(cp E:/Projects/jhonsferg/relay/relay/*.go E:/Projects/jhonsferg/relay/)",
+      "Bash(ls E:/Projects/jhonsferg/relay/*.go)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(sed -i 's|github.com/jhonsferg/relay/relay|github.com/jhonsferg/relay|g' \"$f\")",
+      "Bash(echo \"updated $f\")",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(go env:*)",
+      "Bash(GOFLAGS=-mod=mod go work sync)",
+      "Bash(GOWORK=off go build .)",
+      "Bash(GOWORK=off GOFLAGS=\"-mod=mod\" go build .)",
+      "Bash(GOWORK=off GOFLAGS=\"-mod=mod\" go test ./...)",
+      "Bash(GOFLAGS=\"-mod=mod\" go build .)",
+      "Bash(go version:*)",
+      "Bash(go work:*)",
+      "Bash(go list:*)",
+      "Bash(GOWORK=off go mod tidy)",
+      "Bash(sort echo:*)",
+      "Bash(/dev/null echo:*)",
+      "Bash(ls E:/Projects/jhonsferg/relay/ext/*/go.sum)",
+      "Bash(xargs -I {} basename {})"
+    ]
+  }
+}

@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-// ErrorClass categorises an error returned by Execute into actionable groups,
+// ErrorClass categorizes an error returned by Execute into actionable groups,
 // allowing callers to make branching decisions without inspecting raw error
 // types.
 type ErrorClass int
@@ -16,7 +16,7 @@ const (
 	ErrorClassTransient                     // may succeed on a subsequent attempt
 	ErrorClassPermanent                     // will not succeed on retry (4xx)
 	ErrorClassRateLimited                   // 429 Too Many Requests
-	ErrorClassCanceled                      // caller cancelled the context
+	ErrorClassCanceled                      // caller canceled the context
 )
 
 // String returns the human-readable class name.

@@ -1,6 +1,6 @@
 package relay
 
-// ExecuteAs executes req and deserialises the JSON response body directly into
+// ExecuteAs executes req and deserializes the JSON response body directly into
 // a value of type T. It is equivalent to calling [Client.ExecuteJSON] but
 // avoids the need for an explicit interface{} target.
 //

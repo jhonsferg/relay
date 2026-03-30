@@ -43,7 +43,7 @@ func (t *digestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// Must drain and close the 401 body before retrying.
-	resp.Body.Close()
+	_ = resp.Body.Close() //nolint:errcheck
 
 	params := parseDigestChallenge(challenge[7:])
 
@@ -91,11 +91,11 @@ func computeDigestAuth(username, password, method, uri string, params map[string
 	var h func() hash.Hash
 	switch strings.ToUpper(strings.TrimSuffix(algorithm, "-sess")) {
 	case "MD5":
-		h = func() hash.Hash { return md5.New() }
+		h = func() hash.Hash { return md5.New() } //nolint:gosec
 	case "SHA-256":
 		h = func() hash.Hash { return sha256.New() }
 	default:
-		h = func() hash.Hash { return md5.New() }
+		h = func() hash.Hash { return md5.New() } //nolint:gosec
 	}
 
 	ha1 := hexHash(h, username+":"+realm+":"+password)

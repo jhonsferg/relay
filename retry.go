@@ -10,7 +10,7 @@ import (
 	"github.com/jhonsferg/relay/internal/backoff"
 )
 
-// RetryConfig controls the retry and backoff behaviour of the client.
+// RetryConfig controls the retry and backoff behavior of the client.
 // The default policy retries on network errors and 5xx/429 responses using
 // exponential backoff with full jitter.
 type RetryConfig struct {
@@ -205,7 +205,7 @@ func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*h
 
 		// Respect the Retry-After header (e.g. on 429 Too Many Requests).
 		pendingWait = r.retryAfterDelay(resp)
-		resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck
 	}
 
 	if lastErr != nil {

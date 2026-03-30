@@ -38,10 +38,7 @@ func TestCircuitBreaker_ClosedToOpen(t *testing.T) {
 
 	// Send 3 failing requests to trip the breaker.
 	for i := 0; i < 3; i++ {
-		_, err := c.Execute(c.Get(srv.URL() + "/"))
-		if err != nil {
-			// Network errors also count; just continue.
-		}
+		_, _ = c.Execute(c.Get(srv.URL() + "/"))
 	}
 
 	if c.CircuitBreakerState() != StateOpen {

@@ -61,7 +61,7 @@ func buildTransport(cfg *Config) http.RoundTripper {
 	tlsCfg := cfg.TLSConfig
 	if tlsCfg == nil {
 		// Enforce TLS 1.2 minimum when no explicit config is provided.
-		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
+		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12} //nolint:gosec
 	}
 
 	proxyFunc := http.ProxyFromEnvironment

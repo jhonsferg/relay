@@ -94,7 +94,7 @@ type Config struct {
 	// resolution for those hosts. Example: {"api.internal": "10.0.0.42"}.
 	DNSOverrides map[string]string
 
-	// RetryConfig controls retry behaviour. When nil, a sensible default
+	// RetryConfig controls retry behavior. When nil, a sensible default
 	// (3 attempts, exponential backoff) is used.
 	RetryConfig *RetryConfig
 
@@ -311,7 +311,7 @@ func WithDNSOverride(hosts map[string]string) Option {
 // the package defaults (3 attempts, exponential backoff).
 func WithRetry(rc *RetryConfig) Option { return func(c *Config) { c.RetryConfig = rc } }
 
-// WithDisableRetry disables all retry behaviour so only a single attempt is
+// WithDisableRetry disables all retry behavior so only a single attempt is
 // made.
 func WithDisableRetry() Option {
 	return func(c *Config) { c.RetryConfig = &RetryConfig{MaxAttempts: 1} }
@@ -449,7 +449,7 @@ func WithDigestAuth(username, password string) Option {
 }
 
 // WithHARRecording attaches a [HARRecorder] that captures every request and
-// response in HAR 1.2 format. Call [HARRecorder.Export] to serialise.
+// response in HAR 1.2 format. Call [HARRecorder.Export] to serialize.
 func WithHARRecording(rec *HARRecorder) Option {
 	return func(c *Config) { c.HARRecorder = rec }
 }

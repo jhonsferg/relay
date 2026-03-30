@@ -40,7 +40,7 @@ func (s CircuitBreakerState) String() string {
 	}
 }
 
-// CircuitBreakerConfig controls the thresholds and behaviour of the breaker.
+// CircuitBreakerConfig controls the thresholds and behavior of the breaker.
 type CircuitBreakerConfig struct {
 	// MaxFailures is the number of consecutive failures in StateClosed that
 	// trips the breaker to StateOpen. Must be > 0.

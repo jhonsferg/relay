@@ -25,7 +25,7 @@ type Response struct {
 }
 
 func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Response, error) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 
 	var reader io.Reader = resp.Body
 	if maxBytes > 0 {

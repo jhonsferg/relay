@@ -105,7 +105,7 @@ func TestCache_RequestNoCacheBypassesCache(t *testing.T) {
 	_, _ = c.Execute(c.Get(srv.URL() + "/revalidate"))
 
 	// Second request with Cache-Control: no-cache forces revalidation.
-	req := c.Get(srv.URL() + "/revalidate").WithHeader("Cache-Control", "no-cache")
+	req := c.Get(srv.URL()+"/revalidate").WithHeader("Cache-Control", "no-cache")
 	resp, err := c.Execute(req)
 	if err != nil {
 		t.Fatalf("second Execute: %v", err)
@@ -149,7 +149,7 @@ func TestCache_ETagRevalidation304(t *testing.T) {
 
 	// Second request: force revalidation via request Cache-Control: no-cache.
 	// This causes the caching transport to send If-None-Match.
-	req2 := c.Get(srv.URL() + "/etag").WithHeader("Cache-Control", "no-cache")
+	req2 := c.Get(srv.URL()+"/etag").WithHeader("Cache-Control", "no-cache")
 	resp2, err := c.Execute(req2)
 	if err != nil {
 		t.Fatalf("second Execute: %v", err)
@@ -208,7 +208,7 @@ func TestCache_LastModifiedRevalidation304(t *testing.T) {
 	}
 
 	// Second request: force revalidation via request Cache-Control: no-cache.
-	req2 := c.Get(srv.URL() + "/lastmod").WithHeader("Cache-Control", "no-cache")
+	req2 := c.Get(srv.URL()+"/lastmod").WithHeader("Cache-Control", "no-cache")
 	resp2, err := c.Execute(req2)
 	if err != nil {
 		t.Fatalf("second Execute: %v", err)

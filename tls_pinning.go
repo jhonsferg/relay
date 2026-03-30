@@ -63,7 +63,7 @@ func buildTLSConfigWithPinning(baseTLS *tls.Config, pins []string) (*tls.Config,
 	if baseTLS != nil {
 		tlsCfg = baseTLS.Clone()
 	} else {
-		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12}
+		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12} //nolint:gosec
 	}
 
 	tlsCfg.VerifyPeerCertificate = verifier

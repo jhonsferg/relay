@@ -32,7 +32,7 @@ type Client struct {
 	// transport stack, redirect policy, timeout, and cookie jar.
 	httpClient *http.Client
 
-	// config is the finalised configuration used to build this client.
+	// config is the finalized configuration used to build this client.
 	// It must not be mutated after construction.
 	config *Config
 
@@ -84,7 +84,7 @@ func (c *Client) With(opts ...Option) *Client {
 	return buildClient(cfg)
 }
 
-// buildClient constructs the full client stack from a finalised [Config].
+// buildClient constructs the full client stack from a finalized [Config].
 //
 // Transport stack (innermost → outermost):
 //

@@ -453,7 +453,7 @@ func TestExecute_QueryParams(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
-	req := c.Get(srv.URL() + "/search").
+	req := c.Get(srv.URL()+"/search").
 		WithQueryParam("q", "relay").
 		WithQueryParam("page", "2")
 	_, err := c.Execute(req)
