@@ -23,10 +23,13 @@ linters:
     - nakedret      # find naked returns in functions longer than a certain length
     - prealloc      # find slice declarations that could potentially be pre-allocated
     - unconvert     # remove unnecessary type conversions
-    - shadow        # check for shadowed variables
 
-linters-settings:
+  linters-settings:
+  govet:
+    enable:
+      - shadow
   goimports:
+
     local-prefixes: github.com/jhonsferg/relay
   gosec:
     excludes:
