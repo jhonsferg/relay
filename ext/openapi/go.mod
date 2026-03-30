@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/openapi
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/getkin/kin-openapi v0.127.0
