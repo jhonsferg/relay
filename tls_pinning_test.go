@@ -55,7 +55,6 @@ func pin(derBytes []byte) string {
 }
 
 func TestTLSPinning_CorrectPinSucceeds(t *testing.T) {
-	t.Parallel()
 
 	der, certPEM, key := generateSelfSignedCert(t)
 
@@ -96,7 +95,6 @@ func TestTLSPinning_CorrectPinSucceeds(t *testing.T) {
 }
 
 func TestTLSPinning_WrongPinFails(t *testing.T) {
-	t.Parallel()
 
 	_, certPEM, key := generateSelfSignedCert(t)
 
@@ -137,7 +135,6 @@ func TestTLSPinning_WrongPinFails(t *testing.T) {
 }
 
 func TestParsePins_ValidFormat(t *testing.T) {
-	t.Parallel()
 
 	// Create a valid base64 string.
 	raw := make([]byte, 32)
@@ -162,7 +159,6 @@ func TestParsePins_ValidFormat(t *testing.T) {
 }
 
 func TestParsePins_InvalidBase64ReturnsError(t *testing.T) {
-	t.Parallel()
 
 	_, err := parsePins([]string{"sha256/!!!notbase64!!!"})
 	if err == nil {
@@ -171,7 +167,6 @@ func TestParsePins_InvalidBase64ReturnsError(t *testing.T) {
 }
 
 func TestParsePins_EmptyInput(t *testing.T) {
-	t.Parallel()
 
 	set, err := parsePins([]string{})
 	if err != nil {
@@ -183,7 +178,6 @@ func TestParsePins_EmptyInput(t *testing.T) {
 }
 
 func TestBuildPinVerifier_MatchingCertPasses(t *testing.T) {
-	t.Parallel()
 
 	der, _, _ := generateSelfSignedCert(t)
 	correctPin := pin(der)
@@ -200,7 +194,6 @@ func TestBuildPinVerifier_MatchingCertPasses(t *testing.T) {
 }
 
 func TestBuildPinVerifier_NonMatchingCertFails(t *testing.T) {
-	t.Parallel()
 
 	der, _, _ := generateSelfSignedCert(t)
 	otherDer, _, _ := generateSelfSignedCert(t)
@@ -219,7 +212,6 @@ func TestBuildPinVerifier_NonMatchingCertFails(t *testing.T) {
 }
 
 func TestBuildTLSConfigWithPinning_AttachesVerifier(t *testing.T) {
-	t.Parallel()
 
 	der, _, _ := generateSelfSignedCert(t)
 	correctPin := pin(der)

@@ -14,7 +14,6 @@ import (
 )
 
 func TestNew_DefaultsApplied(t *testing.T) {
-	t.Parallel()
 	c := New()
 	if c == nil {
 		t.Fatal("New() returned nil")
@@ -28,7 +27,6 @@ func TestNew_DefaultsApplied(t *testing.T) {
 }
 
 func TestNew_WithOptions(t *testing.T) {
-	t.Parallel()
 	c := New(
 		WithTimeout(5*time.Second),
 		WithBaseURL("https://example.com"),
@@ -46,7 +44,6 @@ func TestNew_WithOptions(t *testing.T) {
 }
 
 func TestWith_InheritsParentConfig(t *testing.T) {
-	t.Parallel()
 	parent := New(
 		WithTimeout(10*time.Second),
 		WithBaseURL("https://parent.example.com"),
@@ -70,7 +67,6 @@ func TestWith_InheritsParentConfig(t *testing.T) {
 }
 
 func TestWith_IsolatesFromParent(t *testing.T) {
-	t.Parallel()
 	parent := New(WithDefaultHeaders(map[string]string{"X-Shared": "a"}))
 	child := parent.With(WithDefaultHeaders(map[string]string{"X-Shared": "b"}))
 
@@ -83,7 +79,6 @@ func TestWith_IsolatesFromParent(t *testing.T) {
 }
 
 func TestExecute_BasicGET(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -117,7 +112,6 @@ func TestExecute_BasicGET(t *testing.T) {
 }
 
 func TestExecute_NilRequest(t *testing.T) {
-	t.Parallel()
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	_, err := c.Execute(nil)
 	if err != ErrNilRequest {
@@ -126,7 +120,6 @@ func TestExecute_NilRequest(t *testing.T) {
 }
 
 func TestExecute_DefaultHeadersInjected(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -147,7 +140,6 @@ func TestExecute_DefaultHeadersInjected(t *testing.T) {
 }
 
 func TestExecuteJSON_UnmarshalsBody(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -179,7 +171,6 @@ func TestExecuteJSON_UnmarshalsBody(t *testing.T) {
 }
 
 func TestExecuteJSON_NilOutSkipsUnmarshal(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{"x":1}`})
@@ -195,7 +186,6 @@ func TestExecuteJSON_NilOutSkipsUnmarshal(t *testing.T) {
 }
 
 func TestExecuteAs_Generic(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -222,7 +212,6 @@ func TestExecuteAs_Generic(t *testing.T) {
 }
 
 func TestExecuteBatch_AllSucceed(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -252,7 +241,6 @@ func TestExecuteBatch_AllSucceed(t *testing.T) {
 }
 
 func TestExecuteBatch_Empty(t *testing.T) {
-	t.Parallel()
 	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
 	results := c.ExecuteBatch(context.Background(), nil, 0)
 	if results != nil {
@@ -261,7 +249,6 @@ func TestExecuteBatch_Empty(t *testing.T) {
 }
 
 func TestExecuteAsync_ReceivesResult(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "async"})
@@ -285,7 +272,6 @@ func TestExecuteAsync_ReceivesResult(t *testing.T) {
 }
 
 func TestExecuteAsync_ChannelClosedAfterDelivery(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -301,7 +287,6 @@ func TestExecuteAsync_ChannelClosedAfterDelivery(t *testing.T) {
 }
 
 func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "callback-ok"})
@@ -332,7 +317,6 @@ func TestExecuteAsyncCallback_OnSuccess(t *testing.T) {
 }
 
 func TestExecuteAsyncCallback_OnError(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.EnqueueError()
@@ -368,7 +352,6 @@ func TestExecuteAsyncCallback_OnError(t *testing.T) {
 }
 
 func TestShutdown_RejectsNewRequests(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -385,7 +368,6 @@ func TestShutdown_RejectsNewRequests(t *testing.T) {
 }
 
 func TestShutdown_WaitsForInFlightRequests(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -431,7 +413,6 @@ func TestShutdown_WaitsForInFlightRequests(t *testing.T) {
 }
 
 func TestExecute_POSTWithBody(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusCreated})
@@ -455,7 +436,6 @@ func TestExecute_POSTWithBody(t *testing.T) {
 }
 
 func TestExecute_QueryParams(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
@@ -478,7 +458,6 @@ func TestExecute_QueryParams(t *testing.T) {
 }
 
 func TestIsHealthy_NoBreakerAlwaysTrue(t *testing.T) {
-	t.Parallel()
 	c := New(WithDisableCircuitBreaker())
 	if !c.IsHealthy() {
 		t.Error("client without circuit breaker should always be healthy")

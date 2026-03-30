@@ -10,7 +10,6 @@ import (
 )
 
 func TestRetry_CorrectNumberOfAttempts(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -44,7 +43,6 @@ func TestRetry_CorrectNumberOfAttempts(t *testing.T) {
 }
 
 func TestRetry_ExhaustsAllAttempts(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -79,7 +77,6 @@ func TestRetry_ExhaustsAllAttempts(t *testing.T) {
 }
 
 func TestRetry_RetryAfterHeaderHonored(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -160,7 +157,6 @@ func TestRetry_RetryAfterDelayRespected(t *testing.T) {
 }
 
 func TestRetry_CustomRetryIfPredicateSuppresses(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -197,7 +193,6 @@ func TestRetry_CustomRetryIfPredicateSuppresses(t *testing.T) {
 }
 
 func TestRetry_CustomRetryIfPredicateAllows(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -234,7 +229,6 @@ func TestRetry_CustomRetryIfPredicateAllows(t *testing.T) {
 }
 
 func TestRetry_OnRetryCallbackFired(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -269,7 +263,6 @@ func TestRetry_OnRetryCallbackFired(t *testing.T) {
 }
 
 func TestWithDisableRetry_SingleAttemptOnly(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -290,7 +283,6 @@ func TestWithDisableRetry_SingleAttemptOnly(t *testing.T) {
 }
 
 func TestRetry_NetworkErrorIsRetried(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 

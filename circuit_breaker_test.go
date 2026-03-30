@@ -25,7 +25,6 @@ func newFastBreakerClient(maxFailures int, resetTimeout time.Duration, onStateCh
 }
 
 func TestCircuitBreaker_ClosedToOpen(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -47,7 +46,6 @@ func TestCircuitBreaker_ClosedToOpen(t *testing.T) {
 }
 
 func TestCircuitBreaker_OpenRejectsRequests(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -78,7 +76,6 @@ func TestCircuitBreaker_OpenRejectsRequests(t *testing.T) {
 }
 
 func TestCircuitBreaker_OpenToHalfOpen(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -117,7 +114,6 @@ func TestCircuitBreaker_OpenToHalfOpen(t *testing.T) {
 }
 
 func TestCircuitBreaker_HalfOpenToClosedOnSuccesses(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -156,7 +152,6 @@ func TestCircuitBreaker_HalfOpenToClosedOnSuccesses(t *testing.T) {
 }
 
 func TestCircuitBreaker_HalfOpenToOpenOnFailure(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -189,7 +184,6 @@ func TestCircuitBreaker_HalfOpenToOpenOnFailure(t *testing.T) {
 }
 
 func TestCircuitBreaker_ResetCircuitBreaker(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -227,7 +221,6 @@ func TestCircuitBreaker_ResetCircuitBreaker(t *testing.T) {
 }
 
 func TestCircuitBreaker_OnStateChangeCallback(t *testing.T) {
-	t.Parallel()
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -266,7 +259,6 @@ func TestCircuitBreaker_OnStateChangeCallback(t *testing.T) {
 }
 
 func TestCircuitBreaker_DirectStateManipulation(t *testing.T) {
-	t.Parallel()
 	cb := newCircuitBreaker(&CircuitBreakerConfig{
 		MaxFailures:      3,
 		ResetTimeout:     1 * time.Millisecond,
@@ -307,7 +299,6 @@ func TestCircuitBreaker_DirectStateManipulation(t *testing.T) {
 }
 
 func TestCircuitBreaker_ResetFromOpenClearsCounters(t *testing.T) {
-	t.Parallel()
 	cb := newCircuitBreaker(&CircuitBreakerConfig{
 		MaxFailures:      2,
 		ResetTimeout:     time.Hour,
@@ -331,7 +322,6 @@ func TestCircuitBreaker_ResetFromOpenClearsCounters(t *testing.T) {
 }
 
 func TestCircuitBreaker_IsHealthy(t *testing.T) {
-	t.Parallel()
 	cb := newCircuitBreaker(&CircuitBreakerConfig{
 		MaxFailures:      1,
 		ResetTimeout:     time.Hour,
