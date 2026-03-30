@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/zerolog
 go 1.24.0
 
 require (
-	github.com/jhonsferg/relay v0.1.0
+	github.com/jhonsferg/relay v0.1.1
 	github.com/rs/zerolog v1.35.0
 )
 
@@ -14,4 +14,4 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 )
 
-replace github.com/jhonsferg/relay v0.1.0 => ../../
+replace github.com/jhonsferg/relay v0.1.1 => ../../
