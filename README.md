@@ -1,355 +1,169 @@
-# relay
+<div align="center">
 
-![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=flat&logo=go)
-[![CI](https://github.com/jhonsferg/relay/actions/workflows/ci.yml/badge.svg)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/jhonsferg/relay/graph/badge.svg)](https://codecov.io/gh/jhonsferg/relay)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jhonsferg/relay)](https://goreportcard.com/report/github.com/jhonsferg/relay)
-[![pkg.go.dev](https://pkg.go.dev/badge/github.com/jhonsferg/relay.svg)](https://pkg.go.dev/github.com/jhonsferg/relay)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+# 🚀 Relay
 
-A **production-grade, declarative HTTP client for Go** with the ergonomics of Python's _requests_, Kotlin's _OkHttp_, and Java's _OpenFeign_ — batteries included.
+**A production-grade, declarative HTTP client for Go with the ergonomics of Python's *requests* and the power of *Resilience4j*.**
 
----
-
-## Installation
-
-```bash
-go get github.com/jhonsferg/relay
-```
-
-Optional extensions (add only what you need):
-
-```bash
-go get github.com/jhonsferg/relay/ext/oauth      # OAuth 2.0 Client Credentials
-go get github.com/jhonsferg/relay/ext/tracing    # OpenTelemetry distributed tracing
-go get github.com/jhonsferg/relay/ext/metrics    # OpenTelemetry metrics
-go get github.com/jhonsferg/relay/ext/prometheus # Prometheus metrics adapter
-go get github.com/jhonsferg/relay/ext/brotli     # Brotli (br) decompression
-go get github.com/jhonsferg/relay/ext/zap        # go.uber.org/zap logger adapter
-go get github.com/jhonsferg/relay/ext/zerolog    # github.com/rs/zerolog logger adapter
-go get github.com/jhonsferg/relay/ext/redis      # Redis cache backend (go-redis/v9)
-go get github.com/jhonsferg/relay/ext/memcached  # Memcached cache backend (gomemcache)
-go get github.com/jhonsferg/relay/ext/jitterbug  # Alternative retry strategies (decorrelated jitter, linear, budget)
-go get github.com/jhonsferg/relay/ext/sentry     # Sentry error & breadcrumb capture
-go get github.com/jhonsferg/relay/ext/sigv4      # AWS Signature Version 4 request signing
-```
+[![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=for-the-badge&logo=go)](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=for-the-badge&logo=go)
+[![CI](https://img.shields.io/github/actions/workflows/ci.yml?style=for-the-badge&logo=github)](https://img.shields.io/github/actions/workflows/ci.yml?style=for-the-badge&logo=github)
+[![codecov](https://img.shields.io/codecov/c/github/jhonsferg/relay?style=for-the-badge&logo=codecov)](https://codecov.io/gh/jhonsferg/relay)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jhonsferg/relay?style=for-the-badge)](https://goreportcard.com/report/github.com/jhonsferg/relay)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 ---
 
-## Quick Start
+**[Quick Start](#-quick-start) • [Architecture](#-architecture) • [Feature Matrix](#-feature-matrix) • [Extensions](#-modular-extensions) • [Examples](./examples)**
+
+</div>
+
+## 📖 Overview
+
+**Relay** is designed for developers who need more than just `http.Client`. It provides a fluent, batteries-included experience for building resilient distributed systems. It handles retries, circuit breaking, rate limiting, and observability out of the box, allowing you to focus on your business logic.
+
+---
+
+## 🏗 Architecture
+
+### Request/Response Lifecycle
+
+The following diagram illustrates how a request flows through the Relay pipeline, from the high-level builder to the wire and back.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Client
+    participant Hooks as BeforeRequest Hooks
+    participant Res as Resilience (Retry/CB/Limit)
+    participant Stack as Middleware Stack (Cache/Log/Auth)
+    participant Net as Network
+
+    User->>Client: Execute(Request)
+    Client->>Hooks: Trigger OnBeforeRequest
+    Hooks->>Res: Check Rate Limit & Circuit Breaker
+    Res->>Stack: Enter Transport Pipeline
+    Stack->>Net: Send HTTP Request
+    Net-->>Stack: Receive HTTP Response
+    Stack-->>Res: Update CB/Retry Stats
+    Res-->>Hooks: Trigger OnAfterResponse
+    Hooks-->>Client: Return *Response
+    Client-->>User: Process Typed Result
+```
+
+### Middleware Pipeline
+
+Relay uses a layered "Onion" architecture for its transport stack.
+
+```mermaid
+graph TD
+    A[Execute] --> B{Resilience Layer}
+    B -->|Retry/CB/RateLimit| C[Transport Stack]
+    subgraph "Internal Stack"
+    C --> D[HAR Recording]
+    D --> E[Coalescing]
+    E -->|Digest| F[Auth]
+    F --> G[Cache]
+    G --> H[TLS Pinning]
+    end
+    H --> I[Standard http.Transport]
+```
+
+---
+
+## ⚡ Quick Start
 
 ```go
 import "github.com/jhonsferg/relay"
 
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relay.WithTimeout(10 * time.Second),
-)
+func main() {
+    // 1. Create a client with sensible defaults
+    client := relay.New(
+        relay.WithBaseURL("https://api.example.com"),
+        relay.WithTimeout(10 * time.Second),
+        relay.WithRetry(nil), // Uses default exponential backoff
+    )
 
-resp, err := client.Execute(client.Get("/users/42"))
-if err != nil {
-    log.Fatal(err)
-}
-fmt.Println(resp.StatusCode, resp.String())
-```
+    // 2. Execute a fluent request
+    var user User
+    resp, err := relay.ExecuteAs[User](client, 
+        client.Get("/users/{id}").
+            WithPathParam("id", "42").
+            WithQueryParam("active", "true"),
+    )
 
----
-
-## Feature Matrix
-
-| Category               | Feature                                                                                           |
-|------------------------|---------------------------------------------------------------------------------------------------|
-| **Transport**          | Connection pool tuning, HTTP/2, TLS 1.2+, proxy, custom dialer, DNS overrides                    |
-| **Request building**   | Fluent builder, path params, query params, JSON/form/multipart bodies, auth helpers               |
-| **Response**           | Buffered body, JSON decode, status helpers, cookies, redirect count, timing breakdown             |
-| **Retry**              | Exponential backoff + full jitter, `Retry-After` header, custom predicate, `OnRetry` callback    |
-| **Circuit breaker**    | Closed → Open → Half-Open, configurable thresholds, `OnStateChange` callback                     |
-| **Rate limiting**      | Client-side token bucket (sustained RPS + burst)                                                  |
-| **Caching**            | RFC 7234 (`Cache-Control`, `ETag`, `Last-Modified`), pluggable backend                            |
-| **Streaming**          | `ExecuteStream` — unbuffered body for SSE, file downloads, JSONL                                 |
-| **Async**              | `ExecuteAsync` (channel) and `ExecuteAsyncCallback` (goroutine + callback)                       |
-| **Batch**              | `ExecuteBatch` — concurrent fan-out with bounded concurrency                                      |
-| **Middleware**         | Pluggable `http.RoundTripper` chain via `WithTransportMiddleware`                                 |
-| **Hooks**              | `OnBeforeRequest` and `OnAfterResponse`                                                           |
-| **Lifecycle**          | Graceful `Shutdown` — drains in-flight and streaming requests                                     |
-| **Error classes**      | `ClassifyError` — transient / permanent / rate-limited / canceled                                |
-| **TLS pinning**        | SHA-256 certificate pinning via `WithCertificatePinning`                                          |
-| **Digest auth**        | HTTP Digest Authentication (RFC 7616) via `WithDigestAuth`                                       |
-| **Progress**           | Upload/download progress callbacks                                                                |
-| **Coalescing**         | Request deduplication for concurrent identical GET/HEAD via `WithRequestCoalescing`               |
-| **HAR recording**      | Capture traffic in HAR 1.2 format via `WithHARRecording`                                          |
-| **Idempotency key**    | Auto-inject `X-Idempotency-Key` on retries via `WithAutoIdempotencyKey`                           |
-| **Timing**             | DNS, TCP, TLS, TTFB, content-transfer breakdown on every `Response`                              |
-| **Generics**           | `ExecuteAs[T]` for typed JSON decoding                                                            |
-| **Logger**             | Pluggable structured logger (`slog` built-in; `zap`, `zerolog` via ext)                          |
-| **OAuth 2.0**          | Client Credentials with auto-refresh → `ext/oauth`                                               |
-| **OTel tracing**       | Client spans, W3C propagation → `ext/tracing`                                                    |
-| **OTel metrics**       | Request count, duration, active requests → `ext/metrics`                                         |
-| **Prometheus**         | Prometheus metrics adapter → `ext/prometheus`                                                    |
-| **Brotli**             | Transparent `br` decompression → `ext/brotli`                                                    |
-| **zap logger**         | go.uber.org/zap adapter → `ext/zap`                                                              |
-| **zerolog logger**     | github.com/rs/zerolog adapter → `ext/zerolog`                                                    |
-| **Redis cache**        | Redis-backed `CacheStore` (go-redis/v9), TTL + SCAN/DEL Clear → `ext/redis`                     |
-| **Memcached cache**    | Memcached-backed `CacheStore` (gomemcache), TTL, base64 key encoding → `ext/memcached`          |
-| **Jitterbug retry**    | Decorrelated jitter, linear backoff, retry-budget strategies → `ext/jitterbug`                  |
-| **Sentry**             | Exception capture, 4xx/5xx events, HTTP breadcrumbs, per-request Hub clone → `ext/sentry`       |
-| **AWS SigV4**          | AWS Signature Version 4 signing for any AWS service → `ext/sigv4`                               |
-
----
-
-## Usage
-
-### Creating a client
-
-```go
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relay.WithTimeout(15*time.Second),
-    relay.WithDefaultHeaders(map[string]string{"Accept": "application/json"}),
-    relay.WithConnectionPool(100, 20, 50),
-    relay.WithRateLimit(50, 10), // 50 req/s, burst 10
-)
-```
-
-### Making requests
-
-```go
-// GET with query params
-resp, err := client.Execute(
-    client.Get("/search").
-        WithQueryParam("q", "gopher").
-        WithQueryParam("page", "1"),
-)
-
-// POST with JSON body
-type CreateOrder struct{ Item string; Qty int }
-resp, err = client.Execute(
-    client.Post("/orders").WithJSON(CreateOrder{"widget", 42}),
-)
-
-// Generic JSON decode
-order, resp, err := relay.ExecuteAs[CreateOrder](client, client.Get("/orders/1"))
-```
-
-### Retry
-
-```go
-client := relay.New(
-    relay.WithRetry(&relay.RetryConfig{
-        MaxAttempts:      5,
-        InitialInterval:  200 * time.Millisecond,
-        MaxInterval:      10 * time.Second,
-        Multiplier:       2.0,
-        RetryableStatus:  []int{429, 502, 503, 504},
-        OnRetry: func(attempt int, resp *http.Response, err error) {
-            log.Printf("retry %d", attempt)
-        },
-    }),
-)
-```
-
-### Circuit breaker
-
-```go
-client := relay.New(
-    relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
-        MaxFailures:  5,
-        ResetTimeout: 30 * time.Second,
-        OnStateChange: func(from, to relay.CircuitBreakerState) {
-            log.Printf("circuit %s → %s", from, to)
-        },
-    }),
-)
-```
-
-### Streaming
-
-```go
-stream, err := client.ExecuteStream(client.Get("/events"))
-if err != nil { log.Fatal(err) }
-defer stream.Body.Close()
-
-scanner := bufio.NewScanner(stream.Body)
-for scanner.Scan() {
-    fmt.Println(scanner.Text())
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("User: %s (Status: %d)\n", user.Name, resp.StatusCode)
 }
 ```
 
-### Extensions
+---
 
-All extensions return a `relay.Option` and plug in via the transport middleware chain — no global state, safe for concurrent clients.
+## 🛠 Feature Matrix
 
-#### OAuth 2.0 Client Credentials
-
-```go
-import relayoauth "github.com/jhonsferg/relay/ext/oauth"
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relayoauth.WithClientCredentials(relayoauth.Config{
-        TokenURL:     "https://auth.example.com/token",
-        ClientID:     "my-app",
-        ClientSecret: os.Getenv("CLIENT_SECRET"),
-        Scopes:       []string{"read", "write"},
-    }),
-)
-```
-
-#### OpenTelemetry Tracing
-
-```go
-import relaytracing "github.com/jhonsferg/relay/ext/tracing"
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relaytracing.WithTracing(tracerProvider, propagator), // nil = use global
-)
-```
-
-#### OpenTelemetry Metrics
-
-```go
-import relaymetrics "github.com/jhonsferg/relay/ext/metrics"
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relaymetrics.WithOTelMetrics(meterProvider), // nil = use global
-)
-```
-
-#### Prometheus
-
-```go
-import relayprom "github.com/jhonsferg/relay/ext/prometheus"
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relayprom.WithPrometheus(prometheus.DefaultRegisterer, "myapp"),
-)
-```
-
-#### Brotli decompression
-
-```go
-import relaybrotli "github.com/jhonsferg/relay/ext/brotli"
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relaybrotli.WithBrotliDecompression(),
-)
-```
-
-#### zap logger
-
-```go
-import (
-    "go.uber.org/zap"
-    "github.com/jhonsferg/relay"
-    relayzap "github.com/jhonsferg/relay/ext/zap"
-)
-
-logger, _ := zap.NewProduction()
-defer logger.Sync()
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relay.WithLogger(relayzap.NewAdapter(logger)),
-)
-```
-
-#### zerolog logger
-
-```go
-import (
-    "os"
-    "github.com/rs/zerolog"
-    "github.com/jhonsferg/relay"
-    relayzl "github.com/jhonsferg/relay/ext/zerolog"
-)
-
-logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relay.WithLogger(relayzl.NewAdapter(logger)),
-)
-```
-
-#### Redis cache backend
-
-```go
-import (
-    "github.com/redis/go-redis/v9"
-    "github.com/jhonsferg/relay"
-    relayredis "github.com/jhonsferg/relay/ext/redis"
-)
-
-rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
-store := relayredis.NewCacheStore(rdb, "myapp:http-cache:")
-
-client := relay.New(
-    relay.WithBaseURL("https://api.example.com"),
-    relay.WithCache(store),
-)
-```
-
-The store honours the TTL from each cached response's `Cache-Control: max-age`
-header. `Clear()` uses `SCAN + DEL` with the key prefix — safe for shared Redis
-instances. For Redis Cluster, see the package docs for per-shard iteration.
+| Category | Feature | Highlights |
+| :--- | :--- | :--- |
+| **🛡 Resilience** | Retry & Backoff | Exponential + Jitter + `Retry-After` support |
+| | Circuit Breaker | Closed ↔ Open ↔ Half-Open with callbacks |
+| | Rate Limiting | Client-side Token Bucket (Burst + RPS) |
+| **📦 Data** | Caching | RFC 7234 with pluggable backends (Redis/Memcached) |
+| | Coalescing | Deduplicate concurrent identical GET/HEAD calls |
+| | Generics | Type-safe JSON decoding with `ExecuteAs[T]` |
+| **📡 Ops** | Observability | Detailed timing (DNS, TCP, TLS, TTFB) + OTel |
+| | Logging | Pluggable structured logging (Slog, Zap, Zerolog) |
+| | HAR Capture | Export traffic to HAR 1.2 for debugging |
+| **🧪 Security** | TLS Pinning | SHA-256 certificate pinning |
+| | Idempotency | Auto-inject `X-Idempotency-Key` on retries |
 
 ---
 
-## Examples
+## 🔌 Modular Extensions
 
-Runnable examples live in the `examples/` directory:
+Relay is highly modular. Add only what you need to keep your binary lean.
 
-| Example | What it shows |
-|---|---|
-| `basic/` | GET, POST, JSON decode, `ExecuteAs[T]`, response helpers |
-| `retry/` | Exponential backoff, retry predicates, `OnRetry` callback |
-| `circuit_breaker/` | Closed → Open → Half-Open transitions, `OnStateChange` |
-| `batch/` | `ExecuteBatch` fan-out, bounded concurrency, context cancel |
-| `streaming/` | `ExecuteStream` for SSE / JSONL / file download |
-| `oauth2/` | OAuth 2.0 Client Credentials with auto-refresh (`ext/oauth`) |
-| `otel/` | OTel tracing + metrics (`ext/tracing`, `ext/metrics`) |
-| `prometheus/` | Prometheus metrics, custom registry, `/metrics` handler (`ext/prometheus`) |
-| `zap_logger/` | go.uber.org/zap adapter, named loggers, level filtering (`ext/zap`) |
-| `zerolog_logger/` | zerolog adapter, JSON output, ConsoleWriter, sub-loggers (`ext/zerolog`) |
-| `redis/` | Redis-backed cache store, TTL, shared stores (`ext/redis`) |
-| `redis_cache/` | Custom `CacheStore` implementation walkthrough (no ext deps) |
-| `har_recording/` | HAR 1.2 capture, `Entries()`, `Export()`, shared recorder |
+| Extension | Purpose | Command |
+| :--- | :--- | :--- |
+| `ext/oauth` | OAuth 2.0 Client Credentials | `go get github.com/jhonsferg/relay/ext/oauth` |
+| `ext/tracing` | OpenTelemetry Tracing | `go get github.com/jhonsferg/relay/ext/tracing` |
+| `ext/metrics` | OpenTelemetry Metrics | `go get github.com/jhonsferg/relay/ext/metrics` |
+| `ext/redis` | Redis Cache Backend | `go get github.com/jhonsferg/relay/ext/redis` |
+| `ext/sentry` | Sentry Error Capture | `go get github.com/jhonsferg/relay/ext/sentry` |
+| `ext/zap` | Zap Logger Adapter | `go get github.com/jhonsferg/relay/ext/zap` |
 
-## Testutil
+---
 
-The `testutil` package provides an in-process mock HTTP server for tests:
+## 📊 Observability
+
+Every response includes a detailed breakdown of the request timing, allowing you to pinpoint bottlenecks instantly.
 
 ```go
-import "github.com/jhonsferg/relay/testutil"
+resp, _ := client.Execute(req)
+t := resp.Timing
 
-srv := testutil.NewMockServer()
-defer srv.Close()
-
-srv.Enqueue(testutil.MockResponse{
-    Status: 200,
-    Body:   `{"id":1}`,
-    Headers: map[string]string{"Content-Type": "application/json"},
-})
-
-client := relay.New(relay.WithBaseURL(srv.URL()))
-resp, err := client.Execute(client.Get("/users/1"))
-
-req, _ := srv.TakeRequest(time.Second)
-fmt.Println(req.Method, req.Path)
+fmt.Printf("DNS: %v | TCP: %v | TLS: %v | TTFB: %v | Total: %v\n",
+    t.DNSLookup, t.TCPConnection, t.TLSHandshake, t.ServerProcessing, t.Total)
 ```
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs welcome.
+Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ---
 
-## License
+<div align="center">
 
-MIT — see [LICENSE](LICENSE).
+### License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+
+Built with ❤️ by [jhonsferg](https://github.com/jhonsferg)
+
+</div>
