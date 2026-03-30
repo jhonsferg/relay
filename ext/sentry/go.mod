@@ -1,10 +1,10 @@
 module github.com/jhonsferg/relay/ext/sentry
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/getsentry/sentry-go v0.28.1
-	github.com/jhonsferg/relay v0.0.0
+	github.com/jhonsferg/relay v0.1.0
 )
 
 require (
@@ -15,4 +15,4 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 )
 
-replace github.com/jhonsferg/relay v0.0.0 => ../../
+replace github.com/jhonsferg/relay v0.1.0 => ../../
