@@ -1,0 +1,33 @@
+# Lefthook configuration for Relay
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: gofmt -s -w {staged_files} && git add {staged_files}
+    golangci-lint:
+      glob: "*.go"
+      run: golangci-lint run --fix {staged_files}
+    govet:
+      glob: "*.go"
+      run: go vet ./...
+
+commit-msg:
+  commands:
+    lint-commit-msg:
+      run: |
+        # Regex for Conventional Commits
+        commit_msg=$(cat $1)
+        regex="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+"
+        if [[ ! $commit_msg =~ $regex ]]; then
+          echo "Error: Commit message does not follow Conventional Commits format."
+          echo "Example: feat(auth): add login support"
+          exit 1
+        fi
+
+pre-push:
+  commands:
+    unit-tests:
+      run: go test -v -short ./...

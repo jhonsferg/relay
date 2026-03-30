@@ -1,0 +1,33 @@
+go 1.25.0
+
+use (
+	.
+	./ext/brotli
+	./ext/jitterbug
+	./ext/memcached
+	./ext/metrics
+	./ext/oauth
+	./ext/prometheus
+	./ext/redis
+	./ext/sentry
+	./ext/sigv4
+	./ext/tracing
+	./ext/zap
+	./ext/zerolog
+)
+
+replace (
+	github.com/jhonsferg/relay v0.0.0 => .
+	github.com/jhonsferg/relay/ext/brotli v0.0.0 => ./ext/brotli
+	github.com/jhonsferg/relay/ext/jitterbug v0.0.0 => ./ext/jitterbug
+	github.com/jhonsferg/relay/ext/memcached v0.0.0 => ./ext/memcached
+	github.com/jhonsferg/relay/ext/metrics v0.0.0 => ./ext/metrics
+	github.com/jhonsferg/relay/ext/oauth v0.0.0 => ./ext/oauth
+	github.com/jhonsferg/relay/ext/prometheus v0.0.0 => ./ext/prometheus
+	github.com/jhonsferg/relay/ext/redis v0.0.0 => ./ext/redis
+	github.com/jhonsferg/relay/ext/sentry v0.0.0 => ./ext/sentry
+	github.com/jhonsferg/relay/ext/sigv4 v0.0.0 => ./ext/sigv4
+	github.com/jhonsferg/relay/ext/tracing v0.0.0 => ./ext/tracing
+	github.com/jhonsferg/relay/ext/zap v0.0.0 => ./ext/zap
+	github.com/jhonsferg/relay/ext/zerolog v0.0.0 => ./ext/zerolog
+)

@@ -1,0 +1,44 @@
+# .golangci.yml
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck      # check for unchecked errors
+    - gosimple      # simplify code
+    - govet         # standard go vet
+    - ineffassign   # detect ineffectual assignments
+    - staticcheck   # standard static analyzer
+    - typecheck     # standard type checker
+    - unused        # find unused constants, variables, functions and types
+    - gofmt         # check if code is formatted
+    - goimports     # check if imports are formatted
+    - gosec         # security checker
+    - misspell      # find misspelled English words
+    - nakedret      # find naked returns in functions longer than a certain length
+    - prealloc      # find slice declarations that could potentially be pre-allocated
+    - unconvert     # remove unnecessary type conversions
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  goimports:
+    local-prefixes: github.com/jhonsferg/relay
+  gosec:
+    excludes:
+      - G104 # Errors unhandled (often duplicated by errcheck)
+  misspell:
+    locale: US
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - vendor
+    - internal/pool # Example of ignoring a specific internal package if needed
