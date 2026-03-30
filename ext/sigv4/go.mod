@@ -1,11 +1,11 @@
 module github.com/jhonsferg/relay/ext/sigv4
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.28
-	github.com/jhonsferg/relay v0.0.0
+	github.com/jhonsferg/relay v0.1.0
 )
 
 require (
@@ -13,4 +13,4 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 )
 
-replace github.com/jhonsferg/relay v0.0.0 => ../../
+replace github.com/jhonsferg/relay v0.1.0 => ../../
