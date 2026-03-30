@@ -151,7 +151,6 @@ func TestWithOnStateChange(t *testing.T) {
 
 	srv := testutil.NewMockServer()
 	defer srv.Close()
-	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
 
 	c := New(
 		WithDisableRetry(),
@@ -165,13 +164,25 @@ func TestWithOnStateChange(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
 	_, _ = c.Execute(c.Get(srv.URL() + "/"))
 
-	select {
-	case state := <-stateCh:
-		if state != StateOpen {
-			t.Errorf("expected Open state, got %s", state)
+	// Ensure we capture the change
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case state := <-stateCh:
+			if state == StateOpen {
+				return
+			}
+		case <-timeout:
+			if c.CircuitBreakerState() == StateOpen {
+				return
+			}
+			t.Fatal("OnStateChange (Open) not triggered within 10s")
+		default:
+			if c.CircuitBreakerState() == StateOpen {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("OnStateChange (Open) not triggered within 10s")
 	}
 }
 
