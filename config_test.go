@@ -194,7 +194,6 @@ func TestWithOnStateChange(t *testing.T) {
 	}
 }
 
-
 func TestWithRateLimit(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
