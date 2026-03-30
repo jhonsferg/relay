@@ -180,10 +180,10 @@ func TestSetBinaryMetadata_SingleRequest(t *testing.T) {
 
 func TestParseMetadata(t *testing.T) {
 	headers := map[string][]string{
-		"Grpc-Metadata-X-Tenant-Id":  {"tenant-42"},
-		"Grpc-Metadata-X-Role-Bin":   {base64.StdEncoding.EncodeToString([]byte("admin"))},
-		"Content-Type":               {"application/json"},
-		"Grpc-Metadata-Empty":        {},
+		"Grpc-Metadata-X-Tenant-Id": {"tenant-42"},
+		"Grpc-Metadata-X-Role-Bin":  {base64.StdEncoding.EncodeToString([]byte("admin"))},
+		"Content-Type":              {"application/json"},
+		"Grpc-Metadata-Empty":       {},
 	}
 
 	result, err := relaygrpc.ParseMetadata(headers)

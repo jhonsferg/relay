@@ -42,8 +42,8 @@ func digestServer(realm, username, password string) http.Handler {
 		// Parse the Digest response fields.
 		fields := parseDigestFields(authHeader[7:]) // strip "Digest "
 
-		ha1 := md5hex(username + ":" + realm + ":" + password)          //nolint:gosec
-		ha2 := md5hex(r.Method + ":" + fields["uri"])                    //nolint:gosec
+		ha1 := md5hex(username + ":" + realm + ":" + password) //nolint:gosec
+		ha2 := md5hex(r.Method + ":" + fields["uri"])          //nolint:gosec
 		expected := md5hex(ha1 + ":" + fields["nonce"] + ":" + //nolint:gosec
 			fields["nc"] + ":" + fields["cnonce"] + ":" + fields["qop"] + ":" + ha2)
 

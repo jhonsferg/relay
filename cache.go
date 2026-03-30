@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// CachedResponse holds a serialized HTTP response for replay. It is stored by
+// CachedResponse holds a serialised HTTP response for replay. It is stored by
 // [cachingTransport] after a cache-eligible response is received and returned
 // on subsequent matching requests until the entry expires.
 type CachedResponse struct {

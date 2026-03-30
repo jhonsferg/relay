@@ -52,7 +52,7 @@ type lruEntry struct {
 type LRUCacheStore struct {
 	mu   sync.Mutex
 	cap  int
-	list *list.List              // front = most recently used; back = least recently used
+	list *list.List               // front = most recently used; back = least recently used
 	idx  map[string]*list.Element // key → list element
 }
 

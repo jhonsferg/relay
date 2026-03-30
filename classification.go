@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-// ErrorClass categorizes an error returned by Execute into actionable groups,
+// ErrorClass categorises an error returned by Execute into actionable groups,
 // allowing callers to make branching decisions without inspecting raw error
 // types.
 type ErrorClass int
@@ -104,7 +104,7 @@ func IsTransientError(err error, resp *Response) bool {
 }
 
 // IsPermanentError reports whether the error will not succeed on retry
-// (e.g. 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found).
+// (e.g. 400 Bad Request, 401 Unauthorised, 403 Forbidden, 404 Not Found).
 func IsPermanentError(err error, resp *Response) bool {
 	return ClassifyError(err, resp) == ErrorClassPermanent
 }

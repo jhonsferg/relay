@@ -32,7 +32,7 @@ type Client struct {
 	// transport stack, redirect policy, timeout, and cookie jar.
 	httpClient *http.Client
 
-	// config is the finalized configuration used to build this client.
+	// config is the finalised configuration used to build this client.
 	// It must not be mutated after construction.
 	config *Config
 
@@ -88,7 +88,7 @@ func (c *Client) With(opts ...Option) *Client {
 	return buildClient(cfg)
 }
 
-// buildClient constructs the full client stack from a finalized [Config].
+// buildClient constructs the full client stack from a finalised [Config].
 //
 // Transport stack (innermost → outermost):
 //
@@ -262,7 +262,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	})
 
 	if err != nil {
-		// Do not penalize the circuit breaker for redirect-policy stops: those
+		// Do not penalise the circuit breaker for redirect-policy stops: those
 
 		// are configuration-level decisions, not downstream failures. A *url.Error
 		// whose Err does not contain a network-level cause indicates a redirect

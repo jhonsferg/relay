@@ -94,7 +94,7 @@ type Config struct {
 	// resolution for those hosts. Example: {"api.internal": "10.0.0.42"}.
 	DNSOverrides map[string]string
 
-	// RetryConfig controls retry behavior. When nil, a sensible default
+	// RetryConfig controls retry behaviour. When nil, a sensible default
 	// (3 attempts, exponential backoff) is used.
 	RetryConfig *RetryConfig
 
