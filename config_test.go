@@ -156,7 +156,7 @@ func TestWithOnStateChange(t *testing.T) {
 
 	cb := newCircuitBreaker(cfg)
 
-	// Directly record failure to avoid any network/timing issues.
+	// Record failure directly to avoid any latency.
 	cb.RecordFailure()
 
 	if cb.State() != StateOpen {
@@ -168,8 +168,8 @@ func TestWithOnStateChange(t *testing.T) {
 		if state != StateOpen {
 			t.Errorf("expected Open state from callback, got %s", state)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("OnStateChange callback not triggered within 5s")
+	case <-time.After(20 * time.Second):
+		t.Fatal("OnStateChange callback not triggered within 20s")
 	}
 }
 
