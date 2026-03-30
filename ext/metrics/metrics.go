@@ -9,9 +9,19 @@
 //	    relaymetrics "github.com/jhonsferg/relay/ext/metrics"
 //	)
 //
+//	// Default instrumentation name:
 //	client := relay.New(
 //	    relay.WithBaseURL("https://api.example.com"),
-//	    relaymetrics.WithOTelMetrics(nil), // nil = use global MeterProvider
+//	    relaymetrics.WithOTelMetrics(nil),
+//	)
+//
+//	// Custom instrumentation name and version:
+//	client := relay.New(
+//	    relay.WithBaseURL("https://api.example.com"),
+//	    relaymetrics.WithOTelMetrics(nil,
+//	        relaymetrics.WithInstrumentationName("my-service"),
+//	        relaymetrics.WithInstrumentationVersion("1.0.0"),
+//	    ),
 //	)
 package metrics
 
@@ -27,22 +37,67 @@ import (
 	"github.com/jhonsferg/relay"
 )
 
-const instrumentationName = "github.com/jhonsferg/relay"
+const defaultInstrumentationName = "github.com/jhonsferg/relay"
+
+// Option configures the metrics middleware.
+type Option func(*metricsConfig)
+
+type metricsConfig struct {
+	instrumentationName    string
+	instrumentationVersion string
+}
+
+// WithInstrumentationName sets the OpenTelemetry instrumentation scope name
+// used when creating the meter. If empty, defaults to
+// "github.com/jhonsferg/relay".
+func WithInstrumentationName(name string) Option {
+	return func(c *metricsConfig) {
+		if name != "" {
+			c.instrumentationName = name
+		}
+	}
+}
+
+// WithInstrumentationVersion sets the instrumentation scope version string
+// attached to every metric recorded by this middleware (e.g. "1.0.0").
+func WithInstrumentationVersion(version string) Option {
+	return func(c *metricsConfig) {
+		c.instrumentationVersion = version
+	}
+}
 
 // WithOTelMetrics returns a [relay.Option] that records OpenTelemetry metrics
 // for every outgoing request. Pass nil to use the globally registered
 // [metric.MeterProvider].
 //
 // The following instruments are created under the instrumentation scope
-// "github.com/jhonsferg/relay":
+// (default "github.com/jhonsferg/relay"):
 //   - http.client.request_count (counter)
 //   - http.client.request_duration_ms (histogram, milliseconds)
 //   - http.client.active_requests (up-down counter)
-func WithOTelMetrics(mp metric.MeterProvider) relay.Option {
+//
+// Use the functional [Option] helpers to customise the instrumentation scope:
+//
+//	relaymetrics.WithOTelMetrics(mp,
+//	    relaymetrics.WithInstrumentationName("my-service"),
+//	    relaymetrics.WithInstrumentationVersion("2.0.0"),
+//	)
+func WithOTelMetrics(mp metric.MeterProvider, opts ...Option) relay.Option {
 	if mp == nil {
 		mp = otel.GetMeterProvider()
 	}
-	m := newInstruments(mp)
+
+	cfg := &metricsConfig{instrumentationName: defaultInstrumentationName}
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	var meterOpts []metric.MeterOption
+	if cfg.instrumentationVersion != "" {
+		meterOpts = append(meterOpts, metric.WithInstrumentationVersion(cfg.instrumentationVersion))
+	}
+
+	m := newInstruments(mp.Meter(cfg.instrumentationName, meterOpts...))
 	return relay.WithTransportMiddleware(func(next http.RoundTripper) http.RoundTripper {
 		return &metricsTransport{base: next, instruments: m}
 	})
@@ -55,8 +110,7 @@ type instruments struct {
 	activeRequests  metric.Int64UpDownCounter
 }
 
-func newInstruments(mp metric.MeterProvider) *instruments {
-	meter := mp.Meter(instrumentationName)
+func newInstruments(meter metric.Meter) *instruments {
 	requestCount, _ := meter.Int64Counter(
 		"http.client.request_count",
 		metric.WithDescription("Total number of outbound HTTP requests"),

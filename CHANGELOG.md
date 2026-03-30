@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-30 (ext/tracing, ext/metrics)
+
+### Added
+
+- `ext/tracing`: `WithInstrumentationName(name string) Option` - sets the OTel instrumentation scope name passed to `tp.Tracer()`. Empty string falls back to the default `"github.com/jhonsferg/relay"`.
+- `ext/tracing`: `WithInstrumentationVersion(version string) Option` - attaches an instrumentation scope version to every span (e.g. `"1.0.0"`).
+- `ext/metrics`: `WithInstrumentationName(name string) Option` - sets the OTel instrumentation scope name passed to `mp.Meter()`. Empty string falls back to the default `"github.com/jhonsferg/relay"`.
+- `ext/metrics`: `WithInstrumentationVersion(version string) Option` - attaches an instrumentation scope version to every metric instrument.
+
+Both `WithTracing` and `WithOTelMetrics` now accept variadic `...Option` parameters, remaining fully backwards-compatible with existing call sites.
+
+```go
+// tracing - custom scope
+relaytracing.WithTracing(tp, prop,
+    relaytracing.WithInstrumentationName("my-service"),
+    relaytracing.WithInstrumentationVersion("1.0.0"),
+)
+
+// metrics - custom scope
+relaymetrics.WithOTelMetrics(mp,
+    relaymetrics.WithInstrumentationName("my-service"),
+    relaymetrics.WithInstrumentationVersion("1.0.0"),
+)
+```
+
 ## [0.6.0] - 2026-03-30
 
 ### Added
