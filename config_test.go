@@ -187,7 +187,6 @@ func TestWithOnStateChange(t *testing.T) {
 	t.Fatal("OnStateChange (Open) not triggered within 15s")
 }
 
-
 func TestWithRateLimit(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
