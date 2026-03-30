@@ -99,6 +99,108 @@ func main() {
 
 ---
 
+## 🚀 Advanced Usage & Recipes
+
+Relay shines when you combine its features to build industrial-grade integrations.
+
+### 1. The "Resilient Microservice" Pattern
+Combine Retries, Circuit Breaker, and Rate Limiting to protect your system and the downstream service.
+
+```go
+client := relay.New(
+    relay.WithBaseURL("https://unreliable-api.com"),
+    // Retry up to 5 times with custom backoff
+    relay.WithRetry(&relay.RetryConfig{
+        MaxAttempts:     5,
+        InitialInterval: 200 * time.Millisecond,
+        MaxInterval:     10 * time.Second,
+        Multiplier:      2.0,
+    }),
+    // Open circuit after 10 consecutive failures
+    relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
+        MaxFailures:  10,
+        ResetTimeout: 30 * time.Second,
+    }),
+    // Protect downstream with client-side rate limit (50 RPS)
+    relay.WithRateLimit(50, 10),
+)
+```
+
+### 2. Distributed Caching with Redis
+Enable transparent HTTP caching using Redis as the shared backend.
+
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    relayredis "github.com/jhonsferg/relay/ext/redis"
+)
+
+rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+store := relayredis.NewCacheStore(rdb, "api-cache:")
+
+client := relay.New(
+    relay.WithCache(store), // Honors Cache-Control, ETag, and Last-Modified
+)
+```
+
+### 3. Full Observability Stack (OTel + Sentry + Zap)
+Integrate tracing, metrics, error tracking, and structured logging in a single client.
+
+```go
+import (
+    relaytracing "github.com/jhonsferg/relay/ext/tracing"
+    relaymetrics "github.com/jhonsferg/relay/ext/metrics"
+    relaysentry "github.com/jhonsferg/relay/ext/sentry"
+    relayzap "github.com/jhonsferg/relay/ext/zap"
+)
+
+client := relay.New(
+    relaytracing.WithTracing(nil, nil),      // W3C TraceContext propagation
+    relaymetrics.WithOTelMetrics(nil),       // Standard HTTP metrics
+    relaysentry.WithSentry(sentryHub),       // Automatic error & 5xx capture
+    relay.WithLogger(relayzap.NewAdapter(z)), // Structured logs for every req
+)
+```
+
+### 4. Smart Concurrency: Batch & Coalescing
+Use `ExecuteBatch` for parallel fan-out and `Coalescing` to prevent "thundering herd" issues.
+
+```go
+// Enable Coalescing: concurrent identical GETs will only trigger ONE network call
+client := relay.New(relay.WithRequestCoalescing())
+
+// Execute multiple requests in parallel with bounded concurrency (3 workers)
+reqs := []*relay.Request{
+    client.Get("/resource/1"),
+    client.Get("/resource/2"),
+    client.Get("/resource/3"),
+}
+
+results := client.ExecuteBatch(ctx, reqs, 3)
+```
+
+### 5. Secure AWS & API Integrations
+Sign requests for AWS services or use certificate pinning for high-security APIs.
+
+```go
+import relaysigv4 "github.com/jhonsferg/relay/ext/sigv4"
+
+client := relay.New(
+    // AWS SigV4 Signing
+    relaysigv4.WithSigV4(relaysigv4.Config{
+        Region: "us-east-1",
+        Service: "execute-api",
+    }),
+    // SHA-256 Certificate Pinning
+    relay.WithCertificatePinning([]string{
+        "sha256/fba6f...=", // Primary CA
+        "sha256/7453f...=", // Backup CA
+    }),
+)
+```
+
+---
+
 ## 🛠 Feature Matrix
 
 | Category | Feature | Highlights |
