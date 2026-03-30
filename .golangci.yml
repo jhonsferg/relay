@@ -24,12 +24,11 @@ linters:
     - prealloc      # find slice declarations that could potentially be pre-allocated
     - unconvert     # remove unnecessary type conversions
 
-  linters-settings:
+linters-settings:
   govet:
     enable:
       - shadow
   goimports:
-
     local-prefixes: github.com/jhonsferg/relay
   gosec:
     excludes:
@@ -43,4 +42,4 @@ issues:
   max-same-issues: 0
   exclude-dirs:
     - vendor
-    - internal/pool # Example of ignoring a specific internal package if needed
+    - internal/pool
