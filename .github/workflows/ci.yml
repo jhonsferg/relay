@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.23', '1.24']
+        go-version: ['1.25']
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
           done
 
       - name: Upload coverage
-        if: matrix.go-version == '1.24'
+        if: matrix.go-version == '1.25'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.out
@@ -59,11 +59,16 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           cache: false
 
       - name: Pin toolchain
         run: go env -w GOTOOLCHAIN=local
+
+      - name: Download modules (core)
+        env:
+          GOWORK: "off"
+        run: go mod download
 
       - name: golangci-lint (core)
         uses: golangci/golangci-lint-action@v6
@@ -91,7 +96,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           cache: false
 
       - name: Pin toolchain
@@ -124,4 +129,6 @@ jobs:
         run: go env -w GOTOOLCHAIN=local
 
       - name: Build examples module
+        env:
+          GOWORK: "off"
         run: cd examples && go build ./...
