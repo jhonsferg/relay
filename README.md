@@ -58,6 +58,7 @@ go get github.com/jhonsferg/relay
 ```
 
 Optional extensions:
+
 ```bash
 go get github.com/jhonsferg/relay/ext/oauth      # OAuth 2.0
 go get github.com/jhonsferg/relay/ext/redis      # Redis Cache
@@ -101,6 +102,7 @@ resp, err := client.Post("/upload").
 ```
 
 **Supported Body Types:**
+
 - `WithJSON(v)`: Marshals to JSON and sets `Content-Type`.
 - `WithFormData(map)`: URL-encoded form data.
 - `WithMultipart(fields)`: File uploads and mixed parts.
@@ -113,6 +115,7 @@ resp, err := client.Post("/upload").
 <summary><b>🛡 Resilience & Reliability</b></summary>
 
 ### Exponential Backoff Retries
+
 Automatically retries on network errors or specific HTTP status codes (429, 5xx).
 
 ```go
@@ -126,6 +129,7 @@ relay.WithRetry(&relay.RetryConfig{
 ```
 
 ### Circuit Breaker
+
 Protects your system from cascading failures by "tripping" when a service is down.
 
 ```go
@@ -137,6 +141,7 @@ relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
     },
 })
 ```
+
 </details>
 
 <details>
@@ -154,6 +159,7 @@ for scanner.Scan() {
     fmt.Println("New Event:", scanner.Text())
 }
 ```
+
 </details>
 
 <details>
@@ -171,26 +177,182 @@ fmt.Printf("TLS: %v\n", t.TLSHandshake)
 fmt.Printf("TTFB: %v\n", t.ServerProcessing) // Time to First Byte
 fmt.Printf("Total: %v\n", t.Total)
 ```
+
 </details>
 
 ---
 
-## 🔌 Modular Extensions
+## 🔌 Extension Ecosystem
 
-Relay integrates with your existing stack via official extensions:
+Relay is designed to be lean. The core has zero external dependencies. Use these official extensions to integrate with popular tools and services.
 
-| Extension | Feature | Highlights |
-| :--- | :--- | :--- |
-| **Observability** | `ext/tracing` | OpenTelemetry Distributed Tracing |
-| | `ext/metrics` | OpenTelemetry Metrics (RPS, Latency, Errors) |
-| | `ext/prometheus` | Native Prometheus exporter |
-| | `ext/sentry` | Exception & Breadcrumb capture |
-| **Auth & Security** | `ext/oauth` | OAuth 2.0 Client Credentials with Auto-Refresh |
-| | `ext/sigv4` | AWS Signature Version 4 for AWS Services |
-| **Caching** | `ext/redis` | Redis-backed HTTP caching |
-| | `ext/memcached` | Memcached-backed HTTP caching |
-| **Logging** | `ext/zap` | Uber's Zap adapter |
-| | `ext/zerolog` | Zerolog adapter |
+### 🛡 Observability & Monitoring
+
+<details>
+<summary><b>OpenTelemetry (Tracing & Metrics)</b></summary>
+
+Full distributed tracing and automated metrics for your HTTP calls.
+
+- **Package:** `github.com/jhonsferg/relay/ext/tracing` & `ext/metrics`
+- **Use Case:** Track request latency in Jaeger/Zipkin and RPS/Error rates in Prometheus.
+
+```go
+import (
+    relaytracing "github.com/jhonsferg/relay/ext/tracing"
+    relaymetrics "github.com/jhonsferg/relay/ext/metrics"
+)
+
+client := relay.New(
+    relaytracing.WithTracing(nil, nil), // Automatic W3C propagation
+    relaymetrics.WithOTelMetrics(nil),  // Records duration, request size, etc.
+)
+```
+</details>
+
+<details>
+<summary><b>Sentry Integration</b></summary>
+
+Automatically capture 5xx errors and network failures as Sentry events with full HTTP context.
+
+- **Package:** `github.com/jhonsferg/relay/ext/sentry`
+- **Use Case:** Get notified in Sentry when your downstream dependencies fail.
+
+```go
+import relaysentry "github.com/jhonsferg/relay/ext/sentry"
+
+client := relay.New(
+    relaysentry.WithSentry(sentry.CurrentHub()),
+    relaysentry.WithCaptureClientErrors(true), // Optional: capture 4xx too
+)
+```
+</details>
+
+<details>
+<summary><b>Prometheus Native</b></summary>
+
+Direct Prometheus metrics without needing the full OpenTelemetry SDK.
+
+- **Package:** `github.com/jhonsferg/relay/ext/prometheus`
+
+```go
+import relayprom "github.com/jhonsferg/relay/ext/prometheus"
+
+client := relay.New(
+    relayprom.WithPrometheus(prometheus.DefaultRegisterer, "my_app"),
+)
+```
+</details>
+
+### 💾 Advanced Caching
+
+<details>
+<summary><b>Redis & Memcached Backends</b></summary>
+
+Offload your HTTP cache to a distributed store to share cached responses across multiple microservice instances.
+
+- **Packages:** `github.com/jhonsferg/relay/ext/redis`, `ext/memcached`
+- **Use Case:** Highly available API caching for high-traffic environments.
+
+```go
+import relayredis "github.com/jhonsferg/relay/ext/redis"
+
+store := relayredis.NewCacheStore(redisClient, "relay-cache:")
+client := relay.New(relay.WithCache(store))
+```
+</details>
+
+### 🔐 Security & Cloud
+
+<details>
+<summary><b>AWS SigV4 Signing</b></summary>
+
+Seamlessly call any AWS service (S3, DynamoDB, Lambda) by automatically signing requests with your credentials.
+
+- **Package:** `github.com/jhonsferg/relay/ext/sigv4`
+
+```go
+import relaysigv4 "github.com/jhonsferg/relay/ext/sigv4"
+
+client := relay.New(
+    relaysigv4.WithSigV4(relaysigv4.Config{
+        Region: "us-east-1",
+        Service: "s3",
+    }),
+)
+```
+</details>
+
+<details>
+<summary><b>OAuth 2.0 Client Credentials</b></summary>
+
+Handle M2M (Machine-to-Machine) authentication with automatic token fetching and background refreshing.
+
+- **Package:** `github.com/jhonsferg/relay/ext/oauth`
+
+```go
+import relayoauth "github.com/jhonsferg/relay/ext/oauth"
+
+client := relay.New(
+    relayoauth.WithClientCredentials(relayoauth.Config{
+        TokenURL: "https://auth.provider.com/token",
+        ClientID: "...",
+        ClientSecret: "...",
+    }),
+)
+```
+</details>
+
+### 📝 Structured Logging
+
+<details>
+<summary><b>Zap & Zerolog Adapters</b></summary>
+
+Bridge Relay's internal logging to your favorite high-performance logging library.
+
+- **Packages:** `github.com/jhonsferg/relay/ext/zap`, `ext/zerolog`
+
+```go
+import relayzap "github.com/jhonsferg/relay/ext/zap"
+
+client := relay.New(
+    relay.WithLogger(relayzap.NewAdapter(zapLogger)),
+)
+```
+</details>
+
+### 🛠 Resilience Utilities
+
+<details>
+<summary><b>Jitterbug (Advanced Backoff)</b></summary>
+
+Alternative retry strategies like "Decorrelated Jitter" for better load distribution during recovery.
+
+- **Package:** `github.com/jhonsferg/relay/ext/jitterbug`
+
+```go
+import relayjitter "github.com/jhonsferg/relay/ext/jitterbug"
+
+client := relay.New(
+    relay.WithRetry(&relay.RetryConfig{
+        Backoff: relayjitter.NewDecorrelatedJitter(100ms, 30s),
+    }),
+)
+```
+</details>
+
+<details>
+<summary><b>Brotli Decompression</b></summary>
+
+Transparent support for `br` content encoding, saving bandwidth on modern APIs.
+
+- **Package:** `github.com/jhonsferg/relay/ext/brotli`
+
+```go
+import relaybr "github.com/jhonsferg/relay/ext/brotli"
+
+client := relay.New(relaybr.WithBrotliDecompression())
+```
+</details>
 
 ---
 
@@ -225,6 +387,7 @@ func TestMyAPI(t *testing.T) {
 ## 🚀 Performance
 
 Relay is built for high-throughput services:
+
 - **Zero-Allocation Pooling:** Uses `sync.Pool` for internal buffers to reduce GC pressure.
 - **Request Coalescing:** Prevents "Thundering Herd" by collapsing concurrent identical requests.
 - **Optimized Transport:** Pre-configured connection pooling and HTTP/2 support.
