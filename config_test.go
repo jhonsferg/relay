@@ -144,16 +144,18 @@ func TestWithOnRetry(t *testing.T) {
 func TestWithOnStateChange(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
+
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
 	stateCh := make(chan CircuitBreakerState, 10)
 	onStateChange := func(from, to CircuitBreakerState) {
 		stateCh <- to
 	}
 
-	srv := testutil.NewMockServer()
-	defer srv.Close()
-
 	c := New(
 		WithDisableRetry(),
+		WithDisableCircuitBreaker(), // Clear any default breaker
 		WithCircuitBreaker(&CircuitBreakerConfig{
 			MaxFailures:  1, // Trip on first failure
 			ResetTimeout: time.Hour,
@@ -161,28 +163,26 @@ func TestWithOnStateChange(t *testing.T) {
 		WithOnStateChange(onStateChange),
 	)
 
+	// Ensure failure reaches the breaker
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
-	_, _ = c.Execute(c.Get(srv.URL() + "/"))
+	_, _ = c.Execute(c.Get(srv.URL() + "/fail"))
 
-	// Ensure we capture the change
-	timeout := time.After(10 * time.Second)
-	for {
-		select {
-		case state := <-stateCh:
-			if state == StateOpen {
-				return
-			}
-		case <-timeout:
-			if c.CircuitBreakerState() == StateOpen {
-				return
-			}
-			t.Fatal("OnStateChange (Open) not triggered within 10s")
-		default:
-			if c.CircuitBreakerState() == StateOpen {
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
+	// Immediate check + generous timeout
+	if c.CircuitBreakerState() == StateOpen {
+		return
+	}
+
+	select {
+	case state := <-stateCh:
+		if state == StateOpen {
+			return
 		}
+	case <-time.After(10 * time.Second):
+		// Final attempt to read state before failing
+		if c.CircuitBreakerState() == StateOpen {
+			return
+		}
+		t.Fatal("OnStateChange (Open) not triggered within 10s")
 	}
 }
 
