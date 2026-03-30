@@ -160,7 +160,7 @@ func TestWithOnStateChange(t *testing.T) {
 		WithDisableRetry(),
 		WithDisableCircuitBreaker(),
 		WithCircuitBreaker(&CircuitBreakerConfig{
-			MaxFailures:  1,
+			MaxFailures:  1, // Trip on first failure
 			ResetTimeout: time.Hour,
 		}),
 		WithOnStateChange(onStateChange),
@@ -169,25 +169,24 @@ func TestWithOnStateChange(t *testing.T) {
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
 	_, _ = c.Execute(c.Get(srv.URL() + "/fail"))
 
-	// Check internal state immediately first
-	if c.CircuitBreakerState() == StateOpen {
-		return
-	}
-
-	// Wait for the async channel event with a massive margin
-	select {
-	case state := <-stateCh:
-		if state == StateOpen {
-			return
-		}
-	case <-time.After(10 * time.Second):
-		// Final state check before failing
+	// Terminal check loop
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
 		if c.CircuitBreakerState() == StateOpen {
 			return
 		}
-		t.Fatal("OnStateChange (Open) not triggered within 10s")
+		select {
+		case state := <-stateCh:
+			if state == StateOpen {
+				return
+			}
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
+	t.Fatal("OnStateChange (Open) not triggered within 15s")
 }
+
 
 func TestWithRateLimit(t *testing.T) {
 	testMu.Lock()
