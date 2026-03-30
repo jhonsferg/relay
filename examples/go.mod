@@ -4,14 +4,14 @@ go 1.24.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.33.0
-	github.com/jhonsferg/relay v0.1.0
-	github.com/jhonsferg/relay/ext/metrics v0.1.0
-	github.com/jhonsferg/relay/ext/oauth v0.1.0
-	github.com/jhonsferg/relay/ext/prometheus v0.1.0
-	github.com/jhonsferg/relay/ext/redis v0.1.0
-	github.com/jhonsferg/relay/ext/tracing v0.1.0
-	github.com/jhonsferg/relay/ext/zap v0.1.0
-	github.com/jhonsferg/relay/ext/zerolog v0.1.0
+	github.com/jhonsferg/relay v0.1.1
+	github.com/jhonsferg/relay/ext/metrics v0.1.1
+	github.com/jhonsferg/relay/ext/oauth v0.1.1
+	github.com/jhonsferg/relay/ext/prometheus v0.1.1
+	github.com/jhonsferg/relay/ext/redis v0.1.1
+	github.com/jhonsferg/relay/ext/tracing v0.1.1
+	github.com/jhonsferg/relay/ext/zap v0.1.1
+	github.com/jhonsferg/relay/ext/zerolog v0.1.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/rs/zerolog v1.35.0
@@ -46,12 +46,12 @@ require (
 )
 
 replace (
-	github.com/jhonsferg/relay v0.1.0 => ../
-	github.com/jhonsferg/relay/ext/metrics v0.1.0 => ../ext/metrics
-	github.com/jhonsferg/relay/ext/oauth v0.1.0 => ../ext/oauth
-	github.com/jhonsferg/relay/ext/prometheus v0.1.0 => ../ext/prometheus
-	github.com/jhonsferg/relay/ext/redis v0.1.0 => ../ext/redis
-	github.com/jhonsferg/relay/ext/tracing v0.1.0 => ../ext/tracing
-	github.com/jhonsferg/relay/ext/zap v0.1.0 => ../ext/zap
-	github.com/jhonsferg/relay/ext/zerolog v0.1.0 => ../ext/zerolog
+	github.com/jhonsferg/relay v0.1.1 => ../
+	github.com/jhonsferg/relay/ext/metrics v0.1.1 => ../ext/metrics
+	github.com/jhonsferg/relay/ext/oauth v0.1.1 => ../ext/oauth
+	github.com/jhonsferg/relay/ext/prometheus v0.1.1 => ../ext/prometheus
+	github.com/jhonsferg/relay/ext/redis v0.1.1 => ../ext/redis
+	github.com/jhonsferg/relay/ext/tracing v0.1.1 => ../ext/tracing
+	github.com/jhonsferg/relay/ext/zap v0.1.1 => ../ext/zap
+	github.com/jhonsferg/relay/ext/zerolog v0.1.1 => ../ext/zerolog
 )

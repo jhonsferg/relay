@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/tracing
 go 1.24.0
 
 require (
-	github.com/jhonsferg/relay v0.1.0
+	github.com/jhonsferg/relay v0.1.1
 	go.opentelemetry.io/otel v1.41.0
 	go.opentelemetry.io/otel/trace v1.41.0
 )
@@ -17,4 +17,4 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 )
 
-replace github.com/jhonsferg/relay v0.1.0 => ../../
+replace github.com/jhonsferg/relay v0.1.1 => ../../

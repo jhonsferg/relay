@@ -4,10 +4,10 @@ go 1.24.0
 
 require (
 	github.com/getkin/kin-openapi v0.127.0
-	github.com/jhonsferg/relay v0.1.0
+	github.com/jhonsferg/relay v0.1.1
 )
 
-replace github.com/jhonsferg/relay v0.1.0 => ../../
+replace github.com/jhonsferg/relay v0.1.1 => ../../
 
 require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
