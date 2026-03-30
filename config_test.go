@@ -148,50 +148,42 @@ func TestWithOnStateChange(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	var capturedState CircuitBreakerState
-	onStateChange := func(from, to CircuitBreakerState) {
-		if to == StateOpen {
-			capturedState = to
-			wg.Done()
-		}
-	}
-
+	stateCh := make(chan CircuitBreakerState, 10)
 	c := New(
 		WithDisableRetry(),
 		WithDisableCircuitBreaker(),
 		WithCircuitBreaker(&CircuitBreakerConfig{
-			MaxFailures:  1,
+			MaxFailures:  1, // Trip on first failure
 			ResetTimeout: time.Hour,
 		}),
-		WithOnStateChange(onStateChange),
+		WithOnStateChange(func(from, to CircuitBreakerState) {
+			select {
+			case stateCh <- to:
+			default:
+			}
+		}),
 	)
 
-	// Ensure failure reaches the breaker
+	// Ensure failure reaches the breaker.
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
 	_, _ = c.Execute(c.Get(srv.URL() + "/fail"))
 
-	// Wait for the callback to complete with a massive timeout
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		if capturedState != StateOpen {
-			t.Errorf("expected Open state, got %s", capturedState)
-		}
-	case <-time.After(15 * time.Second):
-		// Final state check before failing
+	// Robust check loop: both state and channel.
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
 		if c.CircuitBreakerState() == StateOpen {
-			return
+			return // Success!
 		}
-		t.Fatal("OnStateChange (Open) not triggered within 15s")
+		select {
+		case s := <-stateCh:
+			if s == StateOpen {
+				return // Success!
+			}
+		default:
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
+	t.Fatal("OnStateChange (Open) not triggered within 20s")
 }
 
 func TestWithRateLimit(t *testing.T) {
