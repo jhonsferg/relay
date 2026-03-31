@@ -259,7 +259,10 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		if req.idempotencyKey != "" {
 			httpReq.Header.Set(idempotencyKeyHeader, req.idempotencyKey)
 		}
-		return c.httpClient.Do(httpReq)
+		resp, doErr := c.httpClient.Do(httpReq)
+		// Always release the pooled reader after Do returns.
+		req.releasePooledReader()
+		return resp, doErr
 	})
 
 	if err != nil {
