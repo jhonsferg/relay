@@ -50,10 +50,11 @@ func BenchmarkCoalesceKey_WithAuth(b *testing.B) {
 func BenchmarkRequestBuild_NoQuery(b *testing.B) {
 	client := New(WithBaseURL("https://api.example.com"))
 	req := client.Get("/v1/users/42")
+	parsedBase := mustParseURL("https://api.example.com")
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = req.build("https://api.example.com")
+		_, _ = req.build("https://api.example.com", parsedBase)
 	}
 }
 
@@ -64,10 +65,11 @@ func BenchmarkRequestBuild_WithQuery(b *testing.B) {
 		WithQueryParam("q", "relay").
 		WithQueryParam("page", "1").
 		WithQueryParam("limit", "20")
+	parsedBase := mustParseURL("https://api.example.com")
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = req.build("https://api.example.com")
+		_, _ = req.build("https://api.example.com", parsedBase)
 	}
 }
 

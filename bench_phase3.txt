@@ -1,0 +1,22 @@
+2026/03/30 20:20:49 http: TLS handshake error from 127.0.0.1:53755: remote error: tls: bad certificate
+time=2026-03-30T20:20:49.767-05:00 level=ERROR msg="visible error"
+2026/03/30 20:20:49 INFO test info
+2026/03/30 20:20:52 http: TLS handshake error from 127.0.0.1:54034: remote error: tls: bad certificate
+time=2026-03-30T20:20:53.144-05:00 level=ERROR msg="visible error"
+2026/03/30 20:20:53 INFO test info
+goos: windows
+goarch: amd64
+pkg: github.com/jhonsferg/relay
+cpu: AMD Ryzen 9 5950X 16-Core Processor            
+BenchmarkGenerateIdempotencyKey-32    	 9179841	       128.3 ns/op	      48 B/op	       1 allocs/op
+BenchmarkGenerateIdempotencyKey-32    	 9567775	       127.4 ns/op	      48 B/op	       1 allocs/op
+BenchmarkCoalesceKey_NoAuth-32        	 5400955	       226.0 ns/op	     240 B/op	       2 allocs/op
+BenchmarkCoalesceKey_NoAuth-32        	 5183972	       228.2 ns/op	     240 B/op	       2 allocs/op
+BenchmarkCoalesceKey_WithAuth-32      	 4435732	       276.1 ns/op	     240 B/op	       2 allocs/op
+BenchmarkCoalesceKey_WithAuth-32      	 4100084	       268.9 ns/op	     240 B/op	       2 allocs/op
+BenchmarkRequestBuild_NoQuery-32      	 2580440	       471.8 ns/op	     560 B/op	       4 allocs/op
+BenchmarkRequestBuild_NoQuery-32      	 2472417	       492.4 ns/op	     560 B/op	       4 allocs/op
+BenchmarkRequestBuild_WithQuery-32    	  703287	      1787 ns/op	    1464 B/op	      20 allocs/op
+BenchmarkRequestBuild_WithQuery-32    	  716066	      1857 ns/op	    1464 B/op	      20 allocs/op
+PASS
+ok  	github.com/jhonsferg/relay	21.425s
