@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"time"
 )
 
@@ -171,6 +172,11 @@ type Config struct {
 	// DNSCache enables client-side DNS caching with a configurable TTL.
 	// Nil disables the feature (default: OS resolver on every dial).
 	DNSCache *DNSCacheConfig
+
+	// parsedBaseURL is a pre-parsed *url.URL for BaseURL (if set).
+	// Reduces allocations in request.build() by reusing the parsed URL.
+	// Only set by WithBaseURL; never modified after client creation.
+	parsedBaseURL *url.URL
 }
 
 // defaultConfig returns a Config populated with all production-ready defaults.
@@ -220,8 +226,18 @@ func (cfg *Config) clone() *Config {
 type Option func(*Config)
 
 // WithBaseURL sets the base URL prepended to every request path that does not
-// start with "http://" or "https://".
-func WithBaseURL(url string) Option { return func(c *Config) { c.BaseURL = url } }
+// start with "http://" or "https://". The URL is pre-parsed once for
+// performance.
+func WithBaseURL(urlStr string) Option {
+	return func(c *Config) {
+		c.BaseURL = urlStr
+		if urlStr != "" {
+			if parsed, err := url.Parse(urlStr); err == nil {
+				c.parsedBaseURL = parsed
+			}
+		}
+	}
+}
 
 // WithTimeout sets the end-to-end request timeout (including all retry
 // attempts). Use [Request.WithTimeout] for per-request control.

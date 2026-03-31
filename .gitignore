@@ -25,3 +25,14 @@ Thumbs.db
 
 # Claude Code local configuration (never commit)
 .claude/
+CLAUDE.md
+
+# Benchmark output files
+bench_*.txt
+*.prof
+bench_comprehensive_report.txt
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo

@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/jhonsferg/relay/internal/pool"
 )
@@ -24,6 +25,38 @@ type Response struct {
 	Timing        RequestTiming // per-phase timing breakdown (DNS, TCP, TLS, TTFB, …)
 }
 
+var responsePool = &sync.Pool{
+	New: func() any { return new(Response) },
+}
+
+// getResponse returns a pooled Response, cleared for reuse.
+func getResponse() *Response {
+	r := responsePool.Get().(*Response)
+	r.reset()
+	return r
+}
+
+// reset clears all fields except body slice (capacity kept for potential reuse).
+func (r *Response) reset() {
+	r.raw = nil
+	r.body = r.body[:0]
+	r.StatusCode = 0
+	r.Status = ""
+	r.Headers = nil
+	r.Truncated = false
+	r.RedirectCount = 0
+	r.Timing = RequestTiming{}
+}
+
+// PutResponse returns a Response to the pool. The Response must not be used
+// after calling this function. Callers should call this when they are done
+// with the response and not retaining it.
+func PutResponse(r *Response) {
+	if r != nil {
+		responsePool.Put(r)
+	}
+}
+
 func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Response, error) {
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 
@@ -32,15 +65,15 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 		reader = io.LimitReader(resp.Body, maxBytes+1)
 	}
 
-	// Use a pooled buffer as the initial read destination to reduce GC pressure
-	// for small-to-medium responses. bytes.Buffer.ReadFrom will grow as needed.
-	poolBuf := pool.GetBuffer()
+	// Use a sized pooled buffer to reduce GC pressure.
+	// Size selection based on Content-Length hint for optimal tier reuse.
+	poolBuf := pool.GetSizedBuffer(resp.ContentLength)
 	buf := bytes.NewBuffer(*poolBuf)
 	buf.Reset()
 
 	_, err := buf.ReadFrom(reader)
 	if err != nil {
-		pool.PutBuffer(poolBuf)
+		pool.PutSizedBuffer(poolBuf)
 		return nil, err
 	}
 
@@ -53,20 +86,25 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 	} else if len(body) > 0 {
 		// Copy to a right-sized slice so the large buffer can be GC'd.
 		body = append([]byte(nil), body...)
+	} else {
+		// Empty body: no allocation needed
+		body = nil
 	}
 
 	// Return the pool buffer now that body is safely copied.
-	pool.PutBuffer(poolBuf)
+	pool.PutSizedBuffer(poolBuf)
 
-	return &Response{
-		raw:           resp,
-		body:          body,
-		StatusCode:    resp.StatusCode,
-		Status:        resp.Status,
-		Headers:       resp.Header,
-		Truncated:     truncated,
-		RedirectCount: redirectCount,
-	}, nil
+	// Get pooled response struct.
+	r := getResponse()
+	r.raw = resp
+	r.body = body
+	r.StatusCode = resp.StatusCode
+	r.Status = resp.Status
+	r.Headers = resp.Header
+	r.Truncated = truncated
+	r.RedirectCount = redirectCount
+
+	return r, nil
 }
 
 // Body returns the full response body as a byte slice. The slice is owned by
