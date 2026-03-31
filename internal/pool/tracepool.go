@@ -17,6 +17,10 @@ type TimingCollector struct {
 	TLSDone      time.Time
 	FirstByte    time.Time
 	RequestStart time.Time
+
+	// entry is a private reference to the tracerEntry for return-to-pool.
+	// Only used internally by the pool package.
+	entry *tracerEntry
 }
 
 // Reset clears all timing values for reuse.
@@ -29,6 +33,7 @@ func (tc *TimingCollector) Reset() {
 	tc.TLSDone = time.Time{}
 	tc.FirstByte = time.Time{}
 	tc.RequestStart = time.Time{}
+	tc.entry = nil
 }
 
 // tracerEntry holds both collector and trace for pooled reuse.
@@ -74,12 +79,18 @@ var tracerPool = &sync.Pool{
 	},
 }
 
+// getTracerEntry is internal - returns the full entry for pooled reuse
+func getTracerEntry() *tracerEntry {
+	return tracerPool.Get().(*tracerEntry)
+}
+
 // GetTracer returns a pooled TimingCollector and ClientTrace.
 // The collector is populated as the request progresses.
 // Must be returned via PutTracer when done.
 func GetTracer() (*TimingCollector, *httptrace.ClientTrace) {
-	entry := tracerPool.Get().(*tracerEntry)
+	entry := getTracerEntry()
 	entry.collector.RequestStart = time.Now()
+	entry.collector.entry = entry // Store entry reference for later return-to-pool
 	return entry.collector, entry.trace
 }
 
@@ -87,6 +98,7 @@ func GetTracer() (*TimingCollector, *httptrace.ClientTrace) {
 // Must be called after timing is finalized to reset for reuse.
 func PutTracer(col *TimingCollector) {
 	col.Reset()
-	entry := &tracerEntry{collector: col}
-	tracerPool.Put(entry)
+	if col.entry != nil {
+		tracerPool.Put(col.entry)
+	}
 }

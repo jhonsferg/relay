@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // MultipartField represents a single part in a multipart/form-data request.
@@ -93,6 +95,10 @@ type Request struct {
 	// maxBodyBytes is a per-request override for [Config.MaxResponseBodyBytes].
 	// Zero means use the client-level default.
 	maxBodyBytes int64
+
+	// pooledReader is a reference to a pooled bytes.Reader if one was created
+	// during build(). It must be returned to the pool after the request is sent.
+	pooledReader *bytes.Reader
 }
 
 // newRequest allocates a Request with all maps initialised and a background
@@ -393,6 +399,9 @@ func (r *Request) Clone() *Request {
 		clone.bodyBytes = append([]byte(nil), r.bodyBytes...)
 	}
 
+	// pooledReader must not be cloned - each request build creates its own
+	clone.pooledReader = nil
+
 	return &clone
 }
 
@@ -441,7 +450,8 @@ func (r *Request) build(baseURL string) (*http.Request, error) {
 	}
 	var bodyReader io.Reader
 	if len(r.bodyBytes) > 0 {
-		bodyReader = bytes.NewReader(r.bodyBytes)
+		r.pooledReader = pool.GetBytesReader(r.bodyBytes)
+		bodyReader = r.pooledReader
 		if r.uploadProgress != nil {
 			bodyReader = newProgressReader(bodyReader, int64(len(r.bodyBytes)), r.uploadProgress)
 		}
@@ -454,4 +464,13 @@ func (r *Request) build(baseURL string) (*http.Request, error) {
 		req.Header.Set(k, v)
 	}
 	return req, nil
+}
+
+// releasePooledReader returns the pooled bytes.Reader to the pool if one was
+// created during build(). Must be called after the request has been sent.
+func (r *Request) releasePooledReader() {
+	if r.pooledReader != nil {
+		pool.PutBytesReader(r.pooledReader)
+		r.pooledReader = nil
+	}
 }
