@@ -86,6 +86,9 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 	} else if len(body) > 0 {
 		// Copy to a right-sized slice so the large buffer can be GC'd.
 		body = append([]byte(nil), body...)
+	} else {
+		// Empty body: no allocation needed
+		body = nil
 	}
 
 	// Return the pool buffer now that body is safely copied.

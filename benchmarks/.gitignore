@@ -1,0 +1,20 @@
+# Benchmark output files
+*.bench.txt
+bench_*.txt
+*_benchmark.txt
+
+# Go benchmark profiles
+*.prof
+*.pprof
+*.cpuprofile
+*.memprofile
+*.goroutineprofile
+*.mutexprofile
+*.allocationprofile
+
+# Benchmark results
+*.json
+*.csv
+
+# Build artifacts
+*.test

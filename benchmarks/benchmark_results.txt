@@ -1,0 +1,104 @@
+goos: windows
+goarch: amd64
+pkg: github.com/jhonsferg/relay/benchmarks/common
+cpu: AMD Ryzen 9 5950X 16-Core Processor            
+BenchmarkExecute_Simple-32       	    1707	    643265 ns/op	    9192 B/op	     107 allocs/op
+BenchmarkExecute_Simple-32       	    1939	    607148 ns/op	    9141 B/op	     107 allocs/op
+BenchmarkExecute_WithRetry-32    	     490	   2570097 ns/op	  160780 B/op	     267 allocs/op
+BenchmarkExecute_WithRetry-32    	     478	   2509040 ns/op	  160940 B/op	     267 allocs/op
+BenchmarkExecute_WithCache-32    	  217351	      5824 ns/op	    4334 B/op	      61 allocs/op
+BenchmarkExecute_WithCache-32    	  217114	      6406 ns/op	    4337 B/op	      61 allocs/op
+BenchmarkExecuteBatch_100-32     	      69	  17405230 ns/op	  925201 B/op	   10465 allocs/op
+BenchmarkExecuteBatch_100-32     	      61	  17713205 ns/op	  935904 B/op	   10472 allocs/op
+BenchmarkExecuteAsync-32         	     638	   1774455 ns/op	   96737 B/op	    1104 allocs/op
+BenchmarkExecuteAsync-32         	     649	   1792024 ns/op	   96601 B/op	    1103 allocs/op
+PASS
+ok  	github.com/jhonsferg/relay/benchmarks/common	14.230s
+goos: windows
+goarch: amd64
+pkg: github.com/jhonsferg/relay/benchmarks/bigdata
+cpu: AMD Ryzen 9 5950X 16-Core Processor            
+BenchmarkHeavy_Parallel_Standard-32             	      54	  20879385 ns/op	78361625 B/op	  154267 allocs/op
+BenchmarkHeavy_Parallel_Standard-32             	      55	  21400542 ns/op	78359622 B/op	  154257 allocs/op
+BenchmarkHeavy_Parallel_Relay-32                	      56	  21516854 ns/op	68460495 B/op	  154260 allocs/op
+BenchmarkHeavy_Parallel_Relay-32                	      52	  24907592 ns/op	68467902 B/op	  154262 allocs/op
+BenchmarkMemoryStress_Relay-32                  	      10	 102568540 ns/op	45092023 B/op	  105352 allocs/op
+BenchmarkMemoryStress_Relay-32                  	      12	 103502667 ns/op	45091768 B/op	  105269 allocs/op
+BenchmarkSmallPayload_Parallel_Relay-32         	    5286	    216589 ns/op	    9988 B/op	     117 allocs/op
+BenchmarkSmallPayload_Parallel_Relay-32         	    5456	    217716 ns/op	    9973 B/op	     117 allocs/op
+BenchmarkLargeStream_Sequential_Relay-32        	      10	 105337360 ns/op	46288039 B/op	  255275 allocs/op
+BenchmarkLargeStream_Sequential_Relay-32        	      12	 107856558 ns/op	46289309 B/op	  255588 allocs/op
+BenchmarkConnectionReuse_Sequential_Relay-32    	       9	 126155433 ns/op	68443384 B/op	  154245 allocs/op
+BenchmarkConnectionReuse_Sequential_Relay-32    	       9	 123900478 ns/op	68442326 B/op	  154244 allocs/op
+BenchmarkAllocationProfile_Standard-32          	       8	 126340375 ns/op	78394096 B/op	  154271 allocs/op
+BenchmarkAllocationProfile_Standard-32          	       9	 126090022 ns/op	78404735 B/op	  154299 allocs/op
+BenchmarkAllocationProfile_Relay-32             	       9	 122414311 ns/op	68442371 B/op	  154245 allocs/op
+BenchmarkAllocationProfile_Relay-32             	       9	 125317744 ns/op	68441716 B/op	  154243 allocs/op
+BenchmarkIdleConnections_Relay-32               	      43	  26878753 ns/op	10598324 B/op	   30788 allocs/op
+BenchmarkIdleConnections_Relay-32               	      40	  27869362 ns/op	10598045 B/op	   30785 allocs/op
+PASS
+ok  	github.com/jhonsferg/relay/benchmarks/bigdata	33.082s
+goos: windows
+goarch: amd64
+pkg: github.com/jhonsferg/relay/benchmarks/memory
+cpu: AMD Ryzen 9 5950X 16-Core Processor            
+BenchmarkMemory_SmallPayload_Allocation-32     	    1370	    738989 ns/op	    9261 B/op	     108 allocs/op
+BenchmarkMemory_SmallPayload_Allocation-32     	    1819	    630163 ns/op	    9249 B/op	     108 allocs/op
+BenchmarkMemory_MediumPayload_Allocation-32    	    1725	    696391 ns/op	   18634 B/op	     112 allocs/op
+BenchmarkMemory_MediumPayload_Allocation-32    	    1731	    698485 ns/op	   18683 B/op	     112 allocs/op
+BenchmarkMemory_LargePayload_Allocation-32     	     403	   3485200 ns/op	 5283320 B/op	     142 allocs/op
+BenchmarkMemory_LargePayload_Allocation-32     	     357	   3339489 ns/op	 5284012 B/op	     143 allocs/op
+BenchmarkMemory_GCPressure_Forced-32           	     898	   1262744 ns/op	   48510 B/op	     128 allocs/op
+BenchmarkMemory_GCPressure_Forced-32           	     933	   1304930 ns/op	   48524 B/op	     128 allocs/op
+BenchmarkMemory_Concurrent_Allocation-32       	    5206	    234509 ns/op	   10171 B/op	     107 allocs/op
+BenchmarkMemory_Concurrent_Allocation-32       	    5239	    228939 ns/op	   10132 B/op	     108 allocs/op
+BenchmarkMemory_ByteBuffer_Reuse-32            	    1550	    729665 ns/op	   30200 B/op	     114 allocs/op
+BenchmarkMemory_ByteBuffer_Reuse-32            	    1660	    719635 ns/op	   30135 B/op	     113 allocs/op
+BenchmarkMemory_HeaderParsing_Overhead-32      	    1838	    639237 ns/op	   11289 B/op	     138 allocs/op
+BenchmarkMemory_HeaderParsing_Overhead-32      	    1906	    637895 ns/op	   11266 B/op	     138 allocs/op
+PASS
+ok  	github.com/jhonsferg/relay/benchmarks/memory	20.194s
+goos: windows
+goarch: amd64
+pkg: github.com/jhonsferg/relay/benchmarks/concurrency
+cpu: AMD Ryzen 9 5950X 16-Core Processor            
+BenchmarkConcurrency_ParallelRequests-32        	    5336	    222326 ns/op	   10046 B/op	     108 allocs/op
+BenchmarkConcurrency_ParallelRequests-32        	    5416	    222913 ns/op	   10072 B/op	     107 allocs/op
+BenchmarkConcurrency_SequentialBaseline-32      	    1716	    644552 ns/op	    9287 B/op	     109 allocs/op
+BenchmarkConcurrency_SequentialBaseline-32      	    1544	    678238 ns/op	    9223 B/op	     109 allocs/op
+BenchmarkConcurrency_HighContention-32          	    3906	    315052 ns/op	   51955 B/op	     131 allocs/op
+BenchmarkConcurrency_HighContention-32          	    3975	    306040 ns/op	   51001 B/op	     129 allocs/op
+BenchmarkConcurrency_RateLimitedLoad-32         	    5434	    213184 ns/op	   10046 B/op	     108 allocs/op
+BenchmarkConcurrency_RateLimitedLoad-32         	    5590	    218858 ns/op	   10094 B/op	     108 allocs/op
+BenchmarkConcurrency_MultipleClients-32         	    5370	    223324 ns/op	   12737 B/op	     109 allocs/op
+BenchmarkConcurrency_MultipleClients-32         	    5401	    222686 ns/op	   12651 B/op	     109 allocs/op
+BenchmarkConcurrency_BurstTraffic-32            	    2379	    514905 ns/op	   93692 B/op	     156 allocs/op
+BenchmarkConcurrency_BurstTraffic-32            	    2071	    515674 ns/op	   94332 B/op	     156 allocs/op
+BenchmarkConcurrency_CircuitBreakerImpact-32    	    5526	    215678 ns/op	   10039 B/op	     107 allocs/op
+BenchmarkConcurrency_CircuitBreakerImpact-32    	    5557	    215442 ns/op	   10026 B/op	     107 allocs/op
+PASS
+ok  	github.com/jhonsferg/relay/benchmarks/concurrency	26.073s
+goos: windows
+goarch: amd64
+pkg: github.com/jhonsferg/relay/benchmarks/connection_pooling
+cpu: AMD Ryzen 9 5950X 16-Core Processor            
+BenchmarkConnectionPooling_DefaultPool-32          	    1824	    645345 ns/op	    9253 B/op	     108 allocs/op
+BenchmarkConnectionPooling_DefaultPool-32          	    1898	    618471 ns/op	    9215 B/op	     108 allocs/op
+BenchmarkConnectionPooling_MinimalPool-32          	    1903	    620239 ns/op	    9175 B/op	     108 allocs/op
+BenchmarkConnectionPooling_MinimalPool-32          	    1923	    624826 ns/op	    9167 B/op	     108 allocs/op
+BenchmarkConnectionPooling_OptimalPool-32          	    5430	    217344 ns/op	    9989 B/op	     107 allocs/op
+BenchmarkConnectionPooling_OptimalPool-32          	    5610	    215755 ns/op	   10037 B/op	     107 allocs/op
+BenchmarkConnectionPooling_AggressivePool-32       	    5521	    223809 ns/op	   10039 B/op	     107 allocs/op
+BenchmarkConnectionPooling_AggressivePool-32       	    5391	    220341 ns/op	   10011 B/op	     106 allocs/op
+BenchmarkConnectionPooling_ConnectionReuse-32      	    1843	    681031 ns/op	    9207 B/op	     108 allocs/op
+BenchmarkConnectionPooling_ConnectionReuse-32      	    1892	    643392 ns/op	    9153 B/op	     108 allocs/op
+BenchmarkConnectionPooling_MultiHostRequests-32    	    5220	    227618 ns/op	   15141 B/op	     111 allocs/op
+BenchmarkConnectionPooling_MultiHostRequests-32    	    5228	    230733 ns/op	   14453 B/op	     110 allocs/op
+BenchmarkConnectionPooling_IdleConnTimeout-32      	    1744	    646001 ns/op	    9232 B/op	     108 allocs/op
+BenchmarkConnectionPooling_IdleConnTimeout-32      	    1722	    635855 ns/op	    9208 B/op	     108 allocs/op
+BenchmarkConnectionPooling_KeepAliveDisabled-32    	     849	   1311114 ns/op	   23577 B/op	     174 allocs/op
+BenchmarkConnectionPooling_KeepAliveDisabled-32    	     895	   1281855 ns/op	   23548 B/op	     174 allocs/op
+BenchmarkConnectionPooling_PoolExhaustion-32       	    5601	    182351 ns/op	   14284 B/op	     113 allocs/op
+BenchmarkConnectionPooling_PoolExhaustion-32       	    6147	    182175 ns/op	   14071 B/op	     112 allocs/op
+PASS
+ok  	github.com/jhonsferg/relay/benchmarks/connection_pooling	27.576s
