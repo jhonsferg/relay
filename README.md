@@ -4,10 +4,13 @@
 
 **A production-grade, declarative HTTP client for Go with the ergonomics of Python's *requests* and the resilience of *Resilience4j*.**
 
-[![Go Version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
-[![CI](https://img.shields.io/github/actions/workflows/ci.yml?style=for-the-badge&logo=github)](https://github.com/jhonsferg/relay/actions)
+[![Go Version](https://img.shields.io/badge/Go-1.24%2B-00ADD8?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
+[![CI](https://img.shields.io/github/actions/workflow/status/jhonsferg/relay/ci.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/jhonsferg/relay/codeql.yml?style=for-the-badge&logo=github&label=CodeQL)](https://github.com/jhonsferg/relay/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/jhonsferg/relay?style=for-the-badge&logo=github&color=orange)](https://github.com/jhonsferg/relay/releases/latest)
+[![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-reference-007D9C?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
 [![codecov](https://img.shields.io/codecov/c/github/jhonsferg/relay?style=for-the-badge&logo=codecov)](https://codecov.io/gh/jhonsferg/relay)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jhonsferg/relay?style=for-the-badge)](https://goreportcard.com/report/github.com/jhonsferg/relay)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jhonsferg/relay)](https://goreportcard.com/report/github.com/jhonsferg/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 ---
@@ -28,27 +31,95 @@ The core module has **zero external dependencies**. Every integration (Redis, OT
 
 ### Request / Response Lifecycle
 
-```
-Execute(Request)
-  │
-  ├─ OnBeforeRequest hooks     (auth, rate limiting, mutation)
-  │
-  ├─ Rate limiter              (token bucket / sliding window)
-  │
-  ├─ Circuit breaker           (open → reject immediately)
-  │
-  ├─ Retry loop                (backoff + jitter on failure)
-  │    │
-  │    └─ Transport middleware stack   (cache, tracing, auth signing, …)
-  │         │
-  │         └─ net/http → network
-  │
-  ├─ OnAfterResponse hooks     (logging, metrics, error promotion)
-  │
-  └─ *Response                 (body, status, timing, headers)
+```mermaid
+flowchart TD
+    EX(["client.Execute(req)"])
+
+    EX --> BH["OnBeforeRequest hooks\nauth · mutation · logging"]
+    BH --> RL["Rate Limiter\ntoken bucket / sliding window"]
+
+    RL -- "no tokens" --> E1(["error: rate limited"])
+    RL -- OK --> CB{"Circuit Breaker"}
+
+    CB -- Open --> E2(["error: circuit open"])
+    CB -- "Closed / Half-Open" --> RT["Retry Loop\nbackoff + jitter"]
+
+    RT --> TM["Transport Middleware Stack\ncache · tracing · auth signing · compression"]
+    TM --> NET["net/http → network"]
+
+    NET -- "retryable / 5xx\n+ attempts left" --> RT
+    NET -- "success or\nnon-retryable" --> AH["OnAfterResponse hooks\nlogging · metrics · error promotion"]
+
+    AH --> RS(["*Response"])
+
+    style E1 fill:#e03131,color:#fff,stroke:none
+    style E2 fill:#e03131,color:#fff,stroke:none
+    style RS fill:#2f9e44,color:#fff,stroke:none
+    style NET fill:#1971c2,color:#fff,stroke:none
 ```
 
 Every layer is opt-in via `relay.Option` - compose exactly the behaviour your service needs.
+
+### Extension Ecosystem
+
+```mermaid
+graph LR
+    APP["Your Application"] --> CORE
+
+    subgraph CORE["relay  —  github.com/jhonsferg/relay\n(zero external dependencies)"]
+        direction TB
+        CB2["Circuit Breaker"]
+        RT2["Retry / Backoff"]
+        RL2["Rate Limiter"]
+        CA2["HTTP Cache RFC 7234"]
+        ST2["Streaming SSE / JSONL"]
+    end
+
+    CORE --> OBS
+    CORE --> CACHE
+    CORE --> SEC
+    CORE --> RES
+    CORE --> LOG
+    CORE --> MISC
+
+    subgraph OBS["Observability"]
+        T["ext/tracing"]
+        M["ext/metrics"]
+        P["ext/prometheus"]
+        SE["ext/sentry"]
+    end
+
+    subgraph CACHE["Caching"]
+        RD["ext/redis"]
+        MC["ext/memcached"]
+        LR["ext/cache/lru"]
+        TL["ext/cache/twolevel"]
+    end
+
+    subgraph SEC["Security & Cloud"]
+        OA["ext/oauth"]
+        SV["ext/sigv4"]
+        GR["ext/grpc"]
+    end
+
+    subgraph RES["Resilience"]
+        JB["ext/jitterbug"]
+        GB["ext/breaker/gobreaker"]
+        DL["ext/ratelimit/distributed"]
+    end
+
+    subgraph LOG["Logging"]
+        ZP["ext/zap"]
+        ZL["ext/zerolog"]
+        LG["ext/logrus"]
+    end
+
+    subgraph MISC["Other"]
+        OP["ext/openapi"]
+        BR["ext/brotli"]
+        MK["ext/mock"]
+    end
+```
 
 ---
 
@@ -210,12 +281,28 @@ relay.WithRetry(&relay.RetryConfig{
 
 #### Circuit Breaker
 
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> Closed
+
+    Closed --> Open : failures >= MaxFailures
+    note right of Open : requests rejected immediately\nErrCircuitOpen returned
+
+    Open --> HalfOpen : ResetTimeout elapsed\nor health probe succeeds
+    note right of HalfOpen : one test request allowed
+
+    HalfOpen --> Closed : test request succeeds
+    HalfOpen --> Open : test request fails
+```
+
 ```go
 relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
     MaxFailures:  5,
     ResetTimeout: 30 * time.Second,
     OnStateChange: func(from, to relay.CircuitBreakerState) {
-        log.Printf("circuit: %s → %s", from, to)
+        log.Printf("circuit: %s -> %s", from, to)
     },
 })
 ```
@@ -436,6 +523,25 @@ client := relay.New(relay.WithCache(store))
 Combine a fast L1 (e.g. LRU) with a persistent L2 (e.g. Redis). L1 misses that hit
 L2 are automatically backfilled into L1:
 
+```mermaid
+flowchart LR
+    REQ(["Request"]) --> L1{"L1 Cache\nfast / in-memory\nLRU"}
+
+    L1 -- hit --> RESP(["Response"])
+    L1 -- miss --> L2{"L2 Cache\npersistent\nRedis / Memcached"}
+
+    L2 -- hit --> BF["Backfill L1"]
+    BF --> RESP
+
+    L2 -- miss --> NET["Network"]
+    NET --> STORE["Store in L1 + L2"]
+    STORE --> RESP
+
+    style REQ  fill:#1971c2,color:#fff,stroke:none
+    style RESP fill:#2f9e44,color:#fff,stroke:none
+    style NET  fill:#e8590c,color:#fff,stroke:none
+```
+
 ```go
 import (
     relaycachelru "github.com/jhonsferg/relay/ext/cache/lru"
@@ -457,6 +563,24 @@ client := relay.New(relay.WithCache(store))
 
 Automatic token fetch and transparent background refresh for M2M auth:
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App
+    participant relay as relay client
+    participant Auth as Auth Server
+    participant API as Target API
+
+    App->>relay: Execute(req)
+    relay->>Auth: POST /token\n(client_id + client_secret)
+    Auth-->>relay: access_token (+ expires_in)
+    relay->>API: GET /resource\nAuthorization: Bearer <token>
+    API-->>relay: 200 OK
+    relay-->>App: *Response
+
+    Note over relay,Auth: token refreshed transparently\nbefore expiry on subsequent calls
+```
+
 ```go
 import relayoauth "github.com/jhonsferg/relay/ext/oauth"
 
@@ -472,7 +596,7 @@ client := relay.New(
 
 #### AWS Signature V4 (`ext/sigv4`)
 
-Sign requests for any AWS service (S3, DynamoDB, API Gateway, …):
+Sign requests for any AWS service (S3, DynamoDB, API Gateway, ...):
 
 ```go
 import relaysigv4 "github.com/jhonsferg/relay/ext/sigv4"
@@ -734,7 +858,7 @@ The `examples/` directory contains runnable programs demonstrating every feature
 |-----------|--------------|
 | `examples/basic/` | Simple GET/POST, query params, path params, JSON decode |
 | `examples/retry/` | Exponential backoff, custom retry predicate |
-| `examples/circuit_breaker/` | Trip → open → reset cycle |
+| `examples/circuit_breaker/` | Trip -> open -> reset cycle |
 | `examples/healthcheck/` | Automatic circuit breaker recovery via health probe |
 | `examples/dns_cache/` | DNS result caching with concurrency and TTL demo |
 | `examples/sse/` | Server-Sent Events streaming with multi-line data |
