@@ -9,8 +9,8 @@
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/jhonsferg/relay/codeql.yml?style=for-the-badge&logo=github&label=CodeQL)](https://github.com/jhonsferg/relay/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/jhonsferg/relay?style=for-the-badge&logo=github&color=orange)](https://github.com/jhonsferg/relay/releases/latest)
 [![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-reference-007D9C?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
-[![codecov](https://img.shields.io/codecov/c/github/jhonsferg/relay?style=for-the-badge&logo=codecov)](https://codecov.io/gh/jhonsferg/relay)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jhonsferg/relay)](https://goreportcard.com/report/github.com/jhonsferg/relay)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jhonsferg/relay/badges/coverage.json&style=for-the-badge)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
+[![Go Report Card](https://img.shields.io/badge/go%20report-A%2B-brightgreen?style=for-the-badge)](https://goreportcard.com/report/github.com/jhonsferg/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 ---
