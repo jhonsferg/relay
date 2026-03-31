@@ -167,7 +167,7 @@ func BenchmarkConcurrency_MultipleClients(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		clientIdx := uint32(0)
 		for pb.Next() {
-			idx := atomic.AddUint32(&clientIdx, 1) % uint32(len(clients))
+			idx := atomic.AddUint32(&clientIdx, 1) % uint32(len(clients)) //nolint:gosec // G115: len(clients) is bounded by benchmark setup, no overflow risk
 			client := clients[idx]
 			srv := servers[idx]
 

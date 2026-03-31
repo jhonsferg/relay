@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 )
 
 // contextKey is a private type for context values managed by this package.
@@ -153,7 +152,7 @@ func buildClient(cfg *Config) *Client {
 		Jar:           cfg.CookieJar,
 	}
 
-	bgCtx, bgCancel := context.WithCancel(context.Background())
+	bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: bgCancel is stored in Client and called in Shutdown
 
 	c := &Client{
 		httpClient:     httpClient,

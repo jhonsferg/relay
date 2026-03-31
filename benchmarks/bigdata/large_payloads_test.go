@@ -37,14 +37,14 @@ type HeavyResponse struct {
 func SetupHeavyServer(count int) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"total":%d,"version":"2.0","data":[`, count)
+		fmt.Fprintf(w, `{"total":%d,"version":"2.0","data":[`, count) //nolint:errcheck
 		for i := 0; i < count; i++ {
 			if i > 0 {
-				fmt.Fprint(w, ",")
+				fmt.Fprint(w, ",") //nolint:errcheck
 			}
-			fmt.Fprintf(w, `{"id":%d,"uuid":"550e8400-e29b-41d4-a716-446655440000","payload":"lorem ipsum dolor sit amet consectetur adipiscing elit","timestamp":"2026-03-30T15:00:00Z","active":true}`, i)
+			fmt.Fprintf(w, `{"id":%d,"uuid":"550e8400-e29b-41d4-a716-446655440000","payload":"lorem ipsum dolor sit amet consectetur adipiscing elit","timestamp":"2026-03-30T15:00:00Z","active":true}`, i) //nolint:errcheck
 		}
-		fmt.Fprint(w, `]}`)
+		fmt.Fprint(w, `]}`) //nolint:errcheck
 	}))
 }
 
@@ -81,7 +81,7 @@ func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 			body, _ := io.ReadAll(res.Body)
 			_ = json.Unmarshal(body, &data)
 
-			res.Body.Close()
+			_ = res.Body.Close() //nolint:errcheck
 
 			if data.Total != RecordsPerRequest {
 				b.Errorf("data mismatch: expected %d, got %d", RecordsPerRequest, data.Total)
@@ -142,7 +142,7 @@ func BenchmarkMemoryStress_Relay(b *testing.B) {
 func BenchmarkSmallPayload_Parallel_Relay(b *testing.B) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"total":1,"version":"2.0","data":[{"id":1,"uuid":"550e8400-e29b-41d4-a716-446655440000","payload":"test","timestamp":"2026-03-30T15:00:00Z","active":true}]}`)
+		fmt.Fprint(w, `{"total":1,"version":"2.0","data":[{"id":1,"uuid":"550e8400-e29b-41d4-a716-446655440000","payload":"test","timestamp":"2026-03-30T15:00:00Z","active":true}]}`) //nolint:errcheck
 	}))
 	defer server.Close()
 
@@ -220,7 +220,7 @@ func BenchmarkAllocationProfile_Standard(b *testing.B) {
 		body, _ := io.ReadAll(res.Body)
 		var data HeavyResponse
 		_ = json.Unmarshal(body, &data)
-		res.Body.Close()
+		_ = res.Body.Close() //nolint:errcheck
 	}
 }
 
