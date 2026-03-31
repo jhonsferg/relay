@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http/httptrace"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,71 +32,96 @@ type RequestTiming struct {
 }
 
 // timingCollector accumulates timing checkpoints during an HTTP request.
-// It is allocated per-request and must NOT be pooled: the net/http transport
-// fires httptrace callbacks from background goroutines (e.g. dialParallel) that
-// can outlive the request, making pool reuse unsafe.
+//
+// All checkpoint fields use sync/atomic.Int64 (Unix nanoseconds) instead of
+// time.Time because net/http's dialParallel fires ConnectStart/ConnectDone
+// callbacks from background goroutines that can outlive httpClient.Do(). Plain
+// time.Time fields would race; atomic stores/loads are safe by definition.
 type timingCollector struct {
-	dnsStart     time.Time
-	dnsDone      time.Time
-	connStart    time.Time
-	connDone     time.Time
-	tlsStart     time.Time
-	tlsDone      time.Time
-	firstByte    time.Time
-	requestStart time.Time
+	dnsStart     atomic.Int64
+	dnsDone      atomic.Int64
+	connStart    atomic.Int64
+	connDone     atomic.Int64
+	tlsStart     atomic.Int64
+	tlsDone      atomic.Int64
+	firstByte    atomic.Int64
+	requestStart atomic.Int64
 }
 
-// injectTraceContext returns a new context with an httptrace.ClientTrace attached
-// and a per-request TimingCollector. The collector is populated as the request
-// progresses via callbacks invoked by the net/http transport.
+// nowNano returns the current time as Unix nanoseconds.
+func nowNano() int64 { return time.Now().UnixNano() }
+
+// toTime converts a stored nanosecond timestamp back to time.Time.
+// Returns zero time when v == 0 (field was never set).
+func toTime(v int64) time.Time {
+	if v == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, v)
+}
+
+// injectTraceContext attaches an httptrace.ClientTrace to ctx and returns a
+// per-request timingCollector. All writes go through atomic stores so the
+// transport's background goroutines (dialParallel) can write concurrently
+// without racing against the buildTiming read that follows Do().
 func injectTraceContext(ctx context.Context) (context.Context, *timingCollector) {
-	col := &timingCollector{requestStart: time.Now()}
+	col := &timingCollector{}
+	col.requestStart.Store(nowNano())
 
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(_ httptrace.DNSStartInfo) {
-			col.dnsStart = time.Now()
+			col.dnsStart.Store(nowNano())
 		},
 		DNSDone: func(_ httptrace.DNSDoneInfo) {
-			col.dnsDone = time.Now()
+			col.dnsDone.Store(nowNano())
 		},
 		ConnectStart: func(_, _ string) {
-			col.connStart = time.Now()
+			col.connStart.Store(nowNano())
 		},
 		ConnectDone: func(_, _ string, _ error) {
-			col.connDone = time.Now()
+			col.connDone.Store(nowNano())
 		},
 		TLSHandshakeStart: func() {
-			col.tlsStart = time.Now()
+			col.tlsStart.Store(nowNano())
 		},
 		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
-			col.tlsDone = time.Now()
+			col.tlsDone.Store(nowNano())
 		},
 		GotFirstResponseByte: func() {
-			col.firstByte = time.Now()
+			col.firstByte.Store(nowNano())
 		},
 	}
 	return httptrace.WithClientTrace(ctx, trace), col
 }
 
-// buildTiming computes the RequestTiming from collected checkpoints.
+// buildTiming computes RequestTiming from atomic-loaded checkpoints.
 // total is the wall-clock duration of the entire Execute call.
 func buildTiming(col *timingCollector, total time.Duration) RequestTiming {
 	t := RequestTiming{Total: total}
 
-	if !col.dnsStart.IsZero() && !col.dnsDone.IsZero() {
-		t.DNSLookup = col.dnsDone.Sub(col.dnsStart)
+	dnsStart := toTime(col.dnsStart.Load())
+	dnsDone := toTime(col.dnsDone.Load())
+	connStart := toTime(col.connStart.Load())
+	connDone := toTime(col.connDone.Load())
+	tlsStart := toTime(col.tlsStart.Load())
+	tlsDone := toTime(col.tlsDone.Load())
+	requestStart := toTime(col.requestStart.Load())
+	firstByte := toTime(col.firstByte.Load())
+
+	if !dnsStart.IsZero() && !dnsDone.IsZero() {
+		t.DNSLookup = dnsDone.Sub(dnsStart)
 	}
-	if !col.connStart.IsZero() && !col.connDone.IsZero() {
-		t.TCPConnect = col.connDone.Sub(col.connStart)
+	if !connStart.IsZero() && !connDone.IsZero() {
+		t.TCPConnect = connDone.Sub(connStart)
 	}
-	if !col.tlsStart.IsZero() && !col.tlsDone.IsZero() {
-		t.TLSHandshake = col.tlsDone.Sub(col.tlsStart)
+	if !tlsStart.IsZero() && !tlsDone.IsZero() {
+		t.TLSHandshake = tlsDone.Sub(tlsStart)
 	}
-	if !col.requestStart.IsZero() && !col.firstByte.IsZero() {
-		t.TimeToFirstByte = col.firstByte.Sub(col.requestStart)
+	if !requestStart.IsZero() && !firstByte.IsZero() {
+		t.TimeToFirstByte = firstByte.Sub(requestStart)
 	}
-	if !col.firstByte.IsZero() {
-		t.ContentTransfer = total - col.firstByte.Sub(col.requestStart)
+	if !firstByte.IsZero() {
+		t.ContentTransfer = total - firstByte.Sub(requestStart)
 		if t.ContentTransfer < 0 {
 			t.ContentTransfer = 0
 		}
