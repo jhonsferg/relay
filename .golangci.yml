@@ -29,7 +29,7 @@ linters:
       excludes:
         - G104 # Errors unhandled (often duplicated by errcheck)
     misspell:
-      locale: UK
+      locale: US
 
 formatters:
   enable:

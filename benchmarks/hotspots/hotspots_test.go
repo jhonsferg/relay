@@ -181,16 +181,16 @@ func BenchmarkHotspot_HeaderCloning(b *testing.B) {
 	)
 
 	headers := map[string]string{
-		"Cache-Control":   "public, max-age=3600",
-		"Content-Type":    "application/json",
-		"X-Custom-Header": "value1",
+		"Cache-Control":    "public, max-age=3600",
+		"Content-Type":     "application/json",
+		"X-Custom-Header":  "value1",
 		"X-Another-Header": "value2",
-		"X-More-Headers":  "value3",
-		"X-Trace-ID":      "abc123def456",
-		"X-Request-ID":    "req-789",
-		"Vary":            "Accept-Encoding",
-		"ETag":            `"abc123"`,
-		"Last-Modified":   "Mon, 01 Jan 2024 00:00:00 GMT",
+		"X-More-Headers":   "value3",
+		"X-Trace-ID":       "abc123def456",
+		"X-Request-ID":     "req-789",
+		"Vary":             "Accept-Encoding",
+		"ETag":             `"abc123"`,
+		"Last-Modified":    "Mon, 01 Jan 2024 00:00:00 GMT",
 	}
 
 	b.ReportAllocs()
@@ -248,7 +248,7 @@ func BenchmarkHotspot_URLBuilding_WithBaseURL(b *testing.B) {
 	defer srv.Close()
 
 	client := relay.New(
-		relay.WithBaseURL(srv.URL() + "/api/v1"),
+		relay.WithBaseURL(srv.URL()+"/api/v1"),
 		relay.WithDisableRetry(),
 		relay.WithDisableCircuitBreaker(),
 	)

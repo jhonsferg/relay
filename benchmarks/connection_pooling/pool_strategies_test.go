@@ -236,7 +236,7 @@ func BenchmarkConnectionPooling_KeepAliveDisabled(b *testing.B) {
 	defer srv.Close()
 
 	tr := &http.Transport{
-		DisableKeepAlives: true,
+		DisableKeepAlives:   true,
 		MaxIdleConnsPerHost: 0,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,

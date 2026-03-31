@@ -208,14 +208,14 @@ func BenchmarkMemory_HeaderParsing_Overhead(b *testing.B) {
 		srv.Enqueue(testutil.MockResponse{
 			Status: http.StatusOK,
 			Headers: map[string]string{
-				"Content-Type":                "application/json",
-				"Cache-Control":               "max-age=3600, must-revalidate",
-				"X-Custom-Header-1":           "value1",
-				"X-Custom-Header-2":           "value2",
-				"X-Custom-Header-3":           "value3",
-				"X-Request-ID":                fmt.Sprintf("req-%d", i),
-				"X-Powered-By":                "relay",
-				"Set-Cookie":                  "session=abc123; Path=/; HttpOnly",
+				"Content-Type":      "application/json",
+				"Cache-Control":     "max-age=3600, must-revalidate",
+				"X-Custom-Header-1": "value1",
+				"X-Custom-Header-2": "value2",
+				"X-Custom-Header-3": "value3",
+				"X-Request-ID":      fmt.Sprintf("req-%d", i),
+				"X-Powered-By":      "relay",
+				"Set-Cookie":        "session=abc123; Path=/; HttpOnly",
 			},
 			Body: `{"headers":"parsed"}`,
 		})
