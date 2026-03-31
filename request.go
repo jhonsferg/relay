@@ -107,6 +107,16 @@ type Request struct {
 	// urlDirty is set to true when path params or query params are modified,
 	// invalidating builtURL cache. Check before skipping URL rebuild.
 	urlDirty bool
+
+	// encodedQuery caches the result of r.query.Encode() to avoid re-encoding
+	// when only path params changed. Populated on first build; reused when
+	// queryDirty is false.
+	encodedQuery string
+
+	// queryDirty is set to true by WithQueryParam* methods and cleared after
+	// re-encoding. When false and encodedQuery is non-empty, the cached encoded
+	// query is reused without calling r.query.Encode() again.
+	queryDirty bool
 }
 
 // newRequest allocates a Request with all maps initialised and a background
@@ -214,6 +224,7 @@ func (r *Request) WithHeaders(headers map[string]string) *Request {
 func (r *Request) WithQueryParam(key, value string) *Request {
 	r.query.Set(key, value)
 	r.urlDirty = true
+	r.queryDirty = true
 	return r
 }
 
@@ -224,6 +235,7 @@ func (r *Request) WithQueryParams(params map[string]string) *Request {
 		r.query.Set(k, v)
 	}
 	r.urlDirty = true
+	r.queryDirty = true
 	return r
 }
 
@@ -235,6 +247,7 @@ func (r *Request) WithQueryParams(params map[string]string) *Request {
 func (r *Request) WithQueryParamValues(key string, values []string) *Request {
 	r.query[key] = values
 	r.urlDirty = true
+	r.queryDirty = true
 	return r
 }
 
@@ -415,7 +428,8 @@ func (r *Request) Clone() *Request {
 	// pooledReader must not be cloned - each request build creates its own
 	clone.pooledReader = nil
 
-	// URL cache must be invalidated for clone since params may change
+	// URL cache must be invalidated for clone since params may change.
+	// Preserve encodedQuery so the clone can reuse it if query is unchanged.
 	clone.builtURL = ""
 	clone.urlDirty = false
 
@@ -495,18 +509,34 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, 
 		}
 	}
 	if len(r.query) > 0 {
-		parsed, err := url.Parse(fullURL)
-		if err != nil {
-			return nil, err
-		}
-		existing := parsed.Query()
-		for k, vs := range r.query {
-			for _, v := range vs {
-				existing.Add(k, v)
+		if !strings.Contains(fullURL, "?") {
+			// Fast path: no existing query params — skip url.Parse and
+			// use cached encoded query when params haven't changed.
+			if r.queryDirty || r.encodedQuery == "" {
+				r.encodedQuery = r.query.Encode()
+				r.queryDirty = false
 			}
+			var sb strings.Builder
+			sb.Grow(len(fullURL) + 1 + len(r.encodedQuery))
+			sb.WriteString(fullURL)
+			sb.WriteByte('?')
+			sb.WriteString(r.encodedQuery)
+			fullURL = sb.String()
+		} else {
+			// Slow path: URL already contains a query string — merge.
+			parsed, err := url.Parse(fullURL)
+			if err != nil {
+				return nil, err
+			}
+			existing := parsed.Query()
+			for k, vs := range r.query {
+				for _, v := range vs {
+					existing.Add(k, v)
+				}
+			}
+			parsed.RawQuery = existing.Encode()
+			fullURL = parsed.String()
 		}
-		parsed.RawQuery = existing.Encode()
-		fullURL = parsed.String()
 	}
 
 	// Cache the built URL and clear dirty flag for next build
