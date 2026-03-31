@@ -2,10 +2,8 @@ package relay
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
-	"sort"
 	"strings"
 
 	"golang.org/x/sync/singleflight"
@@ -64,24 +62,24 @@ func (t *coalesceTransport) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 // coalesceKey builds a stable string key from the request method, URL, and a
-// sorted subset of headers relevant to caching identity.
+// fixed set of identity-relevant headers written in deterministic order.
+// Headers are processed in a fixed array - no temporary slice or sort needed.
 func coalesceKey(req *http.Request) string {
 	var sb strings.Builder
+	// Pre-allocate: method(7) + |(1) + URL(~80) + up to 3 headers(~90) = ~178
+	sb.Grow(178)
 	sb.WriteString(req.Method)
 	sb.WriteByte('|')
 	sb.WriteString(req.URL.String())
 
-	// Include relevant headers (Authorization, Accept) sorted for stability.
-	var relevantHeaders []string
-	for _, h := range []string{"Authorization", "Accept", "Accept-Language"} {
+	// Fixed iteration order makes sort unnecessary.
+	for _, h := range [3]string{"Authorization", "Accept", "Accept-Language"} {
 		if v := req.Header.Get(h); v != "" {
-			relevantHeaders = append(relevantHeaders, fmt.Sprintf("%s=%s", h, v))
+			sb.WriteByte('|')
+			sb.WriteString(h)
+			sb.WriteByte('=')
+			sb.WriteString(v)
 		}
-	}
-	sort.Strings(relevantHeaders)
-	for _, h := range relevantHeaders {
-		sb.WriteByte('|')
-		sb.WriteString(h)
 	}
 	return sb.String()
 }
