@@ -17,8 +17,6 @@ linters:
     - ineffassign   # detect ineffectual assignments
     - staticcheck   # standard static analyzer
     - unused        # find unused constants, variables, functions and types
-    - gofmt         # check if code is formatted
-    - goimports     # check if imports are formatted
     - gosec         # security checker
     - misspell      # find misspelled English words
     - nakedret      # find naked returns in functions longer than a certain length
@@ -33,6 +31,15 @@ linters:
         - G104 # Errors unhandled (often duplicated by errcheck)
     misspell:
       locale: UK
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/jhonsferg/relay
 
 issues:
   max-issues-per-linter: 0
