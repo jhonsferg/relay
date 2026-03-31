@@ -897,14 +897,24 @@ Relay is built for high-throughput services:
 - **Optimized transport** - pre-tuned connection pool with keep-alive and native HTTP/2 support.
 - **Lazy body sizing** - response bodies are read into a capped buffer; oversized responses are rejected early without allocating.
 - **DNS caching** - optional client-side DNS cache eliminates repeated resolver round-trips for long-lived services.
+- **Allocation tuning** - micro-optimizations in hot paths reduce temporary allocations in critical sections.
 
 ### Benchmark Results
 
 Run benchmarks with:
 
 ```bash
-cd tests
-go test -bench=. -benchmem -benchtime=5s .
+# Core Execute benchmarks
+go test -bench=BenchmarkExecute -benchmem -count=3 ./benchmarks/common
+
+# Memory allocation patterns
+go test -bench=BenchmarkMemory -benchmem -count=3 ./benchmarks/memory
+
+# High-volume data scenarios
+go test -bench=Benchmark -benchmem -count=3 ./benchmarks/bigdata
+
+# Hotspot analysis (individual allocation sources)
+go test -bench=BenchmarkHotspot -benchmem -count=2 ./benchmarks/hotspots
 ```
 
 Results on AMD Ryzen 9 5950X (16-core):
@@ -922,6 +932,21 @@ Results on AMD Ryzen 9 5950X (16-core):
 - Latency improvement in concurrent scenarios: **-8.5%**
 - Container capacity gain (4GB limit): **+13.5%** more concurrent requests
 - Throughput for small payloads: **26,942 ops/sec**
+- Allocation rate: **107 allocs/op** for Execute (low for production workloads)
+
+### Performance Optimizations
+
+Recent micro-optimizations reduce temporary allocations in hot paths:
+
+- **Cache key generation** - stack-allocated buffer for cache keys (no heap allocation for typical URLs)
+- **Context wrapping** - consolidated timeout + redirect counter into single context chain (saves 1 request clone)
+- **Empty response bodies** - skips allocation for responses with no body content
+- **Path parameter substitution** - pre-builds placeholder strings to avoid allocation per parameter
+- **URL construction** - uses `strings.Builder` for baseURL + path concatenation
+- **Cache-Control parsing** - single-pass scanning replaces `strings.Split` allocation
+- **Header lookups** - caches frequently-accessed headers to reduce map lookups
+
+These optimizations maintain API compatibility while improving efficiency for high-throughput scenarios.
 
 ### Configuration Examples
 
