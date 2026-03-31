@@ -98,7 +98,7 @@ func BenchmarkMemory_LargePayload_Allocation(b *testing.B) {
 	}
 }
 
-// BenchmarkMemory_GCPressure_Forced measures allocation behavior under
+// BenchmarkMemory_GCPressure_Forced measures allocation behaviour under
 // repeated garbage collection cycles. This simulates high-frequency request
 // scenarios where GC pressure impacts performance.
 func BenchmarkMemory_GCPressure_Forced(b *testing.B) {
@@ -125,7 +125,7 @@ func BenchmarkMemory_GCPressure_Forced(b *testing.B) {
 		resp, _ := client.Execute(client.Get("/memory/gc"))
 		_ = resp
 
-		// Force GC every iteration to measure behavior under GC pressure
+		// Force GC every iteration to measure behaviour under GC pressure
 		runtime.GC()
 	}
 }

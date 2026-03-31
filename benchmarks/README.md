@@ -32,7 +32,7 @@ go test -bench=BenchmarkBatch ./benchmarks/bigdata/ -benchmem -count=3
 ```
 
 ### `/memory`
-Benchmarks focused on memory allocation patterns, buffer reuse, and garbage collection behavior.
+Benchmarks focused on memory allocation patterns, buffer reuse, and garbage collection behaviour.
 
 - `allocation_test.go`: Allocation overhead by payload size, GC pressure, buffer pooling efficiency, header parsing
 
@@ -68,7 +68,7 @@ go test -bench=BenchmarkConcurrency ./benchmarks/concurrency/ -benchmem -count=3
 ```
 
 ### `/connection_pooling`
-Benchmarks for HTTP connection pool behavior, reuse efficiency, and pool size impact.
+Benchmarks for HTTP connection pool behaviour, reuse efficiency, and pool size impact.
 
 - `pool_strategies_test.go`: Default pool, minimal pool, optimal pool, aggressive pool, connection reuse, multi-host, idle timeout, keep-alive, pool exhaustion
 
@@ -119,7 +119,7 @@ After optimization phases 1-6:
 
 ## Benchmarking Best Practices
 
-1. **Isolate tests**: Run each benchmark category separately for clean cache behavior
+1. **Isolate tests**: Run each benchmark category separately for clean cache behaviour
 2. **Multiple runs**: Use `-count=3` or higher for statistical significance
 3. **Compare baselines**: Capture baseline results before making changes
 4. **Use benchstat**: Compare results with `benchstat` tool:
