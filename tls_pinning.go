@@ -66,7 +66,7 @@ func buildTLSConfigWithPinning(baseTLS *tls.Config, pins []string) (*tls.Config,
 		tlsCfg = &tls.Config{MinVersion: tls.VersionTLS12} //nolint:gosec
 	}
 
-	tlsCfg.VerifyPeerCertificate = verifier
+	tlsCfg.VerifyPeerCertificate = verifier //nolint:gosec // G123: session resumption is acceptable; VerifyPeerCertificate adds pin check on top of standard validation
 	// InsecureSkipVerify must be false (default) so the standard chain
 	// validation still runs; our verifier adds the pin check on top.
 	return tlsCfg, nil

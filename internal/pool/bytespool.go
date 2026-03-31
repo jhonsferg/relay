@@ -5,10 +5,10 @@ import "sync"
 
 // Multi-tier buffer pool sizes for efficient memory reuse by response size
 const (
-	smallBufferSize  = 4 * 1024      // 4 KB
-	mediumBufferSize = 32 * 1024     // 32 KB
-	largeBufferSize  = 256 * 1024    // 256 KB
-	hugeBufferSize   = 1024 * 1024   // 1 MB
+	smallBufferSize  = 4 * 1024    // 4 KB
+	mediumBufferSize = 32 * 1024   // 32 KB
+	largeBufferSize  = 256 * 1024  // 256 KB
+	hugeBufferSize   = 1024 * 1024 // 1 MB
 )
 
 var (
