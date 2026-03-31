@@ -97,8 +97,9 @@ func GetTracer() (*TimingCollector, *httptrace.ClientTrace) {
 // PutTracer returns a tracer entry to the pool.
 // Must be called after timing is finalized to reset for reuse.
 func PutTracer(col *TimingCollector) {
+	entry := col.entry // capture before Reset() clears it
 	col.Reset()
-	if col.entry != nil {
-		tracerPool.Put(col.entry)
+	if entry != nil {
+		tracerPool.Put(entry)
 	}
 }

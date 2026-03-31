@@ -1,13 +1,15 @@
 # .golangci.yml
 # https://golangci-lint.run/usage/configuration/
 
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
   tests: true
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck      # check for unchecked errors
     - gosimple      # simplify code
@@ -23,21 +25,19 @@ linters:
     - nakedret      # find naked returns in functions longer than a certain length
     - prealloc      # find slice declarations that could potentially be pre-allocated
     - unconvert     # remove unnecessary type conversions
-
-linters-settings:
-  govet:
-    enable:
-      - shadow
-  goimports:
-    local-prefixes: github.com/jhonsferg/relay
-  gosec:
-    excludes:
-      - G104 # Errors unhandled (often duplicated by errcheck)
-  misspell:
-    locale: UK
+  settings:
+    govet:
+      enable:
+        - shadow
+    goimports:
+      local-prefixes: github.com/jhonsferg/relay
+    gosec:
+      excludes:
+        - G104 # Errors unhandled (often duplicated by errcheck)
+    misspell:
+      locale: UK
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
   exclude-dirs:
