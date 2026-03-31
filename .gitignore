@@ -26,3 +26,6 @@ Thumbs.db
 # Claude Code local configuration (never commit)
 .claude/
 CLAUDE.md
+
+# Benchmark output files
+bench_*.txt
