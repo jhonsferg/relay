@@ -196,7 +196,10 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		return t.base.RoundTrip(req)
 	}
-	if strings.Contains(req.Header.Get("Cache-Control"), "no-store") {
+
+	// Cache the Cache-Control header value to avoid multiple lookups
+	requestCacheControl := req.Header.Get("Cache-Control")
+	if strings.Contains(requestCacheControl, "no-store") {
 		return t.base.RoundTrip(req)
 	}
 
@@ -217,7 +220,7 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		}
 	}
 	cached, hasCached := t.store.Get(key)
-	forceRevalidate := strings.Contains(req.Header.Get("Cache-Control"), "no-cache")
+	forceRevalidate := strings.Contains(requestCacheControl, "no-cache")
 
 	if hasCached && !forceRevalidate {
 		return replayResponse(req, cached), nil
