@@ -2,10 +2,9 @@ package relay
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http/httptrace"
 	"time"
-
-	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // RequestTiming holds a detailed breakdown of the time spent in each phase of
@@ -31,32 +30,72 @@ type RequestTiming struct {
 	Total time.Duration
 }
 
+// timingCollector accumulates timing checkpoints during an HTTP request.
+// It is allocated per-request and must NOT be pooled: the net/http transport
+// fires httptrace callbacks from background goroutines (e.g. dialParallel) that
+// can outlive the request, making pool reuse unsafe.
+type timingCollector struct {
+	dnsStart     time.Time
+	dnsDone      time.Time
+	connStart    time.Time
+	connDone     time.Time
+	tlsStart     time.Time
+	tlsDone      time.Time
+	firstByte    time.Time
+	requestStart time.Time
+}
+
 // injectTraceContext returns a new context with an httptrace.ClientTrace attached
-// and a pooled TimingCollector. The collector is populated as the request progresses.
-func injectTraceContext(ctx context.Context) (context.Context, *pool.TimingCollector) {
-	col, trace := pool.GetTracer()
+// and a per-request TimingCollector. The collector is populated as the request
+// progresses via callbacks invoked by the net/http transport.
+func injectTraceContext(ctx context.Context) (context.Context, *timingCollector) {
+	col := &timingCollector{requestStart: time.Now()}
+
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(_ httptrace.DNSStartInfo) {
+			col.dnsStart = time.Now()
+		},
+		DNSDone: func(_ httptrace.DNSDoneInfo) {
+			col.dnsDone = time.Now()
+		},
+		ConnectStart: func(_, _ string) {
+			col.connStart = time.Now()
+		},
+		ConnectDone: func(_, _ string, _ error) {
+			col.connDone = time.Now()
+		},
+		TLSHandshakeStart: func() {
+			col.tlsStart = time.Now()
+		},
+		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
+			col.tlsDone = time.Now()
+		},
+		GotFirstResponseByte: func() {
+			col.firstByte = time.Now()
+		},
+	}
 	return httptrace.WithClientTrace(ctx, trace), col
 }
 
 // buildTiming computes the RequestTiming from collected checkpoints.
 // total is the wall-clock duration of the entire Execute call.
-func buildTiming(col *pool.TimingCollector, total time.Duration) RequestTiming {
+func buildTiming(col *timingCollector, total time.Duration) RequestTiming {
 	t := RequestTiming{Total: total}
 
-	if !col.DNSStart.IsZero() && !col.DNSDone.IsZero() {
-		t.DNSLookup = col.DNSDone.Sub(col.DNSStart)
+	if !col.dnsStart.IsZero() && !col.dnsDone.IsZero() {
+		t.DNSLookup = col.dnsDone.Sub(col.dnsStart)
 	}
-	if !col.ConnStart.IsZero() && !col.ConnDone.IsZero() {
-		t.TCPConnect = col.ConnDone.Sub(col.ConnStart)
+	if !col.connStart.IsZero() && !col.connDone.IsZero() {
+		t.TCPConnect = col.connDone.Sub(col.connStart)
 	}
-	if !col.TLSStart.IsZero() && !col.TLSDone.IsZero() {
-		t.TLSHandshake = col.TLSDone.Sub(col.TLSStart)
+	if !col.tlsStart.IsZero() && !col.tlsDone.IsZero() {
+		t.TLSHandshake = col.tlsDone.Sub(col.tlsStart)
 	}
-	if !col.RequestStart.IsZero() && !col.FirstByte.IsZero() {
-		t.TimeToFirstByte = col.FirstByte.Sub(col.RequestStart)
+	if !col.requestStart.IsZero() && !col.firstByte.IsZero() {
+		t.TimeToFirstByte = col.firstByte.Sub(col.requestStart)
 	}
-	if !col.FirstByte.IsZero() {
-		t.ContentTransfer = total - col.FirstByte.Sub(col.RequestStart)
+	if !col.firstByte.IsZero() {
+		t.ContentTransfer = total - col.firstByte.Sub(col.requestStart)
 		if t.ContentTransfer < 0 {
 			t.ContentTransfer = 0
 		}
