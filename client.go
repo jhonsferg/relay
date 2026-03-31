@@ -207,11 +207,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	}
 
 	var hasRequestTimeout bool
+	var cancel context.CancelFunc
+
+	// Build context chain: timeout → redirect counter → tracing
 	if req.timeout > 0 {
-		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, req.timeout)
 		defer cancel()
-		req = req.withCtx(ctx)
 		hasRequestTimeout = true
 	}
 
@@ -222,6 +223,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	// Inject httptrace for request timing (pooled).
 	ctx, timingCol := injectTraceContext(ctx)
 
+	// Update request with final context only once (single clone).
 	req = req.withCtx(ctx)
 
 	// Auto-generate idempotency key once per request (reused across retries).
