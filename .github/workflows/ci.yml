@@ -48,12 +48,13 @@ jobs:
             (cd "$dir" && go test -v -race -count=1 ./...)
           done
 
-      - name: Upload coverage
+      - name: Upload coverage artifact
         if: matrix.go-version == '1.24'
-        uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          files: ./coverage.out
-          fail_ci_if_error: false
+          name: coverage
+          path: coverage.out
+          retention-days: 1
 
   lint:
     name: Lint
@@ -301,3 +302,78 @@ jobs:
               -X POST -H "Content-Length: 0" "$fetch_url" || true)
             echo "  Response: $http_code"
           done
+
+  # ── Update Badges ───────────────────────────────────────────────────────────
+  # Runs after tests pass on master. Downloads the coverage artifact from the
+  # test job, builds a shields.io endpoint JSON, and pushes it to the `badges`
+  # orphan branch so the README badge always shows the latest number.
+  badges:
+    name: Update Badges
+    needs: [test]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: coverage
+
+      - name: Compute coverage percentage and color
+        id: cov
+        run: |
+          PCT=$(go tool cover -func=coverage.out | grep '^total' | awk '{print $3}' | tr -d '%')
+          INT=${PCT%.*}
+          if   [ "$INT" -ge 80 ]; then COLOR=brightgreen
+          elif [ "$INT" -ge 70 ]; then COLOR=green
+          elif [ "$INT" -ge 60 ]; then COLOR=yellow
+          elif [ "$INT" -ge 50 ]; then COLOR=orange
+          else                         COLOR=red
+          fi
+          echo "pct=$PCT"   >> "$GITHUB_OUTPUT"
+          echo "color=$COLOR" >> "$GITHUB_OUTPUT"
+          echo "Coverage: ${PCT}% -> $COLOR"
+
+      - name: Push coverage.json to badges branch
+        run: |
+          PCT="${{ steps.cov.outputs.pct }}"
+          COLOR="${{ steps.cov.outputs.color }}"
+
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' \
+            "$PCT" "$COLOR" > /tmp/coverage.json
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin badges 2>/dev/null || true
+
+          if git ls-remote --exit-code --heads origin badges > /dev/null 2>&1; then
+            git checkout -B badges origin/badges
+          else
+            git checkout --orphan badges
+            git rm -rf . --quiet 2>/dev/null || true
+          fi
+
+          cp /tmp/coverage.json coverage.json
+          git add coverage.json
+
+          if git diff --cached --quiet; then
+            echo "Badge unchanged - skipping push"
+            exit 0
+          fi
+
+          git commit -m "chore: update coverage [skip ci]"
+          git push origin badges
