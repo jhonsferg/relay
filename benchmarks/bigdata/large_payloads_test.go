@@ -1,4 +1,8 @@
-package testhttp
+// Package bigdata contains benchmarks for handling large payloads and
+// high-volume data transfers with the relay HTTP client. These benchmarks
+// simulate real-world scenarios with thousands of records and multi-megabyte
+// response bodies, testing memory efficiency and throughput under data-intensive workloads.
+package bigdata
 
 import (
 	"encoding/json"
