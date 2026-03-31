@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -121,21 +122,33 @@ func computeDigestAuth(username, password, method, uri string, params map[string
 		response = hexHash(h, ha1+":"+nonce+":"+ha2)
 	}
 
+	// Pre-allocate: "Digest " + fixed keys + values. Typical header ~300 bytes.
 	var sb strings.Builder
-	sb.WriteString("Digest ")
-	sb.WriteString(fmt.Sprintf(`username="%s"`, username))
-	sb.WriteString(fmt.Sprintf(`, realm="%s"`, realm))
-	sb.WriteString(fmt.Sprintf(`, nonce="%s"`, nonce))
-	sb.WriteString(fmt.Sprintf(`, uri="%s"`, uri))
-	sb.WriteString(fmt.Sprintf(`, algorithm=%s`, algorithm))
+	sb.Grow(320)
+	sb.WriteString(`Digest username="`)
+	sb.WriteString(username)
+	sb.WriteString(`", realm="`)
+	sb.WriteString(realm)
+	sb.WriteString(`", nonce="`)
+	sb.WriteString(nonce)
+	sb.WriteString(`", uri="`)
+	sb.WriteString(uri)
+	sb.WriteString(`", algorithm=`)
+	sb.WriteString(algorithm)
 	if strings.Contains(qop, "auth") {
-		sb.WriteString(`, qop=auth`)
-		sb.WriteString(fmt.Sprintf(`, nc=%s`, nc))
-		sb.WriteString(fmt.Sprintf(`, cnonce="%s"`, cnonce))
+		sb.WriteString(`, qop=auth, nc=`)
+		sb.WriteString(nc)
+		sb.WriteString(`, cnonce="`)
+		sb.WriteString(cnonce)
+		sb.WriteByte('"')
 	}
-	sb.WriteString(fmt.Sprintf(`, response="%s"`, response))
+	sb.WriteString(`, response="`)
+	sb.WriteString(response)
+	sb.WriteByte('"')
 	if opaque != "" {
-		sb.WriteString(fmt.Sprintf(`, opaque="%s"`, opaque))
+		sb.WriteString(`, opaque="`)
+		sb.WriteString(opaque)
+		sb.WriteByte('"')
 	}
 
 	return sb.String(), nil
@@ -143,14 +156,14 @@ func computeDigestAuth(username, password, method, uri string, params map[string
 
 func hexHash(newHash func() hash.Hash, data string) string {
 	h := newHash()
-	h.Write([]byte(data))
+	_, _ = io.WriteString(h, data)
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 func generateCNonce() (string, error) {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(b), nil
+	return hex.EncodeToString(b[:]), nil
 }

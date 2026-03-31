@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jhonsferg/relay/internal/backoff"
+	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // RetryConfig controls the retry and backoff behaviour of the client.
@@ -161,10 +162,13 @@ func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*h
 			if wait == 0 {
 				wait = r.backoff(attempt - 1)
 			}
+			timer := pool.GetTimer(wait)
 			select {
 			case <-ctx.Done():
+				pool.PutTimer(timer)
 				return nil, ctx.Err()
-			case <-time.After(wait):
+			case <-timer.C:
+				pool.PutTimer(timer)
 			}
 		}
 

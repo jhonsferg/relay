@@ -28,6 +28,13 @@ const redirectCountKey contextKey = 0
 // A zero-value Client is not usable; always construct via [New] or [Client.With].
 // The client is safe for concurrent use by multiple goroutines.
 type Client struct {
+	// closed is set to true by [Shutdown]. New Execute calls check this flag
+	// and return [ErrClientClosed] immediately without sending a request.
+	// Placed first as it's checked on every Execute (hot).
+	closed atomic.Bool
+	// Padding to isolate closed to its own cache line (64 bytes on most x64)
+	_ [63]byte
+
 	// httpClient is the underlying standard-library client that owns the
 	// transport stack, redirect policy, timeout, and cookie jar.
 	httpClient *http.Client
@@ -48,10 +55,6 @@ type Client struct {
 	// inFlight tracks requests that are currently in progress so that
 	// [Shutdown] can wait for them to complete before closing the pool.
 	inFlight sync.WaitGroup
-
-	// closed is set to true by [Shutdown]. New Execute calls check this flag
-	// and return [ErrClientClosed] immediately without sending a request.
-	closed atomic.Bool
 
 	// bgCancel cancels the context shared by all background goroutines
 	// (health check, etc.). Called by Shutdown to stop them gracefully.
@@ -149,7 +152,7 @@ func buildClient(cfg *Config) *Client {
 		Jar:           cfg.CookieJar,
 	}
 
-	bgCtx, bgCancel := context.WithCancel(context.Background())
+	bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: bgCancel is stored in Client and called in Shutdown
 
 	c := &Client{
 		httpClient:     httpClient,
@@ -202,11 +205,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	}
 
 	var hasRequestTimeout bool
+	var cancel context.CancelFunc
+
+	// Build context chain: timeout → redirect counter → tracing
 	if req.timeout > 0 {
-		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, req.timeout)
 		defer cancel()
-		req = req.withCtx(ctx)
 		hasRequestTimeout = true
 	}
 
@@ -214,10 +218,10 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	var redirectCount int
 	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
 
-	// Inject httptrace for request timing.
-	var timingCol timingCollector
-	ctx = injectTraceContext(ctx, &timingCol)
+	// Inject httptrace for request timing (pooled).
+	ctx, timingCol := injectTraceContext(ctx)
 
+	// Update request with final context only once (single clone).
 	req = req.withCtx(ctx)
 
 	// Auto-generate idempotency key once per request (reused across retries).
@@ -245,7 +249,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 
 	var httpResp *http.Response
 	httpResp, err = c.retrier.Do(ctx, func() (*http.Response, error) {
-		httpReq, buildErr := req.build(c.config.BaseURL)
+		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL)
 		if buildErr != nil {
 			return nil, buildErr
 		}
@@ -258,7 +262,10 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		if req.idempotencyKey != "" {
 			httpReq.Header.Set(idempotencyKeyHeader, req.idempotencyKey)
 		}
-		return c.httpClient.Do(httpReq)
+		resp, doErr := c.httpClient.Do(httpReq)
+		// Always release the pooled reader after Do returns.
+		req.releasePooledReader()
+		return resp, doErr
 	})
 
 	if err != nil {
@@ -304,7 +311,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		return nil, err
 	}
 	totalDur := time.Since(timingCol.requestStart)
-	resp.Timing = buildTiming(&timingCol, totalDur)
+	resp.Timing = buildTiming(timingCol, totalDur)
 
 	for _, hook := range c.config.OnAfterResponse {
 		if hookErr := hook(ctx, resp); hookErr != nil {
