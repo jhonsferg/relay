@@ -30,7 +30,10 @@ type RequestTiming struct {
 	Total time.Duration
 }
 
-// timingCollector is used internally to accumulate timing checkpoints.
+// timingCollector accumulates timing checkpoints during an HTTP request.
+// It is allocated per-request and must NOT be pooled: the net/http transport
+// fires httptrace callbacks from background goroutines (e.g. dialParallel) that
+// can outlive the request, making pool reuse unsafe.
 type timingCollector struct {
 	dnsStart     time.Time
 	dnsDone      time.Time
@@ -42,10 +45,11 @@ type timingCollector struct {
 	requestStart time.Time
 }
 
-// injectTraceContext returns a new context with an httptrace.ClientTrace
-// attached. The collector is populated as the request progresses.
-func injectTraceContext(ctx context.Context, col *timingCollector) context.Context {
-	col.requestStart = time.Now()
+// injectTraceContext returns a new context with an httptrace.ClientTrace attached
+// and a per-request TimingCollector. The collector is populated as the request
+// progresses via callbacks invoked by the net/http transport.
+func injectTraceContext(ctx context.Context) (context.Context, *timingCollector) {
+	col := &timingCollector{requestStart: time.Now()}
 
 	trace := &httptrace.ClientTrace{
 		DNSStart: func(_ httptrace.DNSStartInfo) {
@@ -70,7 +74,7 @@ func injectTraceContext(ctx context.Context, col *timingCollector) context.Conte
 			col.firstByte = time.Now()
 		},
 	}
-	return httptrace.WithClientTrace(ctx, trace)
+	return httptrace.WithClientTrace(ctx, trace), col
 }
 
 // buildTiming computes the RequestTiming from collected checkpoints.

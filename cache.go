@@ -196,13 +196,31 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		return t.base.RoundTrip(req)
 	}
-	if strings.Contains(req.Header.Get("Cache-Control"), "no-store") {
+
+	// Cache the Cache-Control header value to avoid multiple lookups
+	requestCacheControl := req.Header.Get("Cache-Control")
+	if strings.Contains(requestCacheControl, "no-store") {
 		return t.base.RoundTrip(req)
 	}
 
-	key := req.Method + ":" + req.URL.String()
+	// Build cache key without string concatenation allocation.
+	// Most URLs fit in 256 bytes; fallback for larger URLs.
+	var key string
+	{
+		urlStr := req.URL.String()
+		keyLen := len(req.Method) + 1 + len(urlStr)
+		if keyLen <= 256 {
+			var buf [256]byte
+			copy(buf[:], req.Method)
+			buf[len(req.Method)] = ':'
+			copy(buf[len(req.Method)+1:], urlStr)
+			key = string(buf[:keyLen])
+		} else {
+			key = req.Method + ":" + urlStr
+		}
+	}
 	cached, hasCached := t.store.Get(key)
-	forceRevalidate := strings.Contains(req.Header.Get("Cache-Control"), "no-cache")
+	forceRevalidate := strings.Contains(requestCacheControl, "no-cache")
 
 	if hasCached && !forceRevalidate {
 		return replayResponse(req, cached), nil
@@ -289,14 +307,27 @@ func replayResponse(req *http.Request, c *CachedResponse) *http.Response {
 
 // parseMaxAge extracts the max-age value (in seconds) from a Cache-Control
 // header string. Returns 0 if the directive is absent or unparseable.
+// Uses single-pass scanning to avoid string.Split allocation.
 func parseMaxAge(cacheControl string) int {
-	for _, part := range strings.Split(cacheControl, ",") {
-		part = strings.TrimSpace(part)
+	i := 0
+	for i < len(cacheControl) {
+		// Find next comma
+		j := strings.IndexByte(cacheControl[i:], ',')
+		if j == -1 {
+			j = len(cacheControl)
+		} else {
+			j += i
+		}
+
+		// Extract and trim part between i and j
+		part := strings.TrimSpace(cacheControl[i:j])
 		if strings.HasPrefix(part, "max-age=") {
 			if n, err := strconv.Atoi(strings.TrimPrefix(part, "max-age=")); err == nil && n > 0 {
 				return n
 			}
 		}
+
+		i = j + 1
 	}
 	return 0
 }
