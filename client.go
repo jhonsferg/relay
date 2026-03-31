@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // contextKey is a private type for context values managed by this package.
@@ -310,12 +309,10 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	}
 	resp, err = newResponse(httpResp, maxBody, redirectCount)
 	if err != nil {
-		pool.PutTracer(timingCol)
 		return nil, err
 	}
-	totalDur := time.Since(timingCol.RequestStart)
+	totalDur := time.Since(timingCol.requestStart)
 	resp.Timing = buildTiming(timingCol, totalDur)
-	pool.PutTracer(timingCol)
 
 	for _, hook := range c.config.OnAfterResponse {
 		if hookErr := hook(ctx, resp); hookErr != nil {

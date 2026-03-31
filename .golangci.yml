@@ -16,7 +16,6 @@ linters:
     - govet         # standard go vet
     - ineffassign   # detect ineffectual assignments
     - staticcheck   # standard static analyzer
-    - typecheck     # standard type checker
     - unused        # find unused constants, variables, functions and types
     - gofmt         # check if code is formatted
     - goimports     # check if imports are formatted
