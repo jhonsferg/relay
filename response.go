@@ -32,15 +32,15 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 		reader = io.LimitReader(resp.Body, maxBytes+1)
 	}
 
-	// Use a pooled buffer as the initial read destination to reduce GC pressure
-	// for small-to-medium responses. bytes.Buffer.ReadFrom will grow as needed.
-	poolBuf := pool.GetBuffer()
+	// Use a sized pooled buffer to reduce GC pressure.
+	// Size selection based on Content-Length hint for optimal tier reuse.
+	poolBuf := pool.GetSizedBuffer(resp.ContentLength)
 	buf := bytes.NewBuffer(*poolBuf)
 	buf.Reset()
 
 	_, err := buf.ReadFrom(reader)
 	if err != nil {
-		pool.PutBuffer(poolBuf)
+		pool.PutSizedBuffer(poolBuf)
 		return nil, err
 	}
 
@@ -56,7 +56,7 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 	}
 
 	// Return the pool buffer now that body is safely copied.
-	pool.PutBuffer(poolBuf)
+	pool.PutSizedBuffer(poolBuf)
 
 	return &Response{
 		raw:           resp,
