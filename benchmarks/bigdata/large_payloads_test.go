@@ -265,8 +265,8 @@ func BenchmarkIdleConnections_Relay(b *testing.B) {
 /*
 PERFORMANCE NOTES:
 
-1. Memory Management: ExecuteAs internally uses an optimized buffer
-   to minimize reallocations when reading the response body. For 50k+
+1. Memory Management: ExecuteAs internally uses an optimised buffer
+   to minimise reallocations when reading the response body. For 50k+
    records, this helps keep heap fragmentation under control.
 
 2. Concurrency: RunParallel tests mutex contention within the client.
@@ -277,10 +277,10 @@ PERFORMANCE NOTES:
    Relay's advantage is ergonomic - it handles these volumes with a fraction
    of the code, reducing the error surface for resource management.
 
-4. Connection Pooling: Relay internally optimizes TCP connection reuse,
+4. Connection Pooling: Relay internally optimises TCP connection reuse,
    reducing handshake overhead in high-concurrency scenarios.
 
-5. GC Pressure: With buffer pooling and optimized structure layout,
+5. GC Pressure: With buffer pooling and optimised structure layout,
    Relay significantly reduces garbage collector pressure - critical
    for applications serving millions of requests per second.
 */

@@ -9,7 +9,7 @@ var bytesReaderPool = &sync.Pool{
 	New: func() any { return &bytes.Reader{} },
 }
 
-// GetBytesReader returns a pooled bytes.Reader initialized with the given bytes.
+// GetBytesReader returns a pooled bytes.Reader initialised with the given bytes.
 // The reader must be returned via PutBytesReader when done.
 func GetBytesReader(b []byte) *bytes.Reader {
 	r := bytesReaderPool.Get().(*bytes.Reader)

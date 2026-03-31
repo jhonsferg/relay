@@ -1,5 +1,5 @@
 // Package connection_pooling contains benchmarks focused on HTTP connection
-// pool behavior, reuse patterns, and pool size impact on performance.
+// pool behaviour, reuse patterns, and pool size impact on performance.
 package connection_pooling
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 // BenchmarkConnectionPooling_DefaultPool measures performance with relay's
-// default connection pool configuration. This establishes baseline behavior.
+// default connection pool configuration. This establishes baseline behaviour.
 func BenchmarkConnectionPooling_DefaultPool(b *testing.B) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
@@ -144,7 +144,7 @@ func BenchmarkConnectionPooling_ConnectionReuse(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	// Make repeated requests to the same path to maximize connection reuse
+	// Make repeated requests to the same path to maximise connection reuse
 	for i := 0; i < b.N; i++ {
 		srv.Enqueue(testutil.MockResponse{
 			Status: http.StatusOK,
@@ -267,7 +267,7 @@ func BenchmarkConnectionPooling_KeepAliveDisabled(b *testing.B) {
 	}
 }
 
-// BenchmarkConnectionPooling_PoolExhaustion measures behavior when the
+// BenchmarkConnectionPooling_PoolExhaustion measures behaviour when the
 // connection pool is exhausted under high concurrent load. This tests
 // queue blocking and recovery patterns.
 func BenchmarkConnectionPooling_PoolExhaustion(b *testing.B) {
