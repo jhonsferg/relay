@@ -427,12 +427,19 @@ func (r *Request) applyPathParams(rawURL string) string {
 }
 
 // build constructs the stdlib *http.Request from this builder's state.
-// It applies path params, resolves the URL against baseURL, appends query
-// params, and sets all headers.
-func (r *Request) build(baseURL string) (*http.Request, error) {
+// It applies path params, resolves the URL against baseURL/parsedBaseURL,
+// appends query params, and sets all headers. parsedBaseURL, if non-nil,
+// is used as an optimization to avoid re-parsing.
+func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, error) {
 	fullURL := r.applyPathParams(r.rawURL)
 	if baseURL != "" && !strings.HasPrefix(fullURL, "http://") && !strings.HasPrefix(fullURL, "https://") {
-		fullURL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(fullURL, "/")
+		if parsedBaseURL != nil {
+			// Use pre-parsed URL to avoid allocation in Parse
+			resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
+			fullURL = resolved.String()
+		} else {
+			fullURL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(fullURL, "/")
+		}
 	}
 	if len(r.query) > 0 {
 		parsed, err := url.Parse(fullURL)
