@@ -28,8 +28,6 @@ linters:
     govet:
       enable:
         - shadow
-    goimports:
-      local-prefixes: github.com/jhonsferg/relay
     gosec:
       excludes:
         - G104 # Errors unhandled (often duplicated by errcheck)
@@ -39,6 +37,7 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - vendor
-    - internal/pool
+
+exclude-dirs:
+  - vendor
+  - internal/pool
