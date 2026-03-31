@@ -1,14 +1,10 @@
-// Package benchmarks measures the throughput and latency of the relay HTTP
-// client under a variety of conditions using Go's testing.B framework.
+// Package common contains core benchmarks for the relay HTTP client,
+// measuring fundamental performance characteristics like throughput,
+// latency, and the overhead of relay's execution pipeline.
 //
-// Run all benchmarks:
-//
-//	go test ./benchmarks/ -bench=. -benchmem -count=3
-//
-// Run a single benchmark:
-//
-//	go test ./benchmarks/ -bench=BenchmarkExecute_Simple -benchmem
-package benchmarks
+// These benchmarks focus on basic Execute() operations with minimal
+// features enabled, establishing performance baselines.
+package common
 
 import (
 	"context"
