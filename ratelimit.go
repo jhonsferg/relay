@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // RateLimitConfig configures the client-side token-bucket rate limiter.
@@ -85,10 +87,13 @@ func (tb *tokenBucket) Wait(ctx context.Context) error {
 		wait := time.Duration((1 - tb.tokens) / tb.rate * float64(time.Second))
 		tb.mu.Unlock()
 
+		timer := pool.GetTimer(wait)
 		select {
 		case <-ctx.Done():
+			pool.PutTimer(timer)
 			return ctx.Err()
-		case <-time.After(wait):
+		case <-timer.C:
+			pool.PutTimer(timer)
 		}
 	}
 }
