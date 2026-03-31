@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jhonsferg/relay/internal/pool"
 	"github.com/jhonsferg/relay/testutil"
 )
 
@@ -84,7 +85,7 @@ func TestTiming_NonNegativeBreakdown(t *testing.T) {
 }
 
 func TestBuildTiming_TotalSet(t *testing.T) {
-	col := &timingCollector{}
+	col := &pool.TimingCollector{}
 	total := 42 * time.Millisecond
 
 	timing := buildTiming(col, total)
@@ -95,9 +96,9 @@ func TestBuildTiming_TotalSet(t *testing.T) {
 
 func TestBuildTiming_DNSLookupComputed(t *testing.T) {
 	now := time.Now()
-	col := &timingCollector{
-		dnsStart: now,
-		dnsDone:  now.Add(5 * time.Millisecond),
+	col := &pool.TimingCollector{
+		DNSStart: now,
+		DNSDone:  now.Add(5 * time.Millisecond),
 	}
 
 	timing := buildTiming(col, 100*time.Millisecond)
@@ -108,9 +109,9 @@ func TestBuildTiming_DNSLookupComputed(t *testing.T) {
 
 func TestBuildTiming_TCPConnectComputed(t *testing.T) {
 	now := time.Now()
-	col := &timingCollector{
-		connStart: now,
-		connDone:  now.Add(10 * time.Millisecond),
+	col := &pool.TimingCollector{
+		ConnStart: now,
+		ConnDone:  now.Add(10 * time.Millisecond),
 	}
 
 	timing := buildTiming(col, 100*time.Millisecond)
@@ -120,7 +121,7 @@ func TestBuildTiming_TCPConnectComputed(t *testing.T) {
 }
 
 func TestBuildTiming_ZeroWhenTimestampsMissing(t *testing.T) {
-	col := &timingCollector{} // all zero times
+	col := &pool.TimingCollector{} // all zero times
 
 	timing := buildTiming(col, 50*time.Millisecond)
 	if timing.DNSLookup != 0 {
