@@ -12,7 +12,6 @@ linters:
   default: none
   enable:
     - errcheck      # check for unchecked errors
-    - gosimple      # simplify code
     - govet         # standard go vet
     - ineffassign   # detect ineffectual assignments
     - staticcheck   # standard static analyzer
