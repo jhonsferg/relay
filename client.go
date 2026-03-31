@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // contextKey is a private type for context values managed by this package.
@@ -214,9 +216,8 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	var redirectCount int
 	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
 
-	// Inject httptrace for request timing.
-	var timingCol timingCollector
-	ctx = injectTraceContext(ctx, &timingCol)
+	// Inject httptrace for request timing (pooled).
+	ctx, timingCol := injectTraceContext(ctx)
 
 	req = req.withCtx(ctx)
 
@@ -301,10 +302,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	}
 	resp, err = newResponse(httpResp, maxBody, redirectCount)
 	if err != nil {
+		pool.PutTracer(timingCol)
 		return nil, err
 	}
-	totalDur := time.Since(timingCol.requestStart)
-	resp.Timing = buildTiming(&timingCol, totalDur)
+	totalDur := time.Since(timingCol.RequestStart)
+	resp.Timing = buildTiming(timingCol, totalDur)
+	pool.PutTracer(timingCol)
 
 	for _, hook := range c.config.OnAfterResponse {
 		if hookErr := hook(ctx, resp); hookErr != nil {
