@@ -89,9 +89,6 @@ func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 func BenchmarkHeavy_Parallel_Relay(b *testing.B) {
 	server := SetupHeavyServer(RecordsPerRequest)
 	defer server.Close()
-func BenchmarkHeavy_Parallel_Relay(b *testing.B) {
-	server := SetupHeavyServer(RecordsPerRequest)
-	defer server.Close()
 
 	relayClient := relay.New(
 		relay.WithBaseURL(server.URL),
