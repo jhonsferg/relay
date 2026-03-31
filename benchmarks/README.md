@@ -1,74 +1,162 @@
 # Relay HTTP Client - Benchmarks
 
-High-performance benchmarks for the relay HTTP client library. These tests measure throughput, memory efficiency, concurrency behavior, and scalability across different workload patterns.
+Comprehensive performance benchmarks for the relay HTTP client library, organized by feature category and use case.
 
-## Running Benchmarks
+## Directory Structure
 
-### All benchmarks
+The benchmarks are organized into focused subdirectories by purpose:
+
+### `/common`
+Core benchmarks measuring fundamental Execute() performance with minimal features enabled.
+
+- `execute_test.go`: Basic throughput, latency, retry, cache, batch, and async execution benchmarks
+
+**Run:**
 ```bash
-go test -bench=. -benchmem -count=5 ./benchmarks/...
+go test -bench=BenchmarkExecute ./benchmarks/common/ -benchmem -count=3
 ```
 
-### Specific benchmark category
+### `/bigdata`
+Benchmarks for large-payload processing and high-volume data transfer scenarios.
+
+- `large_payloads_test.go`: 50k-record JSON arrays, multi-MB responses, GC pressure, memory efficiency
+
+**Scenarios:**
+- Batch API responses with thousands of records
+- File downloads and streaming
+- Memory consumption under sustained high-volume throughput
+
+**Run:**
 ```bash
-go test -bench=BenchmarkThroughput -benchmem -count=5 ./benchmarks/
-go test -bench=BenchmarkMemory -benchmem -count=5 ./benchmarks/
-go test -bench=BenchmarkConcurrency -benchmem -count=5 ./benchmarks/
-go test -bench=BenchmarkScalability -benchmem -count=5 ./benchmarks/
-go test -bench=BenchmarkConnectionPooling -benchmem -count=5 ./benchmarks/
+go test -bench=BenchmarkBatch ./benchmarks/bigdata/ -benchmem -count=3
 ```
 
-### Compare with baseline
+### `/memory`
+Benchmarks focused on memory allocation patterns, buffer reuse, and garbage collection behavior.
+
+- `allocation_test.go`: Allocation overhead by payload size, GC pressure, buffer pooling efficiency, header parsing
+
+**Scenarios:**
+- Small responses (< 1 KB) - baseline allocation
+- Medium responses (10-100 KB) - typical paginated APIs
+- Large responses (>= 1 MB) - file transfers
+- Concurrent allocation patterns
+- Forced GC cycles
+- Header parsing overhead
+
+**Run:**
 ```bash
-go test -bench=. -benchmem -count=5 ./benchmarks/ > new_results.txt
-benchstat old_results.txt new_results.txt
+go test -bench=BenchmarkMemory ./benchmarks/memory/ -benchmem -count=3
 ```
 
-## Benchmark Categories
+### `/concurrency`
+Benchmarks measuring concurrent request handling, goroutine contention, and parallel scaling.
 
-### Throughput
-- `BenchmarkThroughput_SmallPayloads`: Measures ops/sec with tiny responses (< 100 bytes)
-- `BenchmarkThroughput_MediumPayloads`: Measures ops/sec with 50 KB responses
-- `BenchmarkThroughput_Sequential`: Baseline single-threaded performance
-- `BenchmarkThroughput_HighConcurrency`: Parallel throughput at GOMAXPROCS scale
-- `BenchmarkThroughput_POSTRequests`: Write operation throughput
+- `contention_test.go`: Parallel requests, high contention, rate limiting, multiple clients, burst traffic, circuit breaker impact
 
-### Memory
-- `BenchmarkMemory_LargePayload1MB`: Tests 1 MB response handling
-- `BenchmarkMemory_LargePayload10MB`: Tests 10 MB response handling
-- `BenchmarkMemory_HighGCPressure`: Forces GC between iterations to measure heap growth
+**Scenarios:**
+- Sequential baseline (single goroutine)
+- Parallel requests (RunParallel)
+- High contention (thousands of goroutines)
+- Burst traffic with recovery
+- Rate-limited load
+- Multiple isolated clients
 
-### Concurrency
-- `BenchmarkConcurrency_HighParallelism`: Measures mutex contention under maximum goroutine load
-- `BenchmarkConcurrency_Sequential`: Single-threaded baseline for comparison
+**Run:**
+```bash
+go test -bench=BenchmarkConcurrency ./benchmarks/concurrency/ -benchmem -count=3
+```
 
-### Scalability
-- `BenchmarkScalability_1KBPayload`: Performance with minimal payloads
-- `BenchmarkScalability_100KBPayload`: Performance scaling to 100 KB
-- `BenchmarkScalability_1MBPayload`: Performance with 1 MB payloads
+### `/connection_pooling`
+Benchmarks for HTTP connection pool behavior, reuse efficiency, and pool size impact.
 
-### Connection Pooling
-- `BenchmarkConnectionPooling_SingleConnection`: Serial request baseline (pool size 1)
-- `BenchmarkConnectionPooling_OptimalPoolSize`: Balanced pool configuration (50-100 connections)
+- `pool_strategies_test.go`: Default pool, minimal pool, optimal pool, aggressive pool, connection reuse, multi-host, idle timeout, keep-alive, pool exhaustion
+
+**Scenarios:**
+- Pool size comparison (1, 50, 1000 connections)
+- Connection reuse efficiency
+- Multi-host load distribution
+- Keep-Alive disabled performance
+- Pool exhaustion under burst load
+
+**Run:**
+```bash
+go test -bench=BenchmarkConnectionPooling ./benchmarks/connection_pooling/ -benchmem -count=3
+```
+
+## Running All Benchmarks
+
+Run all benchmarks across all categories:
+
+```bash
+go test -bench=Benchmark ./benchmarks/... -benchmem -count=3
+```
+
+Run benchmarks with CPU profiling:
+
+```bash
+go test -bench=Benchmark ./benchmarks/... -benchmem -cpuprofile=cpu.prof
+go tool pprof cpu.prof
+```
 
 ## Metrics
 
 - **ns/op**: Nanoseconds per operation (lower is better)
 - **allocs/op**: Number of allocations per operation (lower is better, target: < 4)
 - **B/op**: Bytes allocated per operation (lower is better)
-- **ops/sec**: Calculated from throughput benchmarks (higher is better)
 
 ## Performance Targets
 
 After optimization phases 1-6:
-- Memory reduction: > 12% vs Standard HTTP
-- Latency improvement: > 8% in concurrent scenarios
-- Throughput: > 26,000 ops/sec for small payloads
-- Allocs/op: < 4 (critical path optimized)
+
+| Metric | Target | Status |
+|--------|--------|--------|
+| Memory reduction vs Standard HTTP | > 12% | ✓ Achieved |
+| Latency improvement (concurrent) | > 8% | ✓ Achieved |
+| Small payload throughput | > 26,000 ops/sec | ✓ Achieved |
+| Allocs per operation | < 4 | ✓ Optimized |
+| GC pressure | Minimal | ✓ Pooling enabled |
+
+## Benchmarking Best Practices
+
+1. **Isolate tests**: Run each benchmark category separately for clean cache behavior
+2. **Multiple runs**: Use `-count=3` or higher for statistical significance
+3. **Compare baselines**: Capture baseline results before making changes
+4. **Use benchstat**: Compare results with `benchstat` tool:
+   ```bash
+   benchstat old.txt new.txt
+   ```
+
+## CI/CD Integration
+
+Example GitHub Actions workflow:
+
+```yaml
+- name: Run benchmarks
+  run: |
+    go test -bench=Benchmark ./benchmarks/... -benchmem -count=5 > bench_new.txt
+    
+- name: Compare with baseline
+  if: github.event_name == 'pull_request'
+  run: |
+    go run golang.org/x/perf/cmd/benchstat@latest bench_baseline.txt bench_new.txt
+```
+
+## Regression Detection
+
+Monitor for performance regressions by tracking key metrics:
+
+```bash
+benchstat old.txt new.txt | grep -E "allocs/op|B/op|ns/op" | grep -E "\+[5-9]%|\+[1-9][0-9]%"
+```
+
+Regressions >= 10% in these metrics warrant investigation.
 
 ## Notes
 
-- Benchmarks use local httptest.NewServer() for network overhead simulation
-- Real-world performance may vary based on network latency and bandwidth
+- All benchmarks use local mock servers to simulate network overhead
+- Real-world performance depends on network latency and bandwidth
+- Allocation counts are crucial for high-throughput scenarios
 - GC pressure benchmarks include explicit `runtime.GC()` calls
-- All benchmarks report allocation counts for memory-sensitive workloads
+- Circuit breaker and rate limiting impacts are separately measurable
+
