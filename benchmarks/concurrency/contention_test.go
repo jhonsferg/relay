@@ -70,7 +70,7 @@ func BenchmarkConcurrency_SequentialBaseline(b *testing.B) {
 	}
 }
 
-// BenchmarkConcurrency_HighContention measures client behavior under extreme
+// BenchmarkConcurrency_HighContention measures client behaviour under extreme
 // concurrent load (thousands of goroutines). This tests how well the client
 // scales with high CPU core counts and detects mutex bottlenecks.
 func BenchmarkConcurrency_HighContention(b *testing.B) {
@@ -183,7 +183,7 @@ func BenchmarkConcurrency_MultipleClients(b *testing.B) {
 }
 
 // BenchmarkConcurrency_BurstTraffic measures how the client recovers from
-// sudden spikes in concurrent request volume. This tests queue behavior and
+// sudden spikes in concurrent request volume. This tests queue behaviour and
 // resource cleanup efficiency.
 func BenchmarkConcurrency_BurstTraffic(b *testing.B) {
 	srv := testutil.NewMockServer()
