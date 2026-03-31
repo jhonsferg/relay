@@ -13,7 +13,7 @@ import (
 	"github.com/jhonsferg/relay"
 )
 
-// Estructuras de datos para el escenario "Heavyweight"
+// HeavyRecord represents a single record in heavy-weight benchmark scenarios
 type HeavyRecord struct {
 	ID        int       `json:"id"`
 	UUID      string    `json:"uuid"`
@@ -28,8 +28,8 @@ type HeavyResponse struct {
 	Version string        `json:"version"`
 }
 
-// SetupHeavyServer genera una respuesta JSON masiva de forma eficiente.
-// 'count' define cuántos registros incluir en el slice 'Data'.
+// SetupHeavyServer creates a test HTTP server that returns a massive JSON response.
+// The 'count' parameter defines how many records to include in the Data slice.
 func SetupHeavyServer(count int) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,16 +45,15 @@ func SetupHeavyServer(count int) *httptest.Server {
 }
 
 const (
-	RecordsPerRequest = 50000 // 50k registros por petición (~7MB de JSON)
+	RecordsPerRequest = 50000 // 50k records per request (~7MB JSON)
 )
 
-// --- ESCENARIO: ALTA CONCURRENCIA + BIG DATA ---
+// Benchmark: High concurrency + large payload (50K records per request)
 
 func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 	server := SetupHeavyServer(RecordsPerRequest)
 	defer server.Close()
 
-	// Optimizamos el cliente estándar para alta concurrencia
 	client := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        1000,
@@ -67,7 +66,6 @@ func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	// RunParallel simula miles de peticiones concurrentes usando GOMAXPROCS goroutines
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			res, err := client.Get(server.URL)
@@ -81,7 +79,6 @@ func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 
 			res.Body.Close()
 
-			// Forzamos un poco de trabajo para simular procesamiento real
 			if data.Total != RecordsPerRequest {
 				b.Errorf("data mismatch: expected %d, got %d", RecordsPerRequest, data.Total)
 			}
@@ -92,13 +89,15 @@ func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 func BenchmarkHeavy_Parallel_Relay(b *testing.B) {
 	server := SetupHeavyServer(RecordsPerRequest)
 	defer server.Close()
+func BenchmarkHeavy_Parallel_Relay(b *testing.B) {
+	server := SetupHeavyServer(RecordsPerRequest)
+	defer server.Close()
 
-	// Relay permite configurar el pool de conexiones de forma sencilla
 	relayClient := relay.New(
 		relay.WithBaseURL(server.URL),
 		relay.WithTimeout(30*time.Second),
-		relay.WithConnectionPool(1000, 1000, 1000), // MaxIdle, MaxIdlePerHost, MaxPerHost
-		relay.WithDisableRetry(),                   // Desactivado para medir overhead de procesamiento puro
+		relay.WithConnectionPool(1000, 1000, 1000),
+		relay.WithDisableRetry(),
 	)
 
 	b.ReportAllocs()
@@ -106,7 +105,6 @@ func BenchmarkHeavy_Parallel_Relay(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			// ExecuteAs maneja internamente la lectura eficiente y el unmarshal genérico
 			data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
 			if err != nil {
 				continue
@@ -119,10 +117,10 @@ func BenchmarkHeavy_Parallel_Relay(b *testing.B) {
 	})
 }
 
-// --- ESCENARIO: STRESS DE MEMORIA (GC PRESSURE) ---
+// Benchmark: Memory stress with garbage collection pressure (100K records)
 
 func BenchmarkMemoryStress_Relay(b *testing.B) {
-	server := SetupHeavyServer(100000) // 100k registros (~14MB de JSON)
+	server := SetupHeavyServer(100000)
 	defer server.Close()
 
 	relayClient := relay.New(relay.WithBaseURL(server.URL))
@@ -132,15 +130,13 @@ func BenchmarkMemoryStress_Relay(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
 
-		// En escenarios pesados, el GC es el cuello de botella.
-		// Analizamos cómo relay gestiona la memoria en ráfagas.
 		if i%10 == 0 {
 			runtime.GC()
 		}
 	}
 }
 
-// --- ESCENARIO: SMALL PAYLOADS CON ALTA CONCURRENCIA ---
+// Benchmark: Small payloads with high concurrency (microservices scenario)
 
 func BenchmarkSmallPayload_Parallel_Relay(b *testing.B) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -166,9 +162,9 @@ func BenchmarkSmallPayload_Parallel_Relay(b *testing.B) {
 }
 
 // --- ESCENARIO: STREAMING DE DATOS MASIVOS ---
+// Benchmark: Large stream handling (250K records, ~35MB JSON)
 
 func BenchmarkLargeStream_Sequential_Relay(b *testing.B) {
-	// Simula un stream de 250k registros (~35MB de JSON)
 	server := SetupHeavyServer(250000)
 	defer server.Close()
 
@@ -182,7 +178,7 @@ func BenchmarkLargeStream_Sequential_Relay(b *testing.B) {
 	}
 }
 
-// --- ESCENARIO: CONEXIONES REUTILIZADAS EN LOOP ---
+// Benchmark: Connection reuse pattern (single connection reused in loop)
 
 func BenchmarkConnectionReuse_Sequential_Relay(b *testing.B) {
 	server := SetupHeavyServer(RecordsPerRequest)
@@ -190,7 +186,7 @@ func BenchmarkConnectionReuse_Sequential_Relay(b *testing.B) {
 
 	relayClient := relay.New(
 		relay.WithBaseURL(server.URL),
-		relay.WithConnectionPool(1, 1, 100), // Single connection, reuse agresively
+		relay.WithConnectionPool(1, 1, 100),
 	)
 
 	b.ReportAllocs()
@@ -201,7 +197,7 @@ func BenchmarkConnectionReuse_Sequential_Relay(b *testing.B) {
 	}
 }
 
-// --- ESCENARIO: COMPARACIÓN DE ALLOCATIONS (Relay vs net/http) ---
+// Benchmark: Allocation profile comparison (Relay vs net/http)
 
 func BenchmarkAllocationProfile_Standard(b *testing.B) {
 	server := SetupHeavyServer(RecordsPerRequest)
@@ -241,10 +237,10 @@ func BenchmarkAllocationProfile_Relay(b *testing.B) {
 	}
 }
 
-// --- ESCENARIO: IDLE CONNECTIONS CLEANUP ---
+// Benchmark: Idle connection cleanup with burst traffic pattern
 
 func BenchmarkIdleConnections_Relay(b *testing.B) {
-	server := SetupHeavyServer(10000) // Smaller payload for this test
+	server := SetupHeavyServer(10000)
 	defer server.Close()
 
 	relayClient := relay.New(
@@ -255,7 +251,6 @@ func BenchmarkIdleConnections_Relay(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	// Simulate pattern: burst of requests, then idle, then burst again
 	for i := 0; i < b.N; i++ {
 		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
 
@@ -267,23 +262,24 @@ func BenchmarkIdleConnections_Relay(b *testing.B) {
 }
 
 /*
-NOTAS TÉCNICAS DE ALTO RENDIMIENTO:
+PERFORMANCE NOTES:
 
-1. Gestión de Memoria: 'relay.ExecuteAs' utiliza internamente un buffer optimizado
-   para minimizar las re-asignaciones durante la lectura del Body. En escenarios
-   de 50k+ registros, esto ayuda a mantener la fragmentación del montón bajo control.
+1. Memory Management: ExecuteAs internally uses an optimized buffer
+   to minimize reallocations when reading the response body. For 50k+
+   records, this helps keep heap fragmentation under control.
 
-2. Concurrencia: Al usar 'b.RunParallel', estamos probando la contención de mutex
-   dentro del cliente. Relay brilla aquí al delegar la gestión del pool al motor
-   de net/http pero envolviéndolo en una capa que evita fugas de descriptores de archivos.
+2. Concurrency: RunParallel tests mutex contention within the client.
+   Relay delegates pool management to net/http but wraps it in a layer
+   that prevents file descriptor leaks.
 
-3. Marshalling: El costo predominante en ambos casos es 'json.Unmarshal'. La ventaja
-   de Relay es la ergonomía; permite manejar estos volúmenes con una fracción del
-   código (LOC), reduciendo la superficie de errores en la gestión de recursos (cierre de body).
+3. JSON Marshalling: The dominant cost in all cases is json.Unmarshal.
+   Relay's advantage is ergonomic - it handles these volumes with a fraction
+   of the code, reducing the error surface for resource management.
 
-4. Pool de Conexiones: Relay optimiza internamente la reutilización de conexiones TCP
-   reduciendo el handshake overhead en escenarios de alta concurrencia.
+4. Connection Pooling: Relay internally optimizes TCP connection reuse,
+   reducing handshake overhead in high-concurrency scenarios.
 
-5. GC Pressure: Con pooling de buffers y estructura optimizada, Relay reduce significativamente
-   el trabajo del garbage collector, crítico en aplicaciones de millones de req/s.
+5. GC Pressure: With buffer pooling and optimized structure layout,
+   Relay significantly reduces garbage collector pressure - critical
+   for applications serving millions of requests per second.
 */
