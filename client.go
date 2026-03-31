@@ -310,7 +310,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if err != nil {
 		return nil, err
 	}
-	totalDur := time.Since(timingCol.requestStart)
+	totalDur := time.Since(toTime(timingCol.requestStart.Load()))
 	resp.Timing = buildTiming(timingCol, totalDur)
 
 	for _, hook := range c.config.OnAfterResponse {

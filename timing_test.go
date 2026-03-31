@@ -95,10 +95,9 @@ func TestBuildTiming_TotalSet(t *testing.T) {
 
 func TestBuildTiming_DNSLookupComputed(t *testing.T) {
 	now := time.Now()
-	col := &timingCollector{
-		dnsStart: now,
-		dnsDone:  now.Add(5 * time.Millisecond),
-	}
+	col := &timingCollector{}
+	col.dnsStart.Store(now.UnixNano())
+	col.dnsDone.Store(now.Add(5 * time.Millisecond).UnixNano())
 
 	timing := buildTiming(col, 100*time.Millisecond)
 	if timing.DNSLookup != 5*time.Millisecond {
@@ -108,10 +107,9 @@ func TestBuildTiming_DNSLookupComputed(t *testing.T) {
 
 func TestBuildTiming_TCPConnectComputed(t *testing.T) {
 	now := time.Now()
-	col := &timingCollector{
-		connStart: now,
-		connDone:  now.Add(10 * time.Millisecond),
-	}
+	col := &timingCollector{}
+	col.connStart.Store(now.UnixNano())
+	col.connDone.Store(now.Add(10 * time.Millisecond).UnixNano())
 
 	timing := buildTiming(col, 100*time.Millisecond)
 	if timing.TCPConnect != 10*time.Millisecond {
@@ -120,7 +118,7 @@ func TestBuildTiming_TCPConnectComputed(t *testing.T) {
 }
 
 func TestBuildTiming_ZeroWhenTimestampsMissing(t *testing.T) {
-	col := &timingCollector{} // all zero times
+	col := &timingCollector{} // all zero (never stored)
 
 	timing := buildTiming(col, 50*time.Millisecond)
 	if timing.DNSLookup != 0 {
