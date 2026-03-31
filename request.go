@@ -437,10 +437,14 @@ func (r *Request) applyPathParams(rawURL string) string {
 	if len(r.pathParams) == 0 {
 		return rawURL
 	}
+
+	// Build placeholders map to avoid allocating "{key}" string in each iteration.
+	result := rawURL
 	for k, v := range r.pathParams {
-		rawURL = strings.ReplaceAll(rawURL, "{"+k+"}", url.PathEscape(v))
+		placeholder := "{" + k + "}"
+		result = strings.ReplaceAll(result, placeholder, url.PathEscape(v))
 	}
-	return rawURL
+	return result
 }
 
 // build constructs the stdlib *http.Request from this builder's state.
@@ -477,7 +481,17 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, 
 			resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
 			fullURL = resolved.String()
 		} else {
-			fullURL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(fullURL, "/")
+			// Build final URL without intermediate string allocations
+			var sb strings.Builder
+			sb.Grow(len(baseURL) + len(fullURL) + 1)
+			// TrimRight baseURL and write
+			trimmedBase := strings.TrimRight(baseURL, "/")
+			sb.WriteString(trimmedBase)
+			sb.WriteByte('/')
+			// TrimLeft fullURL and write
+			trimmedPath := strings.TrimLeft(fullURL, "/")
+			sb.WriteString(trimmedPath)
+			fullURL = sb.String()
 		}
 	}
 	if len(r.query) > 0 {
