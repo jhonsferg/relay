@@ -99,6 +99,14 @@ type Request struct {
 	// pooledReader is a reference to a pooled bytes.Reader if one was created
 	// during build(). It must be returned to the pool after the request is sent.
 	pooledReader *bytes.Reader
+
+	// builtURL caches the last-built URL string to avoid rebuilding on retries
+	// when path/query params haven't changed. Updated when build() is called.
+	builtURL string
+
+	// urlDirty is set to true when path params or query params are modified,
+	// invalidating builtURL cache. Check before skipping URL rebuild.
+	urlDirty bool
 }
 
 // newRequest allocates a Request with all maps initialised and a background
@@ -138,6 +146,7 @@ func (r *Request) WithTimeout(d time.Duration) *Request { r.timeout = d; return 
 //	// → GET /users/usr_42
 func (r *Request) WithPathParam(key, value string) *Request {
 	r.pathParams[key] = value
+	r.urlDirty = true
 	return r
 }
 
@@ -151,6 +160,7 @@ func (r *Request) WithPathParams(params map[string]string) *Request {
 	for k, v := range params {
 		r.pathParams[k] = v
 	}
+	r.urlDirty = true
 	return r
 }
 
@@ -203,6 +213,7 @@ func (r *Request) WithHeaders(headers map[string]string) *Request {
 // WithQueryParam sets (or replaces) a single URL query parameter.
 func (r *Request) WithQueryParam(key, value string) *Request {
 	r.query.Set(key, value)
+	r.urlDirty = true
 	return r
 }
 
@@ -212,6 +223,7 @@ func (r *Request) WithQueryParams(params map[string]string) *Request {
 	for k, v := range params {
 		r.query.Set(k, v)
 	}
+	r.urlDirty = true
 	return r
 }
 
@@ -222,6 +234,7 @@ func (r *Request) WithQueryParams(params map[string]string) *Request {
 //	// → ?ids=1&ids=2&ids=3
 func (r *Request) WithQueryParamValues(key string, values []string) *Request {
 	r.query[key] = values
+	r.urlDirty = true
 	return r
 }
 
@@ -402,6 +415,10 @@ func (r *Request) Clone() *Request {
 	// pooledReader must not be cloned - each request build creates its own
 	clone.pooledReader = nil
 
+	// URL cache must be invalidated for clone since params may change
+	clone.builtURL = ""
+	clone.urlDirty = false
+
 	return &clone
 }
 
@@ -429,8 +446,30 @@ func (r *Request) applyPathParams(rawURL string) string {
 // build constructs the stdlib *http.Request from this builder's state.
 // It applies path params, resolves the URL against baseURL/parsedBaseURL,
 // appends query params, and sets all headers. parsedBaseURL, if non-nil,
-// is used as an optimization to avoid re-parsing.
+// is used as an optimization to avoid re-parsing. Built URL is cached to
+// avoid rebuild on retries when params haven't changed.
 func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, error) {
+	// Fast path: if URL hasn't been modified and was cached, reuse it
+	if r.builtURL != "" && !r.urlDirty {
+		// Reuse cached URL for retries
+		var bodyReader io.Reader
+		if len(r.bodyBytes) > 0 {
+			r.pooledReader = pool.GetBytesReader(r.bodyBytes)
+			bodyReader = r.pooledReader
+			if r.uploadProgress != nil {
+				bodyReader = newProgressReader(bodyReader, int64(len(r.bodyBytes)), r.uploadProgress)
+			}
+		}
+		req, err := http.NewRequestWithContext(r.ctx, r.method, r.builtURL, bodyReader)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range r.headers {
+			req.Header.Set(k, v)
+		}
+		return req, nil
+	}
+
 	fullURL := r.applyPathParams(r.rawURL)
 	if baseURL != "" && !strings.HasPrefix(fullURL, "http://") && !strings.HasPrefix(fullURL, "https://") {
 		if parsedBaseURL != nil {
@@ -455,6 +494,11 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, 
 		parsed.RawQuery = existing.Encode()
 		fullURL = parsed.String()
 	}
+
+	// Cache the built URL and clear dirty flag for next build
+	r.builtURL = fullURL
+	r.urlDirty = false
+
 	var bodyReader io.Reader
 	if len(r.bodyBytes) > 0 {
 		r.pooledReader = pool.GetBytesReader(r.bodyBytes)
