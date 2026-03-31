@@ -142,3 +142,162 @@ jobs:
         env:
           GOWORK: "off"
         run: cd examples && go build ./...
+
+  # ── Auto Tag ────────────────────────────────────────────────────────────────
+  # Runs only on direct pushes to master, only after ALL checks above pass.
+  # - Detects which Go modules were changed in the commit.
+  # - Computes the next semver from the highest existing tag for each module.
+  # - Bump type follows Conventional Commits:
+  #     BREAKING CHANGE / type! -> major
+  #     feat                    -> minor
+  #     everything else         -> patch
+  # - Creates lightweight tags and pushes them.
+  # - Notifies pkg.go.dev so the new version is indexed immediately.
+  auto-tag:
+    name: Auto Tag
+    needs: [test, lint, vet, build-examples]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0   # need full history to list all existing tags
+
+      - name: Tag changed modules and notify pkg.go.dev
+        run: |
+          set -euo pipefail
+
+          # ── 1. Determine bump type from Conventional Commits ───────────────
+          SUBJECT=$(git log -1 --format="%s")
+          BODY=$(git log -1 --format="%b")
+
+          if printf '%s\n%s' "$SUBJECT" "$BODY" | grep -qE 'BREAKING[[:space:]]CHANGE' \
+          || printf '%s' "$SUBJECT" | grep -qE '^[a-z]+(\([^)]*\))?!:'; then
+            BUMP=major
+          elif printf '%s' "$SUBJECT" | grep -qE '^feat(\([^)]*\))?:'; then
+            BUMP=minor
+          else
+            BUMP=patch
+          fi
+          echo "Bump type: $BUMP  (commit: $SUBJECT)"
+
+          # ── 2. Skip if HEAD is already tagged ─────────────────────────────
+          if git tag --points-at HEAD | grep -q .; then
+            echo "HEAD already tagged: $(git tag --points-at HEAD | tr '\n' ' ') - skipping"
+            exit 0
+          fi
+
+          # ── 3. Detect which Go modules were touched ────────────────────────
+          # Walk each changed file upward until we find a go.mod directory.
+          declare -A AFFECTED
+
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            mapfile -t CHANGED < <(git diff --name-only HEAD~1 HEAD)
+          else
+            mapfile -t CHANGED < <(git diff-tree --no-commit-id -r --name-only HEAD)
+          fi
+
+          echo "Changed files: ${CHANGED[*]}"
+
+          for f in "${CHANGED[@]}"; do
+            # Ignore files that never belong to a taggable module
+            case "$f" in
+              .github/*|examples/*|go.work*) continue ;;
+              CHANGELOG*|README*|SECURITY*|LICENSE*|*.md) continue ;;
+            esac
+
+            d=$(dirname "$f")
+            while true; do
+              if [[ "$d" == "." ]]; then
+                AFFECTED["."]=1   # core module
+                break
+              fi
+              if [[ -f "$d/go.mod" ]]; then
+                AFFECTED["$d"]=1  # ext module
+                break
+              fi
+              d=$(dirname "$d")
+            done
+          done
+
+          if [[ ${#AFFECTED[@]} -eq 0 ]]; then
+            echo "No Go modules affected - nothing to tag"
+            exit 0
+          fi
+          echo "Affected modules: ${!AFFECTED[*]}"
+
+          # ── 4. Helper: bump a semver string ────────────────────────────────
+          bump_semver() {
+            local v="$1" bump="$2"
+            local major minor patch
+            IFS='.' read -r major minor patch <<< "$v"
+            case "$bump" in
+              major) ((major++)); minor=0; patch=0 ;;
+              minor) ((minor++)); patch=0 ;;
+              patch) ((patch++)) ;;
+            esac
+            echo "${major}.${minor}.${patch}"
+          }
+
+          # ── 5. Compute and create tags ─────────────────────────────────────
+          TAGS_CREATED=()
+
+          for mod_dir in "${!AFFECTED[@]}"; do
+            if [[ "$mod_dir" == "." ]]; then
+              # Core: tag pattern is v0.1.2 (no path prefix)
+              latest=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' \
+                         | grep -v '/' | sed 's/^v//' | sort -V | tail -1)
+              tag_prefix="v"
+            else
+              # Ext: tag pattern is ext/tracing/v0.2.1
+              latest=$(git tag -l "${mod_dir}/v[0-9]*.[0-9]*.[0-9]*" \
+                         | sed "s|^${mod_dir}/v||" | sort -V | tail -1)
+              tag_prefix="${mod_dir}/v"
+            fi
+
+            if [[ -z "$latest" ]]; then
+              next="0.1.0"
+            else
+              next=$(bump_semver "$latest" "$BUMP")
+            fi
+
+            new_tag="${tag_prefix}${next}"
+
+            if git tag -l "$new_tag" | grep -q .; then
+              echo "Tag $new_tag already exists - skipping"
+              continue
+            fi
+
+            echo "Creating tag: $new_tag  (was: ${latest:-none})"
+            git tag "$new_tag"
+            TAGS_CREATED+=("$new_tag")
+          done
+
+          if [[ ${#TAGS_CREATED[@]} -eq 0 ]]; then
+            echo "No new tags created"
+            exit 0
+          fi
+
+          # ── 6. Push tags ───────────────────────────────────────────────────
+          git push origin "${TAGS_CREATED[@]}"
+          echo "Pushed: ${TAGS_CREATED[*]}"
+
+          # ── 7. Notify pkg.go.dev ───────────────────────────────────────────
+          for tag in "${TAGS_CREATED[@]}"; do
+            if [[ "$tag" != */* ]]; then
+              # Core: v0.1.2 -> github.com/jhonsferg/relay@v0.1.2
+              fetch_url="https://pkg.go.dev/fetch/github.com/jhonsferg/relay@${tag}"
+            else
+              # Ext: ext/tracing/v0.2.1 -> github.com/jhonsferg/relay/ext/tracing@v0.2.1
+              ver="${tag##*/}"           # v0.2.1
+              mod_path="${tag%/v*}"      # ext/tracing
+              fetch_url="https://pkg.go.dev/fetch/github.com/jhonsferg/relay/${mod_path}@${ver}"
+            fi
+
+            echo "Notifying pkg.go.dev: $fetch_url"
+            http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -X POST -H "Content-Length: 0" "$fetch_url" || true)
+            echo "  Response: $http_code"
+          done

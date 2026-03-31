@@ -1,0 +1,53 @@
+name: Notify pkg.go.dev
+
+# Fires on every tag push - both from the auto-tag job in ci.yml and from
+# manually pushed tags. This ensures pkg.go.dev always indexes new versions.
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+      - 'ext/**/v[0-9]*'
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify pkg.go.dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve module path and notify pkg.go.dev
+        run: |
+          set -euo pipefail
+
+          TAG="${{ github.ref_name }}"
+          BASE="github.com/jhonsferg/relay"
+
+          if [[ "$TAG" != */* ]]; then
+            # Core module: v0.1.2
+            MODULE="${BASE}"
+            VERSION="${TAG}"
+          else
+            # Ext module: ext/tracing/v0.2.1
+            VERSION="${TAG##*/}"       # v0.2.1
+            MOD_PATH="${TAG%/v*}"      # ext/tracing
+            MODULE="${BASE}/${MOD_PATH}"
+          fi
+
+          FETCH_URL="https://pkg.go.dev/fetch/${MODULE}@${VERSION}"
+          echo "Tag:     $TAG"
+          echo "Module:  $MODULE"
+          echo "Version: $VERSION"
+          echo "URL:     $FETCH_URL"
+
+          http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X POST -H "Content-Length: 0" "$FETCH_URL" || true)
+          echo "pkg.go.dev response: $http_code"
+
+          if [[ "$http_code" == "200" || "$http_code" == "202" ]]; then
+            echo "Indexing queued successfully"
+          else
+            echo "Warning: unexpected response $http_code - pkg.go.dev may index it later via its crawler"
+          fi
