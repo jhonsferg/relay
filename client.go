@@ -30,6 +30,13 @@ const redirectCountKey contextKey = 0
 // A zero-value Client is not usable; always construct via [New] or [Client.With].
 // The client is safe for concurrent use by multiple goroutines.
 type Client struct {
+	// closed is set to true by [Shutdown]. New Execute calls check this flag
+	// and return [ErrClientClosed] immediately without sending a request.
+	// Placed first as it's checked on every Execute (hot).
+	closed atomic.Bool
+	// Padding to isolate closed to its own cache line (64 bytes on most x64)
+	_ [63]byte
+
 	// httpClient is the underlying standard-library client that owns the
 	// transport stack, redirect policy, timeout, and cookie jar.
 	httpClient *http.Client
@@ -50,10 +57,6 @@ type Client struct {
 	// inFlight tracks requests that are currently in progress so that
 	// [Shutdown] can wait for them to complete before closing the pool.
 	inFlight sync.WaitGroup
-
-	// closed is set to true by [Shutdown]. New Execute calls check this flag
-	// and return [ErrClientClosed] immediately without sending a request.
-	closed atomic.Bool
 
 	// bgCancel cancels the context shared by all background goroutines
 	// (health check, etc.). Called by Shutdown to stop them gracefully.

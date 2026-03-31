@@ -81,11 +81,8 @@ func defaultCircuitBreakerConfig() *CircuitBreakerConfig {
 // CircuitBreaker implements the three-state circuit-breaker pattern
 // (Closed → Open → Half-Open → Closed). It is safe for concurrent use.
 type CircuitBreaker struct {
-	// mu protects all mutable state below.
+	// mu protects all mutable state below. Placed first as it's used in hot paths.
 	mu sync.Mutex
-
-	// config is the immutable configuration set at construction time.
-	config *CircuitBreakerConfig
 
 	// state is the current circuit breaker state.
 	state CircuitBreakerState
@@ -103,6 +100,9 @@ type CircuitBreaker struct {
 	// lastFailureTime records when the most recent failure occurred. Used to
 	// determine when the ResetTimeout has elapsed in StateOpen.
 	lastFailureTime time.Time
+
+	// config is the immutable configuration set at construction time.
+	config *CircuitBreakerConfig
 }
 
 // newCircuitBreaker constructs a CircuitBreaker from cfg. If cfg is nil the
