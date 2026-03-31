@@ -25,3 +25,4 @@ Thumbs.db
 
 # Claude Code local configuration (never commit)
 .claude/
+CLAUDE.md
