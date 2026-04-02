@@ -302,7 +302,289 @@ func TestWithInMemoryCache(t *testing.T) {
 	}
 }
 
+// TestWithURLNormalization verifies URL normalization mode configuration.
+func TestWithURLNormalization(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	tests := []struct {
+		name     string
+		mode     URLNormalizationMode
+		expected URLNormalizationMode
+	}{
+		{"NormalizationAuto", NormalizationAuto, NormalizationAuto},
+		{"NormalizationRFC3986", NormalizationRFC3986, NormalizationRFC3986},
+		{"NormalizationAPI", NormalizationAPI, NormalizationAPI},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := New(WithURLNormalization(tt.mode))
+			if c.config.URLNormalizationMode != tt.expected {
+				t.Errorf("expected mode %v, got %v", tt.expected, c.config.URLNormalizationMode)
+			}
+		})
+	}
+}
+
+// TestURLNormalizationMode_String verifies string representation of modes.
+func TestURLNormalizationMode_String(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	tests := []struct {
+		mode     URLNormalizationMode
+		expected string
+	}{
+		{NormalizationAuto, "Auto"},
+		{NormalizationRFC3986, "RFC3986"},
+		{NormalizationAPI, "API"},
+	}
+
+	for _, tt := range tests {
+		result := tt.mode.String()
+		if result != tt.expected {
+			t.Errorf("mode.String() expected %q, got %q", tt.expected, result)
+		}
+	}
+}
+
 // roundTripperFunc is a helper to create ad-hoc RoundTrippers in tests.
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// TestIsAPIBase verifies API pattern detection for smart URL normalization.
+func TestIsAPIBase(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	tests := []struct {
+		name     string
+		baseURL  string
+		expected bool
+	}{
+		// Empty/host-only URLs (should use RFC 3986 path)
+		{"empty", "", false},
+		{"host only", "http://api.example.com", false},
+		{"host only with http", "https://api.example.com", false},
+		{"host with trailing slash", "http://api.example.com/", false},
+
+		// Common API patterns (should use safe string normalization)
+		{"odata path", "http://api.example.com/odata", true},
+		{"api path", "http://api.example.com/api", true},
+		{"v1 path", "http://api.example.com/v1", true},
+		{"v2 path", "http://api.example.com/v2", true},
+		{"v3 path", "http://api.example.com/v3", true},
+		{"v4 path", "http://api.example.com/v4", true},
+		{"v5 path", "http://api.example.com/v5", true},
+		{"rest path", "http://api.example.com/rest", true},
+		{"graphql path", "http://api.example.com/graphql", true},
+		{"soap path", "http://api.example.com/soap", true},
+		{"sap path", "http://api.example.com/sap", true},
+		{"data path", "http://api.example.com/data", true},
+		{"service path", "http://api.example.com/service", true},
+		{"services path", "http://api.example.com/services", true},
+
+		// Multi-segment paths (2+ slashes indicate API structure)
+		{"multi-segment", "http://api.example.com/service/v1", true},
+		{"multi-segment odata", "http://api.example.com/company/odata", true},
+		{"deep path", "http://api.example.com/api/v1/data", true},
+
+		// Invalid/malformed URLs (should handle gracefully)
+		{"malformed", "not a url at all", false},
+		{"invalid scheme", "ht!tp://api.example.com/v1", false},
+
+		// Trailing slash variations
+		{"v1 with trailing slash", "http://api.example.com/v1/", true},
+		{"odata with trailing slash", "http://api.example.com/odata/", true},
+		{"multi-segment with trailing slash", "http://api.example.com/api/v1/", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isAPIBase(tt.baseURL)
+			if result != tt.expected {
+				t.Errorf("isAPIBase(%q) = %v, want %v", tt.baseURL, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Phase 3: Auto-Normalization Tests
+
+func TestNormalizeBaseURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		// Empty input
+		{"empty string", "", ""},
+
+		// Already has trailing slash
+		{"host with slash", "http://api.com/", "http://api.com/"},
+		{"api path with slash", "http://api.com/v1/", "http://api.com/v1/"},
+		{"deep path with slash", "http://api.com/api/v1/data/", "http://api.com/api/v1/data/"},
+
+		// Missing trailing slash (should add)
+		{"host only", "http://api.com", "http://api.com/"},
+		{"api path", "http://api.com/v1", "http://api.com/v1/"},
+		{"deep path", "http://api.com/api/v1/data", "http://api.com/api/v1/data/"},
+
+		// Various schemes
+		{"https host", "https://api.com", "https://api.com/"},
+		{"https with path", "https://api.com/v1", "https://api.com/v1/"},
+
+		// Edge cases
+		{"single slash", "/", "/"},
+		{"path only", "/api", "/api/"},
+		{"relative path", "api", "api/"},
+		{"localhost", "http://localhost:8080", "http://localhost:8080/"},
+		{"localhost with path", "http://localhost:8080/v1", "http://localhost:8080/v1/"},
+		{"with query", "http://api.com?key=value", "http://api.com?key=value/"},
+		{"with fragment", "http://api.com#section", "http://api.com#section/"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := NormalizeBaseURL(tt.input)
+			if result != tt.expected {
+				t.Errorf("NormalizeBaseURL(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWithAutoNormalizeURL(t *testing.T) {
+	tests := []struct {
+		name           string
+		enable         bool
+		urlStr         string
+		expectedURL    string
+		expectedParsed bool
+	}{
+		{
+			name:           "auto normalize enabled",
+			enable:         true,
+			urlStr:         "http://api.com/v1",
+			expectedURL:    "http://api.com/v1/",
+			expectedParsed: true,
+		},
+		{
+			name:           "auto normalize disabled",
+			enable:         false,
+			urlStr:         "http://api.com/v1",
+			expectedURL:    "http://api.com/v1",
+			expectedParsed: true,
+		},
+		{
+			name:           "auto normalize enabled, already has slash",
+			enable:         true,
+			urlStr:         "http://api.com/v1/",
+			expectedURL:    "http://api.com/v1/",
+			expectedParsed: true,
+		},
+		{
+			name:           "auto normalize disabled, no slash",
+			enable:         false,
+			urlStr:         "http://api.com/v1",
+			expectedURL:    "http://api.com/v1",
+			expectedParsed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				AutoNormalizeBaseURL: tt.enable,
+			}
+			option := WithAutoNormalizeURL(tt.enable)
+			option(cfg)
+
+			if cfg.AutoNormalizeBaseURL != tt.enable {
+				t.Errorf("WithAutoNormalizeURL(%v) set AutoNormalizeBaseURL = %v, want %v",
+					tt.enable, cfg.AutoNormalizeBaseURL, tt.enable)
+			}
+		})
+	}
+}
+
+func TestWithBaseURL_AutoNormalize(t *testing.T) {
+	tests := []struct {
+		name           string
+		autoNormalize  bool
+		input          string
+		expectedURL    string
+		shouldParsed   bool
+	}{
+		{
+			name:          "auto normalize on, missing slash",
+			autoNormalize: true,
+			input:         "http://api.com/v1",
+			expectedURL:   "http://api.com/v1/",
+			shouldParsed:  true,
+		},
+		{
+			name:          "auto normalize on, has slash",
+			autoNormalize: true,
+			input:         "http://api.com/v1/",
+			expectedURL:   "http://api.com/v1/",
+			shouldParsed:  true,
+		},
+		{
+			name:          "auto normalize off, missing slash",
+			autoNormalize: false,
+			input:         "http://api.com/v1",
+			expectedURL:   "http://api.com/v1",
+			shouldParsed:  true,
+		},
+		{
+			name:          "auto normalize off, has slash",
+			autoNormalize: false,
+			input:         "http://api.com/v1/",
+			expectedURL:   "http://api.com/v1/",
+			shouldParsed:  true,
+		},
+		{
+			name:          "empty URL",
+			autoNormalize: true,
+			input:         "",
+			expectedURL:   "",
+			shouldParsed:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				AutoNormalizeBaseURL: tt.autoNormalize,
+			}
+			option := WithBaseURL(tt.input)
+			option(cfg)
+
+			if cfg.BaseURL != tt.expectedURL {
+				t.Errorf("WithBaseURL(%q) with AutoNormalize=%v set BaseURL = %q, want %q",
+					tt.input, tt.autoNormalize, cfg.BaseURL, tt.expectedURL)
+			}
+
+			if tt.shouldParsed {
+				if cfg.parsedBaseURL == nil {
+					t.Errorf("WithBaseURL(%q) did not parse URL, got nil", tt.input)
+				}
+			} else {
+				if cfg.parsedBaseURL != nil {
+					t.Errorf("WithBaseURL(%q) should not parse empty URL, got %v", tt.input, cfg.parsedBaseURL)
+				}
+			}
+		})
+	}
+}
+
+func TestAutoNormalizeURL_Default(t *testing.T) {
+	cfg := defaultConfig()
+	if !cfg.AutoNormalizeBaseURL {
+		t.Errorf("defaultConfig().AutoNormalizeBaseURL = false, want true")
+	}
+}
+
