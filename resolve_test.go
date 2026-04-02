@@ -7,29 +7,29 @@ import (
 // TestResolveTest_APIDetection tests API pattern detection
 func TestResolveTest_APIDetection(t *testing.T) {
 	tests := []struct {
-		name      string
-		baseURL   string
-		isAPISig  bool
+		name     string
+		baseURL  string
+		isAPISig bool
 	}{
 		{
-			name:      "API with v1",
-			baseURL:   "http://api.example.com/v1",
-			isAPISig:  true,
+			name:     "API with v1",
+			baseURL:  "http://api.example.com/v1",
+			isAPISig: true,
 		},
 		{
-			name:      "API with odata",
-			baseURL:   "http://api.example.com/odata",
-			isAPISig:  true,
+			name:     "API with odata",
+			baseURL:  "http://api.example.com/odata",
+			isAPISig: true,
 		},
 		{
-			name:      "Host only",
-			baseURL:   "http://api.example.com",
-			isAPISig:  false,
+			name:     "Host only",
+			baseURL:  "http://api.example.com",
+			isAPISig: false,
 		},
 		{
-			name:      "Empty URL",
-			baseURL:   "",
-			isAPISig:  false,
+			name:     "Empty URL",
+			baseURL:  "",
+			isAPISig: false,
 		},
 	}
 
@@ -46,8 +46,8 @@ func TestResolveTest_APIDetection(t *testing.T) {
 	}
 }
 
-// TestResolveTest_AutoNormalization tests with auto-normalization enabled
-func TestResolveTest_AutoNormalization(t *testing.T) {
+// TestResolveTest_AutoNormalisation tests with auto-normalisation enabled
+func TestResolveTest_AutoNormalisation(t *testing.T) {
 	tests := []struct {
 		name         string
 		baseURL      string
@@ -56,14 +56,14 @@ func TestResolveTest_AutoNormalization(t *testing.T) {
 		isAPI        bool
 	}{
 		{
-			name:         "API base, auto normalized",
+			name:         "API base, auto normalised",
 			baseURL:      "http://api.example.com/v1",
 			relativePath: "Products",
 			expectedURL:  "http://api.example.com/v1/Products",
 			isAPI:        true,
 		},
 		{
-			name:         "Host only, auto normalized",
+			name:         "Host only, auto normalised",
 			baseURL:      "http://api.example.com",
 			relativePath: "Products",
 			expectedURL:  "http://api.example.com/Products",
@@ -119,7 +119,7 @@ func TestResolveTest_RFC3986Mode(t *testing.T) {
 	}
 
 	config := defaultConfig()
-	config.URLNormalizationMode = NormalizationRFC3986
+	config.URLNormalisationMode = NormalisationRFC3986
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestResolveTest_RFC3986Mode(t *testing.T) {
 	}
 }
 
-// TestResolveTest_APIMode forces safe string normalization
+// TestResolveTest_APIMode forces safe string normalisation
 func TestResolveTest_APIMode(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -158,7 +158,7 @@ func TestResolveTest_APIMode(t *testing.T) {
 	}
 
 	config := defaultConfig()
-	config.URLNormalizationMode = NormalizationAPI
+	config.URLNormalisationMode = NormalisationAPI
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -232,25 +232,25 @@ func TestResolveTest_ComplexPaths(t *testing.T) {
 func TestResolveTest_Strategy(t *testing.T) {
 	tests := []struct {
 		name     string
-		mode     URLNormalizationMode
+		mode     URLNormalisationMode
 		baseURL  string
 		expected string
 	}{
 		{
 			name:     "Auto mode",
-			mode:     NormalizationAuto,
+			mode:     NormalisationAuto,
 			baseURL:  "http://api.example.com/v1",
 			expected: "Auto",
 		},
 		{
 			name:     "RFC3986 mode",
-			mode:     NormalizationRFC3986,
+			mode:     NormalisationRFC3986,
 			baseURL:  "http://api.example.com/v1",
 			expected: "RFC3986",
 		},
 		{
 			name:     "API mode",
-			mode:     NormalizationAPI,
+			mode:     NormalisationAPI,
 			baseURL:  "http://api.example.com/v1",
 			expected: "API",
 		},
@@ -259,7 +259,7 @@ func TestResolveTest_Strategy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := defaultConfig()
-			config.URLNormalizationMode = tt.mode
+			config.URLNormalisationMode = tt.mode
 
 			result := ResolveTest(tt.baseURL, "Products", config)
 			if result.Strategy != tt.expected {
@@ -272,12 +272,12 @@ func TestResolveTest_Strategy(t *testing.T) {
 // TestResolveTest_AutoModeDetection tests automatic strategy selection
 func TestResolveTest_AutoModeDetection(t *testing.T) {
 	config := defaultConfig()
-	config.URLNormalizationMode = NormalizationAuto
+	config.URLNormalisationMode = NormalisationAuto
 
 	tests := []struct {
-		name     string
-		baseURL  string
-		useRFC   bool // true if should use RFC3986, false if safe string
+		name    string
+		baseURL string
+		useRFC  bool // true if should use RFC3986, false if safe string
 	}{
 		{
 			name:    "Host only (should use RFC3986)",

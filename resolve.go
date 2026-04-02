@@ -14,10 +14,10 @@ type ResolutionResult struct {
 	// ParsedURL is the resolved URL parsed into a *url.URL structure
 	ParsedURL *url.URL
 
-	// Strategy indicates which normalization strategy was used:
+	// Strategy indicates which normalisation strategy was used:
 	// - "Auto" for automatic detection
 	// - "RFC3986" for RFC 3986 resolution
-	// - "API" for safe string normalization
+	// - "API" for safe string normalisation
 	Strategy string
 
 	// IsAPI indicates whether the base URL was detected as an API endpoint
@@ -27,7 +27,7 @@ type ResolutionResult struct {
 // ResolveTest provides a way to test URL resolution without making an HTTP request.
 // It takes a base URL, a relative path, and a config, then returns the resolved URL
 // and information about how it was resolved. This is useful for debugging URL
-// resolution behavior and understanding which normalization strategy is used.
+// resolution behavior and understanding which normalisation strategy is used.
 //
 // Example:
 //
@@ -56,17 +56,17 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 	var strategyUsed string
 	useRFC3986 := false
 
-	switch config.URLNormalizationMode {
-	case NormalizationAuto:
+	switch config.URLNormalisationMode {
+	case NormalisationAuto:
 		// Auto: use RFC 3986 for host-only, safe string for APIs
 		useRFC3986 = parsedBaseURL != nil && !isAPIBase
 		strategyUsed = "Auto"
-	case NormalizationRFC3986:
+	case NormalisationRFC3986:
 		// Force RFC 3986
 		useRFC3986 = parsedBaseURL != nil
 		strategyUsed = "RFC3986"
-	case NormalizationAPI:
-		// Force safe string normalization
+	case NormalisationAPI:
+		// Force safe string normalisation
 		useRFC3986 = false
 		strategyUsed = "API"
 	default:
@@ -83,7 +83,7 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 		resolved := parsedBaseURL.ResolveReference(&url.URL{Path: relativePath})
 		resolvedURL = resolved.String()
 	} else {
-		// Use safe string normalization (preserves base path)
+		// Use safe string normalisation (preserves base path)
 		// Ensure base URL ends with / and relative path doesn't start with /
 		if !endsWith(baseURL, "/") {
 			baseURL += "/"

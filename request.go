@@ -467,11 +467,11 @@ func (r *Request) applyPathParams(rawURL string) string {
 // is used as an optimization to avoid re-parsing. Built URL is cached to
 // avoid rebuild on retries when params haven't changed.
 //
-// normalizationMode controls which URL resolution strategy is used:
-//   - NormalizationAuto: Intelligent detection (API vs host-only)
-//   - NormalizationRFC3986: Force RFC 3986 (zero-alloc, breaks APIs)
-//   - NormalizationAPI: Force safe normalization (preserves paths)
-func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalizationMode URLNormalizationMode) (*http.Request, error) {
+// normalisationMode controls which URL resolution strategy is used:
+//   - NormalisationAuto: Intelligent detection (API vs host-only)
+//   - NormalisationRFC3986: Force RFC 3986 (zero-alloc, breaks APIs)
+//   - NormalisationAPI: Force safe normalisation (preserves paths)
+func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMode URLNormalisationMode) (*http.Request, error) {
 	// Fast path: if URL hasn't been modified and was cached, reuse it
 	if r.builtURL != "" && !r.urlDirty {
 		// Reuse cached URL for retries
@@ -495,17 +495,17 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalizationMod
 
 	fullURL := r.applyPathParams(r.rawURL)
 	if baseURL != "" && !strings.HasPrefix(fullURL, "http://") && !strings.HasPrefix(fullURL, "https://") {
-		// Determine which normalization strategy to use
+		// Determine which normalisation strategy to use
 		useRFC3986 := false
-		switch normalizationMode {
-		case NormalizationAuto:
+		switch normalisationMode {
+		case NormalisationAuto:
 			// Intelligent detection: RFC 3986 for host-only, safe for APIs
 			useRFC3986 = parsedBaseURL != nil && !isAPIBase(baseURL)
-		case NormalizationRFC3986:
+		case NormalisationRFC3986:
 			// Force RFC 3986 (requires parsed URL)
 			useRFC3986 = parsedBaseURL != nil
-		case NormalizationAPI:
-			// Force safe normalization
+		case NormalisationAPI:
+			// Force safe normalisation
 			useRFC3986 = false
 		}
 
@@ -515,7 +515,7 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalizationMod
 			resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
 			fullURL = resolved.String()
 		} else {
-			// Path 2: Use safe string normalization for API URLs.
+			// Path 2: Use safe string normalisation for API URLs.
 			// Handles API base URLs with path components (e.g., http://api.com/v1/odata)
 			// correctly by preserving the entire base path instead of replacing it per RFC 3986.
 			var sb strings.Builder

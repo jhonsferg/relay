@@ -302,43 +302,43 @@ func TestWithInMemoryCache(t *testing.T) {
 	}
 }
 
-// TestWithURLNormalization verifies URL normalization mode configuration.
-func TestWithURLNormalization(t *testing.T) {
+// TestWithURLNormalisation verifies URL normalisation mode configuration.
+func TestWithURLNormalisation(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
 
 	tests := []struct {
 		name     string
-		mode     URLNormalizationMode
-		expected URLNormalizationMode
+		mode     URLNormalisationMode
+		expected URLNormalisationMode
 	}{
-		{"NormalizationAuto", NormalizationAuto, NormalizationAuto},
-		{"NormalizationRFC3986", NormalizationRFC3986, NormalizationRFC3986},
-		{"NormalizationAPI", NormalizationAPI, NormalizationAPI},
+		{"NormalisationAuto", NormalisationAuto, NormalisationAuto},
+		{"NormalisationRFC3986", NormalisationRFC3986, NormalisationRFC3986},
+		{"NormalisationAPI", NormalisationAPI, NormalisationAPI},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New(WithURLNormalization(tt.mode))
-			if c.config.URLNormalizationMode != tt.expected {
-				t.Errorf("expected mode %v, got %v", tt.expected, c.config.URLNormalizationMode)
+			c := New(WithURLNormalisation(tt.mode))
+			if c.config.URLNormalisationMode != tt.expected {
+				t.Errorf("expected mode %v, got %v", tt.expected, c.config.URLNormalisationMode)
 			}
 		})
 	}
 }
 
-// TestURLNormalizationMode_String verifies string representation of modes.
-func TestURLNormalizationMode_String(t *testing.T) {
+// TestURLNormalisationMode_String verifies string representation of modes.
+func TestURLNormalisationMode_String(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
 
 	tests := []struct {
-		mode     URLNormalizationMode
+		mode     URLNormalisationMode
 		expected string
 	}{
-		{NormalizationAuto, "Auto"},
-		{NormalizationRFC3986, "RFC3986"},
-		{NormalizationAPI, "API"},
+		{NormalisationAuto, "Auto"},
+		{NormalisationRFC3986, "RFC3986"},
+		{NormalisationAPI, "API"},
 	}
 
 	for _, tt := range tests {
@@ -354,7 +354,7 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
-// TestIsAPIBase verifies API pattern detection for smart URL normalization.
+// TestIsAPIBase verifies API pattern detection for smart URL normalisation.
 func TestIsAPIBase(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
@@ -370,7 +370,7 @@ func TestIsAPIBase(t *testing.T) {
 		{"host only with http", "https://api.example.com", false},
 		{"host with trailing slash", "http://api.example.com/", false},
 
-		// Common API patterns (should use safe string normalization)
+		// Common API patterns (should use safe string normalisation)
 		{"odata path", "http://api.example.com/odata", true},
 		{"api path", "http://api.example.com/api", true},
 		{"v1 path", "http://api.example.com/v1", true},
@@ -411,9 +411,9 @@ func TestIsAPIBase(t *testing.T) {
 	}
 }
 
-// Phase 3: Auto-Normalization Tests
+// Phase 3: Auto-Normalisation Tests
 
-func TestNormalizeBaseURL(t *testing.T) {
+func TestNormaliseBaseURL(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -448,15 +448,15 @@ func TestNormalizeBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := NormalizeBaseURL(tt.input)
+			result := NormaliseBaseURL(tt.input)
 			if result != tt.expected {
-				t.Errorf("NormalizeBaseURL(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("NormaliseBaseURL(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
 }
 
-func TestWithAutoNormalizeURL(t *testing.T) {
+func TestWithAutoNormaliseURL(t *testing.T) {
 	tests := []struct {
 		name           string
 		enable         bool
@@ -465,28 +465,28 @@ func TestWithAutoNormalizeURL(t *testing.T) {
 		expectedParsed bool
 	}{
 		{
-			name:           "auto normalize enabled",
+			name:           "auto normalise enabled",
 			enable:         true,
 			urlStr:         "http://api.com/v1",
 			expectedURL:    "http://api.com/v1/",
 			expectedParsed: true,
 		},
 		{
-			name:           "auto normalize disabled",
+			name:           "auto normalise disabled",
 			enable:         false,
 			urlStr:         "http://api.com/v1",
 			expectedURL:    "http://api.com/v1",
 			expectedParsed: true,
 		},
 		{
-			name:           "auto normalize enabled, already has slash",
+			name:           "auto normalise enabled, already has slash",
 			enable:         true,
 			urlStr:         "http://api.com/v1/",
 			expectedURL:    "http://api.com/v1/",
 			expectedParsed: true,
 		},
 		{
-			name:           "auto normalize disabled, no slash",
+			name:           "auto normalise disabled, no slash",
 			enable:         false,
 			urlStr:         "http://api.com/v1",
 			expectedURL:    "http://api.com/v1",
@@ -497,58 +497,58 @@ func TestWithAutoNormalizeURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				AutoNormalizeBaseURL: tt.enable,
+				AutoNormaliseBaseURL: tt.enable,
 			}
-			option := WithAutoNormalizeURL(tt.enable)
+			option := WithAutoNormaliseURL(tt.enable)
 			option(cfg)
 
-			if cfg.AutoNormalizeBaseURL != tt.enable {
-				t.Errorf("WithAutoNormalizeURL(%v) set AutoNormalizeBaseURL = %v, want %v",
-					tt.enable, cfg.AutoNormalizeBaseURL, tt.enable)
+			if cfg.AutoNormaliseBaseURL != tt.enable {
+				t.Errorf("WithAutoNormaliseURL(%v) set AutoNormaliseBaseURL = %v, want %v",
+					tt.enable, cfg.AutoNormaliseBaseURL, tt.enable)
 			}
 		})
 	}
 }
 
-func TestWithBaseURL_AutoNormalize(t *testing.T) {
+func TestWithBaseURL_AutoNormalise(t *testing.T) {
 	tests := []struct {
-		name           string
-		autoNormalize  bool
-		input          string
-		expectedURL    string
-		shouldParsed   bool
+		name          string
+		autoNormalise bool
+		input         string
+		expectedURL   string
+		shouldParsed  bool
 	}{
 		{
-			name:          "auto normalize on, missing slash",
-			autoNormalize: true,
+			name:          "auto normalise on, missing slash",
+			autoNormalise: true,
 			input:         "http://api.com/v1",
 			expectedURL:   "http://api.com/v1/",
 			shouldParsed:  true,
 		},
 		{
-			name:          "auto normalize on, has slash",
-			autoNormalize: true,
+			name:          "auto normalise on, has slash",
+			autoNormalise: true,
 			input:         "http://api.com/v1/",
 			expectedURL:   "http://api.com/v1/",
 			shouldParsed:  true,
 		},
 		{
-			name:          "auto normalize off, missing slash",
-			autoNormalize: false,
+			name:          "auto normalise off, missing slash",
+			autoNormalise: false,
 			input:         "http://api.com/v1",
 			expectedURL:   "http://api.com/v1",
 			shouldParsed:  true,
 		},
 		{
-			name:          "auto normalize off, has slash",
-			autoNormalize: false,
+			name:          "auto normalise off, has slash",
+			autoNormalise: false,
 			input:         "http://api.com/v1/",
 			expectedURL:   "http://api.com/v1/",
 			shouldParsed:  true,
 		},
 		{
 			name:          "empty URL",
-			autoNormalize: true,
+			autoNormalise: true,
 			input:         "",
 			expectedURL:   "",
 			shouldParsed:  false,
@@ -558,14 +558,14 @@ func TestWithBaseURL_AutoNormalize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				AutoNormalizeBaseURL: tt.autoNormalize,
+				AutoNormaliseBaseURL: tt.autoNormalise,
 			}
 			option := WithBaseURL(tt.input)
 			option(cfg)
 
 			if cfg.BaseURL != tt.expectedURL {
-				t.Errorf("WithBaseURL(%q) with AutoNormalize=%v set BaseURL = %q, want %q",
-					tt.input, tt.autoNormalize, cfg.BaseURL, tt.expectedURL)
+				t.Errorf("WithBaseURL(%q) with AutoNormalise=%v set BaseURL = %q, want %q",
+					tt.input, tt.autoNormalise, cfg.BaseURL, tt.expectedURL)
 			}
 
 			if tt.shouldParsed {
@@ -581,10 +581,9 @@ func TestWithBaseURL_AutoNormalize(t *testing.T) {
 	}
 }
 
-func TestAutoNormalizeURL_Default(t *testing.T) {
+func TestAutoNormaliseURL_Default(t *testing.T) {
 	cfg := defaultConfig()
-	if !cfg.AutoNormalizeBaseURL {
-		t.Errorf("defaultConfig().AutoNormalizeBaseURL = false, want true")
+	if !cfg.AutoNormaliseBaseURL {
+		t.Errorf("defaultConfig().AutoNormaliseBaseURL = false, want true")
 	}
 }
-
