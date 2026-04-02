@@ -466,7 +466,12 @@ func (r *Request) applyPathParams(rawURL string) string {
 // appends query params, and sets all headers. parsedBaseURL, if non-nil,
 // is used as an optimization to avoid re-parsing. Built URL is cached to
 // avoid rebuild on retries when params haven't changed.
-func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, error) {
+//
+// normalisationMode controls which URL resolution strategy is used:
+//   - NormalisationAuto: Intelligent detection (API vs host-only)
+//   - NormalisationRFC3986: Force RFC 3986 (zero-alloc, breaks APIs)
+//   - NormalisationAPI: Force safe normalisation (preserves paths)
+func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMode URLNormalisationMode) (*http.Request, error) {
 	// Fast path: if URL hasn't been modified and was cached, reuse it
 	if r.builtURL != "" && !r.urlDirty {
 		// Reuse cached URL for retries
@@ -490,12 +495,29 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL) (*http.Request, 
 
 	fullURL := r.applyPathParams(r.rawURL)
 	if baseURL != "" && !strings.HasPrefix(fullURL, "http://") && !strings.HasPrefix(fullURL, "https://") {
-		if parsedBaseURL != nil {
-			// Use pre-parsed URL to avoid allocation in Parse
+		// Determine which normalisation strategy to use
+		useRFC3986 := false
+		switch normalisationMode {
+		case NormalisationAuto:
+			// Intelligent detection: RFC 3986 for host-only, safe for APIs
+			useRFC3986 = parsedBaseURL != nil && !isAPIBase(baseURL)
+		case NormalisationRFC3986:
+			// Force RFC 3986 (requires parsed URL)
+			useRFC3986 = parsedBaseURL != nil
+		case NormalisationAPI:
+			// Force safe normalisation
+			useRFC3986 = false
+		}
+
+		if useRFC3986 {
+			// Path 1: Use pre-parsed URL for RFC 3986 resolution (host-only URLs).
+			// Zero allocations; reuses parsed URL. Safe for URLs without path components.
 			resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
 			fullURL = resolved.String()
 		} else {
-			// Build final URL without intermediate string allocations
+			// Path 2: Use safe string normalisation for API URLs.
+			// Handles API base URLs with path components (e.g., http://api.com/v1/odata)
+			// correctly by preserving the entire base path instead of replacing it per RFC 3986.
 			var sb strings.Builder
 			sb.Grow(len(baseURL) + len(fullURL) + 1)
 			// TrimRight baseURL and write

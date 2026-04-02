@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,50 @@ const (
 	defaultDialKeepAlive        = 30 * time.Second
 	defaultMaxResponseBodyBytes = 10 * 1024 * 1024 // 10 MB
 )
+
+// URLNormalisationMode controls how [Config.BaseURL] is resolved against
+// request paths in [Request.build]. Each mode has different characteristics
+// regarding RFC 3986 compliance, zero-allocation, and API path preservation.
+//
+// The default mode (NormalisationAuto) provides intelligent automatic detection,
+// choosing the best strategy based on whether the base URL appears to be an API
+// endpoint with path components.
+type URLNormalisationMode int
+
+const (
+	// NormalisationAuto (default) uses intelligent detection: RFC 3986 for
+	// host-only URLs (e.g., http://api.com), safe string normalisation for
+	// APIs with path components (e.g., http://api.com/v1). Zero configuration
+	// required; automatically handles versioned APIs, OData, GraphQL, etc.
+	NormalisationAuto URLNormalisationMode = iota
+
+	// NormalisationRFC3986 forces RFC 3986 URL resolution via
+	// url.ResolveReference(). Provides zero allocations but breaks API URLs
+	// with path components (e.g., http://api.com/v1 + Products becomes
+	// http://api.com/Products, losing the /v1 segment). Use this only if
+	// you have host-only base URLs and need maximum performance.
+	NormalisationRFC3986
+
+	// NormalisationAPI forces safe string normalisation for all URLs,
+	// preserving base path components by concatenation instead of RFC 3986
+	// resolution. Slightly higher allocations than RFC 3986 but works correctly
+	// for all API patterns. Use this if you want guaranteed API path preservation.
+	NormalisationAPI
+)
+
+// String returns a human-readable name for the normalisation mode.
+func (m URLNormalisationMode) String() string {
+	switch m {
+	case NormalisationAuto:
+		return "Auto"
+	case NormalisationRFC3986:
+		return "RFC3986"
+	case NormalisationAPI:
+		return "API"
+	default:
+		return "Unknown"
+	}
+}
 
 // Config holds all configuration for a [Client]. It is built by applying a
 // sequence of functional [Option] values on top of the defaults returned by
@@ -173,6 +218,16 @@ type Config struct {
 	// Nil disables the feature (default: OS resolver on every dial).
 	DNSCache *DNSCacheConfig
 
+	// URLNormalisationMode controls how [BaseURL] is resolved against request
+	// paths. Default is NormalisationAuto, which intelligently detects API URLs
+	// and applies the best strategy. Can be overridden with [WithURLNormalisation].
+	URLNormalisationMode URLNormalisationMode
+
+	// AutoNormaliseBaseURL automatically adds a trailing slash to BaseURL if
+	// missing. Enabled by default for API convenience; can be disabled with
+	// [WithAutoNormaliseURL](false).
+	AutoNormaliseBaseURL bool
+
 	// parsedBaseURL is a pre-parsed *url.URL for BaseURL (if set).
 	// Reduces allocations in request.build() by reusing the parsed URL.
 	// Only set by WithBaseURL; never modified after client creation.
@@ -196,6 +251,7 @@ func defaultConfig() *Config {
 		DefaultHeaders:       make(map[string]string),
 		RetryConfig:          defaultRetryConfig(),
 		CircuitBreakerConfig: defaultCircuitBreakerConfig(),
+		AutoNormaliseBaseURL: true,
 	}
 }
 
@@ -221,21 +277,122 @@ func (cfg *Config) clone() *Config {
 	return &c
 }
 
+// NormaliseBaseURL ensures a base URL ends with a trailing slash if it has a
+// non-empty, non-root path. For host-only URLs (e.g., "http://api.com"), the
+// slash is only added if the URL doesn't already end with one. This prevents
+// the common mistake of losing path components during URL resolution.
+//
+// Examples:
+//   - "http://api.com" → "http://api.com/"
+//   - "http://api.com/v1" → "http://api.com/v1/"
+//   - "http://api.com/v1/" → "http://api.com/v1/"
+//   - "" → ""
+func NormaliseBaseURL(urlStr string) string {
+	if urlStr == "" {
+		return ""
+	}
+
+	// If it already ends with /, no change needed
+	if strings.HasSuffix(urlStr, "/") {
+		return urlStr
+	}
+
+	// Add trailing slash
+	return urlStr + "/"
+}
+
+// isAPIBase detects whether a base URL represents an API endpoint with path
+// components, which require safe string normalisation instead of RFC 3986
+// resolution. Returns true if the path contains common API patterns or has
+// non-trivial path segments.
+//
+// Examples:
+//   - "http://api.example.com/v1" → true (has /v1)
+//   - "http://api.example.com/odata" → true (has /odata)
+//   - "http://example.com" → false (host-only)
+//   - "http://example.com/" → false (only trailing slash)
+func isAPIBase(baseURL string) bool {
+	if baseURL == "" {
+		return false
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+
+	path := parsed.Path
+	if path == "" || path == "/" {
+		return false
+	}
+
+	// Check common API path patterns (zero-alloc: direct string prefix checks)
+	// Common patterns: /api, /v1, /v2, /odata, /rest, /graphql, /sap, etc.
+	if strings.HasPrefix(path, "/api") ||
+		strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/v2") ||
+		strings.HasPrefix(path, "/v3") || strings.HasPrefix(path, "/v4") ||
+		strings.HasPrefix(path, "/v5") || strings.HasPrefix(path, "/odata") ||
+		strings.HasPrefix(path, "/rest") || strings.HasPrefix(path, "/graphql") ||
+		strings.HasPrefix(path, "/soap") || strings.HasPrefix(path, "/sap") ||
+		strings.HasPrefix(path, "/data") || strings.HasPrefix(path, "/service") ||
+		strings.HasPrefix(path, "/services") {
+		return true
+	}
+
+	// Also return true if path has 2+ segments (e.g. /company/api, /service/v1)
+	// Count slashes to detect depth; more than one slash means multiple segments
+	slashCount := 0
+	for _, c := range path {
+		if c == '/' {
+			slashCount++
+		}
+	}
+	return slashCount > 1
+}
+
 // Option is a functional option that mutates a [Config] during [New] or
 // [Client.With]. Options are applied left-to-right; later options win.
 type Option func(*Config)
 
 // WithBaseURL sets the base URL prepended to every request path that does not
 // start with "http://" or "https://". The URL is pre-parsed once for
-// performance.
+// performance. If [Config.AutoNormaliseBaseURL] is true (the default),
+// a trailing slash is automatically added if missing.
 func WithBaseURL(urlStr string) Option {
 	return func(c *Config) {
+		if c.AutoNormaliseBaseURL {
+			urlStr = NormaliseBaseURL(urlStr)
+		}
 		c.BaseURL = urlStr
 		if urlStr != "" {
 			if parsed, err := url.Parse(urlStr); err == nil {
 				c.parsedBaseURL = parsed
 			}
 		}
+	}
+}
+
+// WithURLNormalisation sets the URL normalisation strategy for resolving base
+// URLs against request paths. The default is NormalisationAuto, which
+// intelligently detects API URLs and chooses the best strategy.
+//
+// Modes:
+//   - NormalisationAuto (default): Detects API patterns and uses appropriate
+//     strategy (RFC 3986 for host-only, safe normalisation for APIs).
+//   - NormalisationRFC3986: Forces RFC 3986 resolution (zero-alloc, breaks APIs).
+//   - NormalisationAPI: Forces safe string normalisation (preserves all paths).
+func WithURLNormalisation(mode URLNormalisationMode) Option {
+	return func(c *Config) {
+		c.URLNormalisationMode = mode
+	}
+}
+
+// WithAutoNormaliseURL enables or disables automatic trailing slash
+// normalisation for base URLs. Enabled by default. When disabled,
+// [WithBaseURL] passes the URL as-is without modification.
+func WithAutoNormaliseURL(enable bool) Option {
+	return func(c *Config) {
+		c.AutoNormaliseBaseURL = enable
 	}
 }
 

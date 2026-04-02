@@ -249,7 +249,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 
 	var httpResp *http.Response
 	httpResp, err = c.retrier.Do(ctx, func() (*http.Response, error) {
-		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL)
+		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalisationMode)
 		if buildErr != nil {
 			return nil, buildErr
 		}
