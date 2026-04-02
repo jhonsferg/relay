@@ -850,6 +850,90 @@ Rules support exact URL, method, path prefix, and custom predicate matchers.
 
 ---
 
+## URL Normalization & RFC 3986 Compliance
+
+Relay automatically handles URL resolution with intelligent strategy selection to work correctly with both host-only URLs and API endpoints with path components.
+
+### The Problem
+
+RFC 3986's standard URL resolution treats "/" as an absolute path reference that replaces the entire base path:
+
+```go
+// Without Relay (RFC 3986 alone)
+base := "http://api.example.com/v1"
+path := "/Products"
+// Result: "http://api.example.com/Products"  ❌ Lost /v1!
+```
+
+### The Solution: Smart Detection (Phase 1-4)
+
+Relay uses **intelligent strategy selection**:
+
+```go
+// With Relay
+client := relay.New(relay.WithBaseURL("http://api.example.com/v1"))
+resp, _ := client.Get("/Products")
+// Result: "http://api.example.com/v1/Products"  ✅ Correct!
+```
+
+**Phase 1: Smart Detection**
+- Detects API patterns (`/v1`, `/odata`, `/api`, etc.)
+- Uses RFC 3986 for host-only URLs (zero-alloc)
+- Uses safe string concatenation for API URLs (preserves paths)
+
+**Phase 2: Configuration Modes**
+- `NormalizationAuto` (default) - Intelligent detection
+- `NormalizationRFC3986` - Force standards compliance
+- `NormalizationAPI` - Force path preservation
+
+```go
+client := relay.New(
+    relay.WithBaseURL("http://api.example.com/v1"),
+    relay.WithURLNormalization(relay.NormalizationAPI),
+)
+```
+
+**Phase 3: Auto-Normalization**
+- Automatically adds trailing slashes to base URLs
+- Enabled by default; can be disabled with `WithAutoNormalizeURL(false)`
+
+**Phase 4: Helper Utilities**
+- `PathBuilder` - Fluent path construction
+- `ResolveTest` - Debug URL resolution without HTTP calls
+
+### Common Usage Patterns
+
+```go
+// Simple API
+client := relay.New(
+    relay.WithBaseURL("http://api.example.com/v1"),
+)
+resp, _ := client.Get("/users/123")
+
+// PathBuilder for clean paths
+path := relay.NewPathBuilder("/api/v1").
+    Add("users").
+    Add(userID).
+    Add("posts").
+    String()
+
+// Debug URL resolution
+config := client.Config()
+result := relay.ResolveTest("http://api.example.com/v1", "/users", config)
+fmt.Println(result.URL)       // Resolved URL
+fmt.Println(result.Strategy)  // "Auto" or "RFC3986" or "API"
+```
+
+### Learn More
+
+See `doc/RFC3986.md` for a comprehensive guide including:
+- Why RFC 3986 breaks API URLs
+- When each strategy is used
+- Performance characteristics
+- Migration from manual URL handling
+
+---
+
 ## Examples
 
 The `examples/` directory contains runnable programs demonstrating every feature:
@@ -879,6 +963,8 @@ The `examples/` directory contains runnable programs demonstrating every feature
 | `examples/zerolog_logger/` | rs/zerolog adapter usage |
 | `examples/oauth2/` | OAuth 2.0 Client Credentials flow |
 | `examples/har_recording/` | HAR 1.2 traffic capture and export |
+| `api_client.go` | Type-safe API client patterns, PathBuilder, error handling |
+| `uri_standard.go` | RFC 3986 compliance, smart URL resolution, configuration modes |
 
 Run any example:
 
