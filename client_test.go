@@ -35,8 +35,9 @@ func TestNew_WithOptions(t *testing.T) {
 	if c.config.Timeout != 5*time.Second {
 		t.Errorf("expected 5s timeout, got %v", c.config.Timeout)
 	}
-	if c.config.BaseURL != "https://example.com" {
-		t.Errorf("expected base URL https://example.com, got %q", c.config.BaseURL)
+	// Auto-normalization adds trailing slash by default
+	if c.config.BaseURL != "https://example.com/" {
+		t.Errorf("expected base URL https://example.com/, got %q", c.config.BaseURL)
 	}
 	if c.config.DefaultHeaders["X-Custom"] != "test" {
 		t.Errorf("expected default header X-Custom=test, got %q", c.config.DefaultHeaders["X-Custom"])
@@ -51,7 +52,8 @@ func TestWith_InheritsParentConfig(t *testing.T) {
 	)
 	child := parent.With(WithTimeout(3 * time.Second))
 
-	if child.config.BaseURL != "https://parent.example.com" {
+	// Auto-normalization adds trailing slash by default
+	if child.config.BaseURL != "https://parent.example.com/" {
 		t.Errorf("child should inherit parent BaseURL, got %q", child.config.BaseURL)
 	}
 	if child.config.Timeout != 3*time.Second {
