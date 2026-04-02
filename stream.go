@@ -148,7 +148,7 @@ func (c *Client) ExecuteStream(req *Request) (*StreamResponse, error) {
 		return nil, abort(ErrCircuitOpen)
 	}
 
-	httpReq, err := req.build(c.config.BaseURL, c.config.parsedBaseURL)
+	httpReq, err := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalizationMode)
 	if err != nil {
 		return nil, abort(err)
 	}
