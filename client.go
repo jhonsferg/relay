@@ -207,22 +207,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	var hasRequestTimeout bool
 	var cancel context.CancelFunc
 
-	// Build context chain: timeout → redirect counter → tracing
+	// Build context chain: timeout first so rate limiter and hooks respect it.
 	if req.timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, req.timeout)
 		defer cancel()
 		hasRequestTimeout = true
 	}
-
-	// Embed a redirect counter so CheckRedirect can populate it.
-	var redirectCount int
-	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
-
-	// Inject httptrace for request timing (pooled).
-	ctx, timingCol := injectTraceContext(ctx)
-
-	// Update request with final context only once (single clone).
-	req = req.withCtx(ctx)
 
 	// Auto-generate idempotency key once per request (reused across retries).
 	if c.config.AutoIdempotencyKey && req.idempotencyKey == "" {
@@ -246,6 +236,18 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if c.circuitBreaker != nil && !c.circuitBreaker.Allow() {
 		return nil, ErrCircuitOpen
 	}
+
+	// Embed redirect counter and tracing after all early-exit guards so these
+	// allocations are skipped when the request is aborted before reaching the
+	// transport (rate-limit timeout, circuit breaker open, hook error).
+	var redirectCount int
+	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
+
+	// Inject httptrace for request timing.
+	ctx, timingCol := injectTraceContext(ctx)
+
+	// Update request with final context only once (single clone).
+	req = req.withCtx(ctx)
 
 	var httpResp *http.Response
 	httpResp, err = c.retrier.Do(ctx, func() (*http.Response, error) {
