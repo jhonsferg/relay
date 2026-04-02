@@ -362,9 +362,9 @@ func TestRequest_WithTimeout_Execution(t *testing.T) {
 	}
 }
 
-// TestSmartURLNormalization_APIBaseDetection tests that the build() method correctly
-// uses smart path selection: RFC 3986 for host-only URLs, safe normalization for APIs.
-func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
+// TestSmartURLNormalisation_APIBaseDetection tests that the build() method correctly
+// uses smart path selection: RFC 3986 for host-only URLs, safe normalisation for APIs.
+func TestSmartURLNormalisation_APIBaseDetection(t *testing.T) {
 	t.Parallel()
 
 	// Test 1: Host-only base URL uses RFC 3986 path resolution
@@ -386,7 +386,7 @@ func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
 		}
 	}
 
-	// Test 2: API base URL (/v1) preserves path via safe normalization
+	// Test 2: API base URL (/v1) preserves path via safe normalisation
 	{
 		srv := testutil.NewMockServer()
 		defer srv.Close()
@@ -405,7 +405,7 @@ func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
 		}
 	}
 
-	// Test 3: API base URL (/odata) preserves path via safe normalization
+	// Test 3: API base URL (/odata) preserves path via safe normalisation
 	{
 		srv := testutil.NewMockServer()
 		defer srv.Close()
@@ -443,7 +443,7 @@ func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
 		}
 	}
 
-	// Test 5: API base with trailing slash is normalized correctly
+	// Test 5: API base with trailing slash is normalised correctly
 	{
 		srv := testutil.NewMockServer()
 		defer srv.Close()
@@ -462,7 +462,7 @@ func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
 		}
 	}
 
-	// Test 6: Relative path with leading slash is normalized correctly
+	// Test 6: Relative path with leading slash is normalised correctly
 	{
 		srv := testutil.NewMockServer()
 		defer srv.Close()
@@ -481,7 +481,7 @@ func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
 		}
 	}
 
-	// Test 7: Both trailing and leading slashes are normalized
+	// Test 7: Both trailing and leading slashes are normalised
 	{
 		srv := testutil.NewMockServer()
 		defer srv.Close()
@@ -501,9 +501,9 @@ func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
 	}
 }
 
-// TestSmartURLNormalization_ConsistencyAcrossRetries ensures that URL caching
+// TestSmartURLNormalisation_ConsistencyAcrossRetries ensures that URL caching
 // produces the same URL regardless of whether the request is retried.
-func TestSmartURLNormalization_ConsistencyAcrossRetries(t *testing.T) {
+func TestSmartURLNormalisation_ConsistencyAcrossRetries(t *testing.T) {
 	t.Parallel()
 
 	srv := testutil.NewMockServer()
@@ -541,8 +541,8 @@ func TestSmartURLNormalization_ConsistencyAcrossRetries(t *testing.T) {
 	}
 }
 
-// TestURLNormalizationMode_ExplicitRFC3986 tests forcing RFC 3986 normalization.
-func TestURLNormalizationMode_ExplicitRFC3986(t *testing.T) {
+// TestURLNormalisationMode_ExplicitRFC3986 tests forcing RFC 3986 normalisation.
+func TestURLNormalisationMode_ExplicitRFC3986(t *testing.T) {
 	t.Parallel()
 
 	// With explicit RFC3986 mode, even API URLs use zero-alloc resolution
@@ -552,7 +552,7 @@ func TestURLNormalizationMode_ExplicitRFC3986(t *testing.T) {
 
 	c := New(
 		WithBaseURL(srv.URL()),
-		WithURLNormalization(NormalizationRFC3986),
+		WithURLNormalisation(NormalisationRFC3986),
 		WithDisableRetry(),
 		WithDisableCircuitBreaker(),
 	)
@@ -565,18 +565,18 @@ func TestURLNormalizationMode_ExplicitRFC3986(t *testing.T) {
 	}
 }
 
-// TestURLNormalizationMode_ExplicitAPI tests forcing safe normalization for all URLs.
-func TestURLNormalizationMode_ExplicitAPI(t *testing.T) {
+// TestURLNormalisationMode_ExplicitAPI tests forcing safe normalisation for all URLs.
+func TestURLNormalisationMode_ExplicitAPI(t *testing.T) {
 	t.Parallel()
 
-	// With explicit API mode, even simple URLs use safe normalization
+	// With explicit API mode, even simple URLs use safe normalisation
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
 
 	c := New(
 		WithBaseURL(srv.URL()),
-		WithURLNormalization(NormalizationAPI),
+		WithURLNormalisation(NormalisationAPI),
 		WithDisableRetry(),
 		WithDisableCircuitBreaker(),
 	)
@@ -589,8 +589,8 @@ func TestURLNormalizationMode_ExplicitAPI(t *testing.T) {
 	}
 }
 
-// TestURLNormalizationMode_ExplicitAPI_WithPath tests safe normalization preserves paths.
-func TestURLNormalizationMode_ExplicitAPI_WithPath(t *testing.T) {
+// TestURLNormalisationMode_ExplicitAPI_WithPath tests safe normalisation preserves paths.
+func TestURLNormalisationMode_ExplicitAPI_WithPath(t *testing.T) {
 	t.Parallel()
 
 	srv := testutil.NewMockServer()
@@ -599,7 +599,7 @@ func TestURLNormalizationMode_ExplicitAPI_WithPath(t *testing.T) {
 
 	c := New(
 		WithBaseURL(srv.URL()+"/v1"),
-		WithURLNormalization(NormalizationAPI),
+		WithURLNormalisation(NormalisationAPI),
 		WithDisableRetry(),
 		WithDisableCircuitBreaker(),
 	)
@@ -612,20 +612,19 @@ func TestURLNormalizationMode_ExplicitAPI_WithPath(t *testing.T) {
 	}
 }
 
-// TestURLNormalizationMode_Default tests that Auto mode is default.
-func TestURLNormalizationMode_Default(t *testing.T) {
+// TestURLNormalisationMode_Default tests that Auto mode is default.
+func TestURLNormalisationMode_Default(t *testing.T) {
 	t.Parallel()
 
 	c := New()
-	if c.config.URLNormalizationMode != NormalizationAuto {
-		t.Errorf("expected default mode to be NormalizationAuto (%d), got %d",
-			NormalizationAuto, c.config.URLNormalizationMode)
+	if c.config.URLNormalisationMode != NormalisationAuto {
+		t.Errorf("expected default mode to be NormalisationAuto (%d), got %d",
+			NormalisationAuto, c.config.URLNormalisationMode)
 	}
 }
 
 // FuzzPathParams tests that path parameter substitution does not panic
 // on malformed keys or values.
-
 
 func FuzzPathParams(f *testing.F) {
 	f.Add("key", "value")

@@ -35,7 +35,7 @@ func TestNew_WithOptions(t *testing.T) {
 	if c.config.Timeout != 5*time.Second {
 		t.Errorf("expected 5s timeout, got %v", c.config.Timeout)
 	}
-	// Auto-normalization adds trailing slash by default
+	// Auto-normalisation adds trailing slash by default
 	if c.config.BaseURL != "https://example.com/" {
 		t.Errorf("expected base URL https://example.com/, got %q", c.config.BaseURL)
 	}
@@ -52,7 +52,7 @@ func TestWith_InheritsParentConfig(t *testing.T) {
 	)
 	child := parent.With(WithTimeout(3 * time.Second))
 
-	// Auto-normalization adds trailing slash by default
+	// Auto-normalisation adds trailing slash by default
 	if child.config.BaseURL != "https://parent.example.com/" {
 		t.Errorf("child should inherit parent BaseURL, got %q", child.config.BaseURL)
 	}

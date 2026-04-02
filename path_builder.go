@@ -17,7 +17,7 @@ type PathBuilder struct {
 	segments []string
 }
 
-// NewPathBuilder creates a new PathBuilder initialized with an optional
+// NewPathBuilder creates a new PathBuilder initialised with an optional
 // base path. If base is provided, it becomes the first segment.
 // If base is empty, the builder starts empty.
 //
