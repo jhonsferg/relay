@@ -362,8 +362,271 @@ func TestRequest_WithTimeout_Execution(t *testing.T) {
 	}
 }
 
+// TestSmartURLNormalization_APIBaseDetection tests that the build() method correctly
+// uses smart path selection: RFC 3986 for host-only URLs, safe normalization for APIs.
+func TestSmartURLNormalization_APIBaseDetection(t *testing.T) {
+	t.Parallel()
+
+	// Test 1: Host-only base URL uses RFC 3986 path resolution
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("users"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/users" {
+			t.Errorf("host-only URL: expected /users, got %q", rec.Path)
+		}
+	}
+
+	// Test 2: API base URL (/v1) preserves path via safe normalization
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()+"/v1"),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("users"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/v1/users" {
+			t.Errorf("API base /v1: expected /v1/users, got %q", rec.Path)
+		}
+	}
+
+	// Test 3: API base URL (/odata) preserves path via safe normalization
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()+"/odata"),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("Products/$count"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/odata/Products/$count" {
+			t.Errorf("OData base: expected /odata/Products/$count, got %q", rec.Path)
+		}
+	}
+
+	// Test 4: Multi-segment API path is preserved
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()+"/company/api"),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("data"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/company/api/data" {
+			t.Errorf("Multi-segment path: expected /company/api/data, got %q", rec.Path)
+		}
+	}
+
+	// Test 5: API base with trailing slash is normalized correctly
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()+"/v1/"),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("users"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/v1/users" {
+			t.Errorf("API base with trailing slash: expected /v1/users, got %q", rec.Path)
+		}
+	}
+
+	// Test 6: Relative path with leading slash is normalized correctly
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()+"/v1"),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("/users"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/v1/users" {
+			t.Errorf("API base with leading slash in relative: expected /v1/users, got %q", rec.Path)
+		}
+	}
+
+	// Test 7: Both trailing and leading slashes are normalized
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()+"/v1/"),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("/users"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/v1/users" {
+			t.Errorf("Both trailing/leading slashes: expected /v1/users, got %q", rec.Path)
+		}
+	}
+}
+
+// TestSmartURLNormalization_ConsistencyAcrossRetries ensures that URL caching
+// produces the same URL regardless of whether the request is retried.
+func TestSmartURLNormalization_ConsistencyAcrossRetries(t *testing.T) {
+	t.Parallel()
+
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	// Enqueue two responses: first fails, second succeeds
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := New(
+		WithBaseURL(srv.URL()+"/v1"),
+		WithRetry(&RetryConfig{
+			MaxAttempts:     2,
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     1 * time.Millisecond,
+			RetryableStatus: []int{http.StatusInternalServerError},
+		}),
+		WithDisableCircuitBreaker(),
+	)
+
+	_, _ = c.Execute(c.Get("users"))
+
+	// Verify both requests went to the same path
+	rec1, _ := srv.TakeRequest(time.Second)
+	rec2, _ := srv.TakeRequest(time.Second)
+
+	if rec1.Path != "/v1/users" {
+		t.Errorf("first request: expected /v1/users, got %q", rec1.Path)
+	}
+	if rec2.Path != "/v1/users" {
+		t.Errorf("retry request: expected /v1/users, got %q", rec2.Path)
+	}
+	if rec1.Path != rec2.Path {
+		t.Errorf("retry consistency: first=%q, retry=%q", rec1.Path, rec2.Path)
+	}
+}
+
+// TestURLNormalizationMode_ExplicitRFC3986 tests forcing RFC 3986 normalization.
+func TestURLNormalizationMode_ExplicitRFC3986(t *testing.T) {
+	t.Parallel()
+
+	// With explicit RFC3986 mode, even API URLs use zero-alloc resolution
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithURLNormalization(NormalizationRFC3986),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+	)
+
+	_, _ = c.Execute(c.Get("/users"))
+
+	rec, _ := srv.TakeRequest(time.Second)
+	if rec.Path != "/users" {
+		t.Errorf("RFC3986 mode: expected /users, got %q", rec.Path)
+	}
+}
+
+// TestURLNormalizationMode_ExplicitAPI tests forcing safe normalization for all URLs.
+func TestURLNormalizationMode_ExplicitAPI(t *testing.T) {
+	t.Parallel()
+
+	// With explicit API mode, even simple URLs use safe normalization
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithURLNormalization(NormalizationAPI),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+	)
+
+	_, _ = c.Execute(c.Get("users"))
+
+	rec, _ := srv.TakeRequest(time.Second)
+	if rec.Path != "/users" {
+		t.Errorf("API mode with host-only URL: expected /users, got %q", rec.Path)
+	}
+}
+
+// TestURLNormalizationMode_ExplicitAPI_WithPath tests safe normalization preserves paths.
+func TestURLNormalizationMode_ExplicitAPI_WithPath(t *testing.T) {
+	t.Parallel()
+
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := New(
+		WithBaseURL(srv.URL()+"/v1"),
+		WithURLNormalization(NormalizationAPI),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+	)
+
+	_, _ = c.Execute(c.Get("users"))
+
+	rec, _ := srv.TakeRequest(time.Second)
+	if rec.Path != "/v1/users" {
+		t.Errorf("API mode with base path: expected /v1/users, got %q", rec.Path)
+	}
+}
+
+// TestURLNormalizationMode_Default tests that Auto mode is default.
+func TestURLNormalizationMode_Default(t *testing.T) {
+	t.Parallel()
+
+	c := New()
+	if c.config.URLNormalizationMode != NormalizationAuto {
+		t.Errorf("expected default mode to be NormalizationAuto (%d), got %d",
+			NormalizationAuto, c.config.URLNormalizationMode)
+	}
+}
+
 // FuzzPathParams tests that path parameter substitution does not panic
 // on malformed keys or values.
+
+
 func FuzzPathParams(f *testing.F) {
 	f.Add("key", "value")
 	f.Add("{key}", "value/with/slash")
