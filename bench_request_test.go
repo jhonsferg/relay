@@ -54,7 +54,7 @@ func BenchmarkRequestBuild_NoQuery(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = req.build("https://api.example.com", parsedBase)
+		_, _ = req.build("https://api.example.com", parsedBase, NormalizationAuto)
 	}
 }
 
@@ -69,7 +69,7 @@ func BenchmarkRequestBuild_WithQuery(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = req.build("https://api.example.com", parsedBase)
+		_, _ = req.build("https://api.example.com", parsedBase, NormalizationAuto)
 	}
 }
 
