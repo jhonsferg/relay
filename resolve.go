@@ -27,7 +27,7 @@ type ResolutionResult struct {
 // ResolveTest provides a way to test URL resolution without making an HTTP request.
 // It takes a base URL, a relative path, and a config, then returns the resolved URL
 // and information about how it was resolved. This is useful for debugging URL
-// resolution behavior and understanding which normalisation strategy is used.
+// resolution behaviour and understanding which normalisation strategy is used.
 //
 // Example:
 //
