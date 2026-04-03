@@ -192,6 +192,7 @@ jobs:
 
           # ── 3. Detect which Go modules were touched ────────────────────────
           # Walk each changed file upward until we find a go.mod directory.
+          # Use whitelist approach: only consider changes to .go, go.mod, go.sum, README
           declare -A AFFECTED
 
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
@@ -202,11 +203,18 @@ jobs:
 
           echo "Changed files: ${CHANGED[*]}"
 
+          # Filter to only code and dependency files that matter
           for f in "${CHANGED[@]}"; do
-            # Ignore files that never belong to a taggable module
+            # Only process Go source, module files, and key documentation
             case "$f" in
-              .github/*|examples/*|go.work*) continue ;;
-              CHANGELOG*|README*|SECURITY*|LICENSE*|*.md) continue ;;
+              # Code and dependency files - these trigger tags
+              *.go|go.mod|go.sum|README.md)
+                # These are taggable changes
+                ;;
+              # Everything else is ignored - no tag needed
+              *)
+                continue
+                ;;
             esac
 
             d=$(dirname "$f")
@@ -224,7 +232,8 @@ jobs:
           done
 
           if [[ ${#AFFECTED[@]} -eq 0 ]]; then
-            echo "No Go modules affected - nothing to tag"
+            echo "No Go code or dependency changes detected - nothing to tag"
+            echo "Only tags are created for: Go source (*.go), dependencies (go.mod/go.sum), or README updates"
             exit 0
           fi
           echo "Affected modules: ${!AFFECTED[*]}"
