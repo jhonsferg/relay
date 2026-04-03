@@ -6,10 +6,14 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.24%2B-00ADD8?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
 [![CI](https://img.shields.io/github/actions/workflow/status/jhonsferg/relay/ci.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-6%20OS%2FGo%20combos-0099ff?style=for-the-badge&logo=github)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
+[![Codecov](https://img.shields.io/badge/coverage-tracked-41B883?style=for-the-badge&logo=codecov)](https://codecov.io/gh/jhonsferg/relay)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/jhonsferg/relay/codeql.yml?style=for-the-badge&logo=github&label=CodeQL)](https://github.com/jhonsferg/relay/actions/workflows/codeql.yml)
+[![Trivy](https://img.shields.io/badge/vulnerability%20scan-Trivy-1f77b4?style=for-the-badge&logo=github)](https://github.com/jhonsferg/relay/actions/workflows/trivy.yml)
+[![API Check](https://img.shields.io/badge/api%20compatibility-checked-4CAF50?style=for-the-badge&logo=github)](https://github.com/jhonsferg/relay/actions/workflows/api-check.yml)
+[![License Check](https://img.shields.io/badge/license%20compliance-checked-FFC107?style=for-the-badge&logo=github)](https://github.com/jhonsferg/relay/actions/workflows/license-check.yml)
 [![Release](https://img.shields.io/github/v/release/jhonsferg/relay?style=for-the-badge&logo=github&color=orange)](https://github.com/jhonsferg/relay/releases/latest)
 [![pkg.go.dev](https://img.shields.io/badge/pkg.go.dev-reference-007D9C?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
-[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jhonsferg/relay/badges/coverage.json&style=for-the-badge)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
 [![Go Report Card](https://img.shields.io/badge/go%20report-A%2B-brightgreen?style=for-the-badge)](https://goreportcard.com/report/github.com/jhonsferg/relay)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
