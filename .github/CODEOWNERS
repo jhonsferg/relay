@@ -1,6 +1,31 @@
-# .github/CODEOWNERS
-# Any changes to Go code
+# Relay HTTP Client - Code Owners
+
+# Default: All maintainers review
 * @jhonsferg
 
-# Any changes to CI workflows
-/.github/workflows/ @jhonsferg
+# Core HTTP functionality
+*.go @jhonsferg
+
+# Internal utilities
+internal/ @jhonsferg
+
+# Tests
+*_test.go @jhonsferg
+testutil/ @jhonsferg
+
+# Documentation
+*.md @jhonsferg
+SECURITY.md @jhonsferg
+CONTRIBUTING.md @jhonsferg
+
+# CI/CD and configuration
+.github/ @jhonsferg
+.golangci.yml @jhonsferg
+Makefile @jhonsferg
+.goreleaser.yml @jhonsferg
+
+# Extension modules
+ext/ @jhonsferg
+
+# Examples
+examples/ @jhonsferg
