@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # Go Dependencies
+  # Go Dependencies - Core module
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -13,26 +13,6 @@ updates:
     labels:
       - "dependencies"
       - "go"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    pull-request-branch-name:
-      separator: "/"
-    commit-message:
-      prefix: "chore(deps):"
-      prefix-major: "chore(deps)!:"
-      prefix-minor: "chore(deps):"
-      prefix-patch: "chore(deps):"
-      include: "scope"
-    rebase-strategy: "auto"
-    # Open a PR with dependency updates
-    open-pull-requests-limit: 5
-    # Only update indirect dependencies if they have vulnerabilities
-    ignore:
-      - dependency-name: "*"
-        # Uncomment to ignore specific versions
-        # update-types:
-        #   - "version-update:semver-patch"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -46,14 +26,8 @@ updates:
     labels:
       - "ci"
       - "github-actions"
-    pull-request-branch-name:
-      separator: "/"
-    commit-message:
-      prefix: "ci(actions):"
-    rebase-strategy: "auto"
-    open-pull-requests-limit: 5
 
-  # Extension modules (preserve relay's module structure)
+  # Extension modules - gobreaker
   - package-ecosystem: "gomod"
     directory: "/ext/breaker/gobreaker"
     schedule:
@@ -62,6 +36,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - brotli
   - package-ecosystem: "gomod"
     directory: "/ext/brotli"
     schedule:
@@ -70,6 +45,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - cache/lru
   - package-ecosystem: "gomod"
     directory: "/ext/cache/lru"
     schedule:
@@ -78,6 +54,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - cache/twolevel
   - package-ecosystem: "gomod"
     directory: "/ext/cache/twolevel"
     schedule:
@@ -86,6 +63,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - grpc
   - package-ecosystem: "gomod"
     directory: "/ext/grpc"
     schedule:
@@ -94,6 +72,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - jitterbug
   - package-ecosystem: "gomod"
     directory: "/ext/jitterbug"
     schedule:
@@ -102,6 +81,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - logrus
   - package-ecosystem: "gomod"
     directory: "/ext/logrus"
     schedule:
@@ -110,6 +90,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - memcached
   - package-ecosystem: "gomod"
     directory: "/ext/memcached"
     schedule:
@@ -118,6 +99,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - metrics
   - package-ecosystem: "gomod"
     directory: "/ext/metrics"
     schedule:
@@ -126,6 +108,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - mock
   - package-ecosystem: "gomod"
     directory: "/ext/mock"
     schedule:
@@ -134,6 +117,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - oauth
   - package-ecosystem: "gomod"
     directory: "/ext/oauth"
     schedule:
@@ -142,6 +126,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - openapi
   - package-ecosystem: "gomod"
     directory: "/ext/openapi"
     schedule:
@@ -150,6 +135,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - prometheus
   - package-ecosystem: "gomod"
     directory: "/ext/prometheus"
     schedule:
@@ -158,6 +144,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - ratelimit/distributed
   - package-ecosystem: "gomod"
     directory: "/ext/ratelimit/distributed"
     schedule:
@@ -166,6 +153,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - redis
   - package-ecosystem: "gomod"
     directory: "/ext/redis"
     schedule:
@@ -174,6 +162,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - sentry
   - package-ecosystem: "gomod"
     directory: "/ext/sentry"
     schedule:
@@ -182,6 +171,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - sigv4
   - package-ecosystem: "gomod"
     directory: "/ext/sigv4"
     schedule:
@@ -190,6 +180,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - tracing
   - package-ecosystem: "gomod"
     directory: "/ext/tracing"
     schedule:
@@ -198,6 +189,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - zap
   - package-ecosystem: "gomod"
     directory: "/ext/zap"
     schedule:
@@ -206,6 +198,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Extension modules - zerolog
   - package-ecosystem: "gomod"
     directory: "/ext/zerolog"
     schedule:
@@ -214,6 +207,7 @@ updates:
       - "dependencies"
       - "ext"
 
+  # Examples
   - package-ecosystem: "gomod"
     directory: "/examples"
     schedule:
@@ -221,22 +215,3 @@ updates:
     labels:
       - "dependencies"
       - "examples"
-
-# Grouped security updates
-groups:
-  security-updates:
-    patterns:
-      - "security*"
-    update-types:
-      - "version-update:semver-major"
-      - "version-update:semver-minor"
-    schedule:
-      interval: "daily"
-
-  dependency-updates:
-    patterns:
-      - "*"
-    update-types:
-      - "version-update:semver-patch"
-    schedule:
-      interval: "weekly"
