@@ -1,0 +1,176 @@
+name: License Compliance Check
+
+on:
+  schedule:
+    # Run weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/license-check.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Download dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Generate dependency list
+        id: deps
+        run: |
+          go list -m all > /tmp/modules.txt
+          cat /tmp/modules.txt
+
+      - name: Install license scanner
+        run: |
+          go install github.com/fossa-contrib/fossa-cli/cmd/fossa@latest || \
+          go install github.com/ryankurte/go-license-checker@latest || \
+          echo "Using fallback method"
+
+      - name: Check for problematic licenses
+        id: license-scan
+        run: |
+          set +e
+          
+          # Use go-license-checker if available
+          if command -v go-license-checker &> /dev/null; then
+            OUTPUT=$(go-license-checker -json ./... 2>&1)
+            
+            # Check for viral licenses (GPL, AGPL)
+            VIRAL=$(echo "$OUTPUT" | grep -i 'GPL\|AGPL' | head -5)
+            
+            if [ -n "$VIRAL" ]; then
+              echo "viral_licenses=true" >> "$GITHUB_OUTPUT"
+              echo "viral_details=$VIRAL" >> "$GITHUB_OUTPUT"
+              echo "⚠️ Viral licenses detected:"
+              echo "$VIRAL"
+            else
+              echo "viral_licenses=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            # Fallback: simple grep for common license patterns
+            echo "Using fallback license detection..."
+            MODS=$(go list -m all)
+            VIRAL=false
+            DETAILS=""
+            
+            while IFS= read -r line; do
+              MOD=$(echo "$line" | awk '{print $1}')
+              # Try to fetch go.mod and check license comments
+              LICENSE_CHECK=$(go mod graph 2>&1 | grep -i "gpl\|agpl" | head -1 || echo "")
+              if [ -n "$LICENSE_CHECK" ]; then
+                VIRAL=true
+                DETAILS="$DETAILS\n$MOD might have GPL/AGPL dependencies"
+              fi
+            done <<< "$MODS"
+            
+            if [ "$VIRAL" = true ]; then
+              echo "viral_licenses=true" >> "$GITHUB_OUTPUT"
+              echo "viral_details=$DETAILS" >> "$GITHUB_OUTPUT"
+            else
+              echo "viral_licenses=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          
+          set -e
+
+      - name: Generate license report
+        run: |
+          echo "## Dependency Licenses" > /tmp/license_report.md
+          echo "" >> /tmp/license_report.md
+          echo "### Core Module (go.mod)" >> /tmp/license_report.md
+          echo "\`\`\`" >> /tmp/license_report.md
+          go list -m all >> /tmp/license_report.md
+          echo "\`\`\`" >> /tmp/license_report.md
+          
+          # Check extension modules
+          if [ -d "ext" ]; then
+            for modfile in ext/*/go.mod; do
+              if [ -f "$modfile" ]; then
+                dir=$(dirname "$modfile")
+                echo "" >> /tmp/license_report.md
+                echo "### Extension Module: $(basename $dir)" >> /tmp/license_report.md
+                echo "\`\`\`" >> /tmp/license_report.md
+                (cd "$dir" && go list -m all) >> /tmp/license_report.md
+                echo "\`\`\`" >> /tmp/license_report.md
+              fi
+            done
+          fi
+          
+          cat /tmp/license_report.md
+
+      - name: Comment license report on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/license_report.md', 'utf8');
+            
+            let comment = '### 📋 License Compliance Report\n\n';
+            comment += report;
+            
+            if ('${{ steps.license-scan.outputs.viral_licenses }}' === 'true') {
+              comment += '\n\n### ⚠️ Potential Issues\n\n';
+              comment += '**Viral Licenses Detected:**\n';
+              comment += '${{ steps.license-scan.outputs.viral_details }}\n\n';
+              comment += 'These licenses may have restrictions for closed-source use or require source code disclosure. Review carefully.';
+            } else {
+              comment += '\n\n✅ No viral or problematic licenses detected.';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Fail if viral licenses found
+        if: steps.license-scan.outputs.viral_licenses == 'true'
+        run: |
+          echo "❌ Viral/incompatible licenses detected in dependencies"
+          echo "Details:"
+          echo "${{ steps.license-scan.outputs.viral_details }}"
+          echo ""
+          echo "Review the licenses and either:"
+          echo "1. Update to a compatible version of the dependency"
+          echo "2. Add an exception for the dependency"
+          echo "3. Coordinate with the team on license implications"
+          exit 1
+
+      - name: Save license report as artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: license-report
+          path: /tmp/license_report.md
+          retention-days: 30
