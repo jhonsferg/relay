@@ -1,119 +1,242 @@
 version: 2
-updates:
-  # GitHub Actions - keep pinned SHAs up to date
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "monthly"
 
-  # Core module
+updates:
+  # Go Dependencies
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "sunday"
+      time: "02:00"
+    reviewers:
+      - "jhonsferg"
+    labels:
+      - "dependencies"
+      - "go"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    pull-request-branch-name:
+      separator: "/"
+    commit-message:
+      prefix: "chore(deps):"
+      prefix-major: "chore(deps)!:"
+      prefix-minor: "chore(deps):"
+      prefix-patch: "chore(deps):"
+      include: "scope"
+    rebase-strategy: "auto"
+    # Open a PR with dependency updates
+    open-pull-requests-limit: 5
+    # Only update indirect dependencies if they have vulnerabilities
+    ignore:
+      - dependency-name: "*"
+        # Uncomment to ignore specific versions
+        # update-types:
+        #   - "version-update:semver-patch"
 
-  # Extension modules
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "03:00"
+    reviewers:
+      - "jhonsferg"
+    labels:
+      - "ci"
+      - "github-actions"
+    pull-request-branch-name:
+      separator: "/"
+    commit-message:
+      prefix: "ci(actions):"
+    rebase-strategy: "auto"
+    open-pull-requests-limit: 5
+
+  # Extension modules (preserve relay's module structure)
   - package-ecosystem: "gomod"
     directory: "/ext/breaker/gobreaker"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/brotli"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/cache/lru"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/cache/twolevel"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/grpc"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/jitterbug"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/logrus"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/memcached"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/metrics"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/mock"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/oauth"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/openapi"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/prometheus"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/ratelimit/distributed"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/redis"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/sentry"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/sigv4"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/tracing"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/zap"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/ext/zerolog"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
   - package-ecosystem: "gomod"
     directory: "/examples"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "examples"
+
+# Grouped security updates
+groups:
+  security-updates:
+    patterns:
+      - "security*"
+    update-types:
+      - "version-update:semver-major"
+      - "version-update:semver-minor"
+    schedule:
+      interval: "daily"
+
+  dependency-updates:
+    patterns:
+      - "*"
+    update-types:
+      - "version-update:semver-patch"
     schedule:
       interval: "weekly"
