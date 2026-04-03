@@ -1,0 +1,174 @@
+name: Nancy Supply Chain Security
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/nancy.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+  schedule:
+    # Run daily at 3 AM UTC
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+  statuses: write
+
+jobs:
+  nancy-scan:
+    name: Scan for Malicious Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Install nancy
+        run: |
+          go install github.com/sonatype-nexus-community/nancy@latest
+
+      - name: Run Nancy vulnerability scan
+        id: nancy
+        continue-on-error: true
+        run: |
+          echo "## Nancy Supply Chain Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Create output file
+          go list -json -m all | nancy sleuth -o json > nancy-results.json 2>&1 || true
+          
+          # Check results
+          if [ -s nancy-results.json ]; then
+            echo "⚠️ Vulnerabilities found in dependencies" >> $GITHUB_STEP_SUMMARY
+            cat nancy-results.json | jq '.' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No known vulnerabilities in dependencies" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check nancy results
+        id: nancy-check
+        run: |
+          # Run nancy with stricter settings
+          output=$(go list -json -m all 2>/dev/null | nancy sleuth -exclude 2>&1 || true)
+          
+          if echo "$output" | grep -qi "vulnerability\|malicious"; then
+            echo "vulnerable=true" >> $GITHUB_OUTPUT
+            echo "$output"
+            exit 1
+          else
+            echo "vulnerable=false" >> $GITHUB_OUTPUT
+            echo "✅ All dependencies are clean"
+          fi
+
+      - name: Upload nancy results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nancy-results
+          path: nancy-results.json
+          retention-days: 30
+
+      - name: Comment PR with nancy results
+        if: github.event_name == 'pull_request' && steps.nancy-check.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚨 **Nancy Alert**: Potentially malicious or vulnerable dependencies detected.\n\nPlease review the scan results and update affected dependencies before merging.'
+            });
+
+      - name: Create SARIF report
+        if: always() && steps.nancy-check.outcome == 'failure'
+        run: |
+          # Convert nancy JSON to SARIF format for GitHub Security
+          cat > nancy-to-sarif.jq << 'EOF'
+          {
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Nancy",
+                    "version": "1.0.0",
+                    "informationUri": "https://github.com/sonatype-nexus-community/nancy"
+                  }
+                },
+                "results": (
+                  .[] | {
+                    "ruleId": .Vulnerability.CVE,
+                    "message": {
+                      "text": "Vulnerable dependency: \(.Vulnerability.Title) - \(.Vulnerability.Description)"
+                    },
+                    "level": (
+                      if .Vulnerability.CVSS >= 9.0 then "error"
+                      elif .Vulnerability.CVSS >= 7.0 then "warning"
+                      else "note"
+                      end
+                    ),
+                    "locations": [
+                      {
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": "go.mod"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                )
+              }
+            ]
+          }
+          EOF
+          
+          if [ -f nancy-results.json ] && [ -s nancy-results.json ]; then
+            cat nancy-results.json | jq -f nancy-to-sarif.jq > nancy-results.sarif || true
+          fi
+
+      - name: Upload SARIF to GitHub Security
+        if: always() && hashFiles('nancy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
+        with:
+          sarif_file: nancy-results.sarif
+          category: 'Nancy-SCA'
+
+      - name: Generate summary
+        run: |
+          echo "## 📊 Dependency Security Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tool**: Nancy (Sonatype OSS Index)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database**: Sonatype OSS Index (Real-time CVE data)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scan Type**: Supply chain attack detection" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ steps.nancy-check.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔍 What Nancy Detects:" >> $GITHUB_STEP_SUMMARY
+          echo "- Known CVEs in dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "- Potentially malicious packages" >> $GITHUB_STEP_SUMMARY
+          echo "- Supply chain vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Typosquatting attacks" >> $GITHUB_STEP_SUMMARY

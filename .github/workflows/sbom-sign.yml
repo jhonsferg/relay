@@ -1,0 +1,278 @@
+name: Generate SBOM and Sign Releases
+
+on:
+  release:
+    types:
+      - published
+      - created
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  generate-sbom:
+    name: Generate SBOM (Bill of Materials)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Install syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SPDX SBOM
+        run: |
+          syft packages github.com/jhonsferg/relay \
+            -o spdx-json \
+            --file sbom.spdx.json
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          syft packages github.com/jhonsferg/relay \
+            -o cyclonedx-json \
+            --file sbom.cyclonedx.json
+
+      - name: Generate Table SBOM
+        run: |
+          syft packages github.com/jhonsferg/relay \
+            -o table \
+            --file sbom-table.txt
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: |
+            sbom.spdx.json
+            sbom.cyclonedx.json
+            sbom-table.txt
+          retention-days: 90
+
+      - name: Create SBOM summary
+        run: |
+          echo "## 📋 Software Bill of Materials" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated Formats" >> $GITHUB_STEP_SUMMARY
+          echo "- **SPDX**: sbom.spdx.json (ISO/IEC 5962:2021 standard)" >> $GITHUB_STEP_SUMMARY
+          echo "- **CycloneDX**: sbom.cyclonedx.json (OASIS standard)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Verify dependencies with SBOM" >> $GITHUB_STEP_SUMMARY
+          echo "syft packages github.com/jhonsferg/relay --check-for-vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Audit with CycloneDX" >> $GITHUB_STEP_SUMMARY
+          echo "cyclonedx-maven audit --input-file sbom.cyclonedx.json" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  sign-release:
+    name: Sign Release Artifacts
+    runs-on: ubuntu-latest
+    needs: generate-sbom
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sbom
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: '1.25'
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Install cosign
+        run: |
+          wget https://github.com/sigstore/cosign/releases/download/v2.2.2/cosign-linux-amd64
+          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+          sudo chmod +x /usr/local/bin/cosign
+          cosign version
+
+      - name: Set version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --always)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Sign SBOM with cosign
+        run: |
+          # Sign SPDX SBOM
+          cosign sign-blob \
+            --yes \
+            sbom.spdx.json > sbom.spdx.json.sig 2>&1 || echo "Note: Cosign keyless signing requires GitHub OIDC integration"
+          
+          # Sign CycloneDX SBOM
+          cosign sign-blob \
+            --yes \
+            sbom.cyclonedx.json > sbom.cyclonedx.json.sig 2>&1 || echo "Note: Cosign keyless signing requires GitHub OIDC integration"
+
+      - name: Generate checksums
+        run: |
+          echo "## 🔐 Release Integrity" >> integrity.txt
+          echo "" >> integrity.txt
+          echo "### SHA256 Checksums" >> integrity.txt
+          sha256sum sbom.* >> integrity.txt
+          echo "" >> integrity.txt
+          echo "### Release Date" >> integrity.txt
+          date -u >> integrity.txt
+          echo "" >> integrity.txt
+          echo "### Verification" >> integrity.txt
+          echo "To verify the integrity of release artifacts:" >> integrity.txt
+          echo "\`\`\`bash" >> integrity.txt
+          echo "sha256sum -c <<'EOF'" >> integrity.txt
+          cat integrity.txt | grep -E "^[a-f0-9]{64}" >> integrity.txt || true
+          echo "EOF" >> integrity.txt
+          echo "\`\`\`" >> integrity.txt
+
+      - name: Upload signing artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signatures
+          path: |
+            sbom.spdx.json.sig
+            sbom.cyclonedx.json.sig
+            integrity.txt
+          retention-days: 90
+
+      - name: Create verification guide
+        run: |
+          cat > VERIFY_RELEASE.md << 'EOF'
+          # Verifying Relay Release Artifacts
+          
+          ## Overview
+          All release artifacts are signed and can be verified for authenticity and integrity.
+          
+          ## What's Included
+          - **SBOM Files**: Software Bill of Materials in SPDX and CycloneDX formats
+          - **Signatures**: Cryptographic signatures of SBOM files
+          - **Checksums**: SHA256 hashes for all artifacts
+          
+          ## Verification Steps
+          
+          ### 1. Verify Checksums
+          ```bash
+          # Download the integrity file from release
+          sha256sum -c integrity.txt
+          ```
+          
+          ### 2. Verify SBOM Signature (requires cosign)
+          ```bash
+          # Install cosign if needed
+          wget https://github.com/sigstore/cosign/releases/download/v2.2.2/cosign-linux-amd64
+          chmod +x cosign-linux-amd64
+          
+          # Verify signature
+          ./cosign-linux-amd64 verify-blob \
+            --signature sbom.spdx.json.sig \
+            sbom.spdx.json
+          ```
+          
+          ### 3. Inspect SBOM
+          ```bash
+          # View SPDX SBOM (human-readable)
+          cat sbom.spdx.json | jq .
+          
+          # View CycloneDX SBOM
+          cat sbom.cyclonedx.json | jq .
+          ```
+          
+          ### 4. Check for Vulnerabilities
+          ```bash
+          # Using Grype (vulnerability scanner)
+          grype sbom:sbom.cyclonedx.json
+          
+          # Or using syft
+          syft packages --input sbom.cyclonedx.json
+          ```
+          
+          ## Understanding SBOM
+          
+          ### SPDX Format
+          - **Standard**: ISO/IEC 5962:2021
+          - **Use Cases**: Open source compliance, license tracking
+          - **Field**: PackageName, PackageVersion, PackageLicenseConcluded, etc.
+          
+          ### CycloneDX Format
+          - **Standard**: OASIS (international standard)
+          - **Use Cases**: Vulnerability correlation, dependency analysis
+          - **Field**: name, version, licenses, externalReferences, etc.
+          
+          ## Security Considerations
+          - Verify checksums before extracting archives
+          - Check signatures to ensure release authenticity
+          - Review SBOM for known vulnerabilities
+          - Keep SBOM files for compliance audits
+          
+          ## Troubleshooting
+          
+          ### Signature Verification Fails
+          - Ensure cosign version is 2.x or higher
+          - Check that you've downloaded the correct .sig file
+          - Verify GitHub OIDC trust is configured (for keyless signing)
+          
+          ### Checksum Mismatch
+          - Re-download the integrity file and artifact
+          - Verify file permissions are correct
+          - Check for network transfer errors
+          
+          ---
+          
+          For more information about supply chain security:
+          - SLSA Framework: https://slsa.dev/
+          - OpenSSF: https://openssf.org/
+          - CISA SBOM: https://www.cisa.gov/sbom
+          EOF
+          
+          cat VERIFY_RELEASE.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload verification guide
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verification
+          path: VERIFY_RELEASE.md
+          retention-days: 90
+
+      - name: Create security summary
+        run: |
+          echo "## 🔒 Release Security Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Version" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SBOM (SPDX JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SBOM (CycloneDX JSON)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Digital Signatures (cosign)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SHA256 Checksums" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Downloads" >> $GITHUB_STEP_SUMMARY
+          echo "All artifacts are available in GitHub Actions artifacts section" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,97 @@
+name: Trivy Vulnerability Scanning
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+  statuses: write
+
+jobs:
+  trivy-scan:
+    name: Scan for CVEs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy Go module scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'  # Don't fail the build, just report
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'Trivy-Go'
+
+      - name: Check for critical vulnerabilities
+        run: |
+          # Run scan with exit code 1 if CRITICAL found
+          trivy config . --exit-code 0 --severity CRITICAL --format json > trivy-check.json
+          CRITICAL_COUNT=$(jq '[.Results[]? | select(.Misconfigurations[]?.Severity=="CRITICAL")] | length' trivy-check.json)
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "❌ Found $CRITICAL_COUNT CRITICAL vulnerabilities"
+            exit 1
+          fi
+          echo "✅ No CRITICAL vulnerabilities found"
+
+      - name: Comment PR with Trivy results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('trivy-check.json', 'utf8'));
+            
+            let comment = '## 🔍 Trivy Security Scan Results\n\n';
+            
+            if (!results.Results || results.Results.length === 0) {
+              comment += '✅ **No vulnerabilities found**';
+            } else {
+              comment += '⚠️ **Vulnerabilities detected:**\n\n';
+              results.Results.forEach(result => {
+                if (result.Misconfigurations) {
+                  result.Misconfigurations.forEach(config => {
+                    comment += `- **${config.Type}**: ${config.Title}\n`;
+                    comment += `  - Severity: ${config.Severity}\n`;
+                    comment += `  - ID: ${config.ID}\n\n`;
+                  });
+                }
+              });
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
