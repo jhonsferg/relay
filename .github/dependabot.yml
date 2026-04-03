@@ -1,119 +1,217 @@
 version: 2
-updates:
-  # GitHub Actions - keep pinned SHAs up to date
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "monthly"
 
-  # Core module
+updates:
+  # Go Dependencies - Core module
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "sunday"
+      time: "02:00"
+    reviewers:
+      - "jhonsferg"
+    labels:
+      - "dependencies"
+      - "go"
 
-  # Extension modules
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "03:00"
+    reviewers:
+      - "jhonsferg"
+    labels:
+      - "ci"
+      - "github-actions"
+
+  # Extension modules - gobreaker
   - package-ecosystem: "gomod"
     directory: "/ext/breaker/gobreaker"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - brotli
   - package-ecosystem: "gomod"
     directory: "/ext/brotli"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - cache/lru
   - package-ecosystem: "gomod"
     directory: "/ext/cache/lru"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - cache/twolevel
   - package-ecosystem: "gomod"
     directory: "/ext/cache/twolevel"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - grpc
   - package-ecosystem: "gomod"
     directory: "/ext/grpc"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - jitterbug
   - package-ecosystem: "gomod"
     directory: "/ext/jitterbug"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - logrus
   - package-ecosystem: "gomod"
     directory: "/ext/logrus"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - memcached
   - package-ecosystem: "gomod"
     directory: "/ext/memcached"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - metrics
   - package-ecosystem: "gomod"
     directory: "/ext/metrics"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - mock
   - package-ecosystem: "gomod"
     directory: "/ext/mock"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - oauth
   - package-ecosystem: "gomod"
     directory: "/ext/oauth"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - openapi
   - package-ecosystem: "gomod"
     directory: "/ext/openapi"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - prometheus
   - package-ecosystem: "gomod"
     directory: "/ext/prometheus"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - ratelimit/distributed
   - package-ecosystem: "gomod"
     directory: "/ext/ratelimit/distributed"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - redis
   - package-ecosystem: "gomod"
     directory: "/ext/redis"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - sentry
   - package-ecosystem: "gomod"
     directory: "/ext/sentry"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - sigv4
   - package-ecosystem: "gomod"
     directory: "/ext/sigv4"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - tracing
   - package-ecosystem: "gomod"
     directory: "/ext/tracing"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - zap
   - package-ecosystem: "gomod"
     directory: "/ext/zap"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Extension modules - zerolog
   - package-ecosystem: "gomod"
     directory: "/ext/zerolog"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
 
+  # Examples
   - package-ecosystem: "gomod"
     directory: "/examples"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "examples"
