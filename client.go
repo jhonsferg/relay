@@ -310,7 +310,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if err != nil {
 		return nil, err
 	}
-	totalDur := time.Since(toTime(timingCol.requestStart.Load()))
+	// Calculate total duration using nanosecond precision to avoid
+	// timing precision issues on Windows and other systems.
+	startNano := timingCol.requestStart.Load()
+	totalNano := nowNano() - startNano
+	totalDur := time.Duration(totalNano)
 	resp.Timing = buildTiming(timingCol, totalDur)
 
 	for _, hook := range c.config.OnAfterResponse {
