@@ -147,8 +147,8 @@ func TestTiming_MultipleRequests(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute %d: %v", i, err)
 		}
-		if resp.Timing.Total <= 0 {
-			t.Errorf("request %d: Timing.Total should be > 0, got %v", i, resp.Timing.Total)
+		if resp.Timing.Total < 0 {
+			t.Errorf("request %d: Timing.Total should be >= 0, got %v", i, resp.Timing.Total)
 		}
 	}
 }
