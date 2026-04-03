@@ -2,6 +2,7 @@ version: 2
 
 updates:
   # Go Dependencies - Core module
+  # Only allow minor and patch updates to avoid breaking changes
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -13,12 +14,20 @@ updates:
     labels:
       - "dependencies"
       - "go"
+    # Restrict to minor and patch updates only (no major version bumps)
+    # This ensures compatibility with Go 1.24.0+
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    # Limit to 5 open PRs to avoid overwhelming maintenance
+    open-pull-requests-limit: 5
 
   # GitHub Actions
+  # Reduce frequency and limit to manual review (major versions need testing)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"  # Reduced from weekly to monthly
       day: "sunday"
       time: "03:00"
     reviewers:
@@ -26,6 +35,8 @@ updates:
     labels:
       - "ci"
       - "github-actions"
+    # Limit to 2 open PRs for GitHub Actions (need careful review)
+    open-pull-requests-limit: 2
 
   # Extension modules - gobreaker
   - package-ecosystem: "gomod"
@@ -35,6 +46,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - brotli
   - package-ecosystem: "gomod"
@@ -44,6 +59,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - cache/lru
   - package-ecosystem: "gomod"
@@ -53,6 +72,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - cache/twolevel
   - package-ecosystem: "gomod"
@@ -62,6 +85,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - grpc
   - package-ecosystem: "gomod"
@@ -71,6 +98,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - jitterbug
   - package-ecosystem: "gomod"
@@ -80,6 +111,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - logrus
   - package-ecosystem: "gomod"
@@ -89,6 +124,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - memcached
   - package-ecosystem: "gomod"
@@ -98,6 +137,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - metrics
   - package-ecosystem: "gomod"
@@ -107,6 +150,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - mock
   - package-ecosystem: "gomod"
@@ -116,6 +163,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - oauth
   - package-ecosystem: "gomod"
@@ -125,6 +176,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - openapi
   - package-ecosystem: "gomod"
@@ -134,6 +189,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - prometheus
   - package-ecosystem: "gomod"
@@ -143,6 +202,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - ratelimit/distributed
   - package-ecosystem: "gomod"
@@ -152,6 +215,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - redis
   - package-ecosystem: "gomod"
@@ -161,6 +228,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - sentry
   - package-ecosystem: "gomod"
@@ -170,6 +241,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - sigv4
   - package-ecosystem: "gomod"
@@ -179,6 +254,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - tracing
   - package-ecosystem: "gomod"
@@ -188,6 +267,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - zap
   - package-ecosystem: "gomod"
@@ -197,6 +280,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Extension modules - zerolog
   - package-ecosystem: "gomod"
@@ -206,6 +293,10 @@ updates:
     labels:
       - "dependencies"
       - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
 
   # Examples
   - package-ecosystem: "gomod"
@@ -215,3 +306,7 @@ updates:
     labels:
       - "dependencies"
       - "examples"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
