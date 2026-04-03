@@ -36,10 +36,11 @@ jobs:
 
       # -- Core module --------------------------------------------------------
       - name: Test core module
-        run: go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -v -race -count=1 "-coverprofile=coverage.out" -covermode=atomic ./...
 
       # -- Extension modules (each has its own go.mod) ------------------------
       - name: Test extension modules
+        shell: bash
         run: |
           set -e
           find ext -name "go.mod" | while read modfile; do
