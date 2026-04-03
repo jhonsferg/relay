@@ -1,0 +1,141 @@
+name: API Compatibility Check
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  api-check:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Check API compatibility (core module)
+        id: api-check-core
+        run: |
+          set +e
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null | grep -v '/' | head -1)
+          
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found - skipping API check"
+            exit 0
+          fi
+          
+          echo "Comparing against tag: $PREV_TAG"
+          
+          # Install gorelease for API compatibility checking
+          go install github.com/dominikh/go-tools/cmd/gorelease@latest
+          
+          # Capture output
+          OUTPUT=$(gorelease -base="$PREV_TAG" 2>&1 || true)
+          
+          if echo "$OUTPUT" | grep -qi "breaking"; then
+            echo "api_breaking=true" >> "$GITHUB_OUTPUT"
+            echo "$OUTPUT" > /tmp/api_check.txt
+          else
+            echo "api_breaking=false" >> "$GITHUB_OUTPUT"
+          fi
+          
+          echo "$OUTPUT"
+          set -e
+
+      - name: Check extension module APIs
+        id: api-check-ext
+        run: |
+          set +e
+          
+          # Check each extension module
+          EXT_ISSUES=""
+          
+          for modfile in ext/*/go.mod; do
+            dir=$(dirname "$modfile")
+            mod_name=$(basename "$dir")
+            
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null | grep "^${dir}/v" | head -1)
+            
+            if [ -z "$PREV_TAG" ]; then
+              echo "No previous tag for $dir - skipping"
+              continue
+            fi
+            
+            echo ""
+            echo "=== Checking $dir (against $PREV_TAG) ==="
+            
+            (cd "$dir" && go install github.com/dominikh/go-tools/cmd/gorelease@latest)
+            
+            OUTPUT=$(cd "$dir" && gorelease -base="$PREV_TAG" 2>&1 || true)
+            
+            if echo "$OUTPUT" | grep -qi "breaking"; then
+              EXT_ISSUES="$EXT_ISSUES\n**$mod_name**: Breaking changes detected\n\`\`\`\n$OUTPUT\n\`\`\`"
+            fi
+            
+            echo "$OUTPUT"
+          done
+          
+          if [ -n "$EXT_ISSUES" ]; then
+            echo "ext_breaking=true" >> "$GITHUB_OUTPUT"
+            echo "ext_issues=$EXT_ISSUES" >> "$GITHUB_OUTPUT"
+          else
+            echo "ext_breaking=false" >> "$GITHUB_OUTPUT"
+          fi
+          
+          set -e
+
+      - name: Comment on PR if breaking changes detected
+        if: steps.api-check-core.outputs.api_breaking == 'true' || steps.api-check-ext.outputs.ext_breaking == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const core_breaking = '${{ steps.api-check-core.outputs.api_breaking }}' === 'true';
+            const ext_breaking = '${{ steps.api-check-ext.outputs.ext_breaking }}' === 'true';
+            
+            let message = '### ⚠️ API Compatibility Alert\n\n';
+            
+            if (core_breaking) {
+              message += '**Core module**: Breaking changes detected in the public API.\n\n';
+              message += 'If this is intentional, increment the **MAJOR** version and ensure:\n';
+              message += '- This is documented in the release notes\n';
+              message += '- Users are aware of migration steps\n';
+              message += '- All imports are updated\n\n';
+            }
+            
+            if (ext_breaking) {
+              message += '**Extension modules**: Breaking changes detected in:\n';
+              message += '${{ steps.api-check-ext.outputs.ext_issues }}\n\n';
+            }
+            
+            message += '---\n';
+            message += '*This is an automated check. Review carefully before merging.*';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+
+      - name: Fail if breaking changes detected
+        if: steps.api-check-core.outputs.api_breaking == 'true' || steps.api-check-ext.outputs.ext_breaking == 'true'
+        run: |
+          echo "❌ Breaking API changes detected!"
+          echo "If this is intentional, update the version appropriately (MAJOR bump)."
+          exit 1

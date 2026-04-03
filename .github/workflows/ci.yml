@@ -11,14 +11,15 @@ permissions:
 
 jobs:
   test:
-    name: Test (${{ matrix.go-version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.go-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.24", "1.25"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ["1.23", "1.24", "1.25"]
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -49,12 +50,22 @@ jobs:
           done
 
       - name: Upload coverage artifact
-        if: matrix.go-version == '1.24'
+        if: matrix.go-version == '1.24' && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage
           path: coverage.out
           retention-days: 1
+
+      - name: Upload coverage to Codecov
+        if: matrix.go-version == '1.24' && matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: relay-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     name: Lint
@@ -144,6 +155,27 @@ jobs:
           GOWORK: "off"
         run: cd examples && go build ./...
 
+  benchmark:
+    name: Benchmark
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Pin toolchain
+        run: go env -w GOTOOLCHAIN=local
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem -benchtime=3s -run=^$ ./...
+
   # ── Auto Tag ────────────────────────────────────────────────────────────────
   # Runs only on direct pushes to master, only after ALL checks above pass.
   # - Detects which Go modules were changed in the commit.
@@ -156,7 +188,7 @@ jobs:
   # - Notifies pkg.go.dev so the new version is indexed immediately.
   auto-tag:
     name: Auto Tag
-    needs: [test, lint, vet, build-examples]
+    needs: [test, lint, vet, build-examples, benchmark]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:

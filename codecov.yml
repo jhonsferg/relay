@@ -1,0 +1,62 @@
+# Codecov configuration for relay
+# Enables coverage tracking, PR comments, and quality gates
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+status:
+  project:
+    default:
+      # Minimum coverage required for project to pass
+      target: 80
+      # Allow 2% decrease per commit
+      threshold: 2
+      # Require coverage on patches
+      base: auto
+      
+  patch:
+    default:
+      target: 85
+      threshold: 5
+
+# Component-level coverage targets for different modules
+component:
+  core:
+    paths:
+      - "*.go"
+      - "client.go"
+      - "protocol.go"
+    target: 85
+    
+  extensions:
+    paths:
+      - "ext/**/*.go"
+    target: 70
+    
+  utilities:
+    paths:
+      - "internal/**/*.go"
+    target: 75
+
+# Codecov behavior settings
+codecov:
+  require_ci_to_pass: false
+  after_n_builds: 1
+
+# Ignore specific files from coverage
+ignore:
+  - "**/*_test.go"
+  - "internal/mock/**"
+  - "examples/**"
+
+# Comment settings for pull requests
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: "default"
+  require_changes: false
+  require_base: false
+  require_head: true
+  hide_project_coverage: false
+  show_carryforward_flags: false
