@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 )
 
-// ExecuteAs executes req and deserializes the JSON response body directly into
-// a value of type T. It is equivalent to calling [Client.ExecuteJSON] but
-// avoids the need for an explicit interface{} target.
+// ExecuteAs executes req and deserialises the response body into a value of
+// type T. When a [WithResponseDecoder] is configured on the client it is used;
+// otherwise Decode falls back to JSON for application/json content and XML for
+// application/xml. It is equivalent to calling [Client.Execute] followed by
+// [Response.Decode] but avoids the need for an explicit interface{} target.
 //
 // Example:
 //
@@ -20,8 +22,8 @@ func ExecuteAs[T any](c *Client, req *Request) (T, *Response, error) {
 		return zero, nil, err
 	}
 	var out T
-	if jsonErr := resp.JSON(&out); jsonErr != nil {
-		return zero, resp, jsonErr
+	if decErr := resp.Decode(&out); decErr != nil {
+		return zero, resp, decErr
 	}
 	return out, resp, nil
 }

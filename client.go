@@ -320,6 +320,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if err != nil {
 		return nil, err
 	}
+	resp.decode = c.config.ResponseDecoder
 	if timingCol != nil {
 		startNano := timingCol.requestStart.Load()
 		totalNano := nowNano() - startNano
