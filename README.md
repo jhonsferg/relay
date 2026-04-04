@@ -54,10 +54,13 @@ flowchart TD
     NET -- "retryable / 5xx\n+ attempts left" --> RT
     NET -- "success or\nnon-retryable" --> AH["OnAfterResponse hooks\nlogging · metrics · error promotion"]
 
-    AH --> RS(["*Response"])
+    AH --> ED{"ErrorDecoder\nstatus ≥ 400?"}
+    ED -- "decoder returns error" --> E3(["typed error"])
+    ED -- "nil / not set" --> RS(["*Response"])
 
     style E1 fill:#e03131,color:#fff,stroke:none
     style E2 fill:#e03131,color:#fff,stroke:none
+    style E3 fill:#e03131,color:#fff,stroke:none
     style RS fill:#2f9e44,color:#fff,stroke:none
     style NET fill:#1971c2,color:#fff,stroke:none
 ```
@@ -413,6 +416,8 @@ fmt.Printf(
 
 ### Hooks
 
+#### Request and Response Hooks
+
 ```go
 client := relay.New(
     relay.WithOnBeforeRequest(func(ctx context.Context, req *relay.Request) error {
@@ -428,6 +433,72 @@ client := relay.New(
 
 Hooks receive `req.Method()`, `req.URL()`, and `req.Tag(key)` for routing decisions
 without needing to inspect the raw `*http.Request`.
+
+#### Error Decoder
+
+Translate HTTP error codes into typed Go errors without boilerplate status checks at
+every call site. Inspired by OpenFeign's `ErrorDecoder`:
+
+```go
+var (
+    ErrNotFound      = errors.New("not found")
+    ErrUnauthorised  = errors.New("unauthorised")
+    ErrRateLimited   = errors.New("rate limited")
+)
+
+client := relay.New(
+    relay.WithErrorDecoder(func(status int, body []byte) error {
+        switch status {
+        case http.StatusNotFound:
+            return ErrNotFound
+        case http.StatusUnauthorized:
+            return fmt.Errorf("%w: %s", ErrUnauthorised, body)
+        case http.StatusTooManyRequests:
+            return ErrRateLimited
+        }
+        return nil // nil = return *Response normally for this status
+    }),
+)
+
+_, err := client.Execute(client.Get("/users/123"))
+if errors.Is(err, ErrNotFound) {
+    // handle 404 cleanly - no status code checks needed at the call site
+}
+```
+
+The decoder runs **after** all `OnAfterResponse` hooks. Returning `nil` for a status
+preserves the default behaviour (the `*Response` is returned without error).
+
+---
+
+### Transport Customisation
+
+#### HTTP/3 / QUIC
+
+HTTP/3 support is available via transport middleware - relay's zero-dependency core
+does not bundle `quic-go`. Add it to your own module and plug it in via
+`WithTransportMiddleware`:
+
+```go
+import (
+    "github.com/quic-go/quic-go/http3"
+    "github.com/jhonsferg/relay"
+)
+
+client := relay.New(
+    relay.WithTransportMiddleware(func(_ http.RoundTripper) http.RoundTripper {
+        return &http3.RoundTripper{
+            TLSClientConfig: &tls.Config{
+                InsecureSkipVerify: false,
+            },
+        }
+    }),
+)
+```
+
+`WithTransportMiddleware` accepts any `http.RoundTripper`, so any custom transport -
+QUIC, Unix sockets, in-memory test transports, or protocol-specific clients - can be
+injected without modifying relay's core.
 
 ---
 
@@ -987,7 +1058,7 @@ Relay is built for high-throughput services:
 - **Optimized transport** - pre-tuned connection pool with keep-alive and native HTTP/2 support.
 - **Lazy body sizing** - response bodies are read into a capped buffer; oversized responses are rejected early without allocating.
 - **DNS caching** - optional client-side DNS cache eliminates repeated resolver round-trips for long-lived services.
-- **Allocation tuning** - micro-optimizations in hot paths reduce temporary allocations in critical sections.
+- **Allocation tuning** - micro-optimisations in hot paths; 104 allocs/op for `Execute` (90 allocs/op with `WithDisableTiming()`).
 
 ### Benchmark Results
 
@@ -1022,21 +1093,33 @@ Results on AMD Ryzen 9 5950X (16-core):
 - Latency improvement in concurrent scenarios: **-8.5%**
 - Container capacity gain (4GB limit): **+13.5%** more concurrent requests
 - Throughput for small payloads: **26,942 ops/sec**
-- Allocation rate: **107 allocs/op** for Execute (low for production workloads)
+- Allocation rate: **104 allocs/op** for `Execute` (low for production workloads)
+- Allocation rate with timing disabled: **90 allocs/op** via `WithDisableTiming()`
 
-### Performance Optimizations
+### Performance Optimisations
 
-Recent micro-optimizations reduce temporary allocations in hot paths:
+Cumulative micro-optimisations reduce temporary allocations in hot paths. All changes
+maintain full API compatibility.
 
-- **Cache key generation** - stack-allocated buffer for cache keys (no heap allocation for typical URLs)
-- **Context wrapping** - consolidated timeout + redirect counter into single context chain (saves 1 request clone)
+- **Response object pooling** - `sync.Pool` for `*Response` objects; no GC pressure on
+  the hot path
+- **DNS pre-join** - resolver pre-joins addresses as `"ip:port"` strings at resolution
+  time, eliminating `net.JoinHostPort` allocations from the dial path (-10% allocs/op
+  on DNS-warm paths)
+- **Lazy context allocation** - `context.WithValue` for redirect counter and
+  `httptrace.ClientTrace` are deferred until after the circuit breaker check; circuit
+  breaker rejections save 11 allocs/op
+- **Cache key generation** - stack-allocated buffer for cache keys (no heap allocation
+  for typical URLs)
+- **Context wrapping** - consolidated timeout + redirect counter into single context
+  chain (saves 1 request clone)
 - **Empty response bodies** - skips allocation for responses with no body content
-- **Path parameter substitution** - pre-builds placeholder strings to avoid allocation per parameter
+- **Path parameter substitution** - pre-builds placeholder strings to avoid allocation
+  per parameter
 - **URL construction** - uses `strings.Builder` for baseURL + path concatenation
 - **Cache-Control parsing** - single-pass scanning replaces `strings.Split` allocation
-- **Header lookups** - caches frequently-accessed headers to reduce map lookups
-
-These optimizations maintain API compatibility while improving efficiency for high-throughput scenarios.
+- **String interning** - common header names and values are interned to reduce
+  duplicate allocations across requests
 
 ### Configuration Examples
 
