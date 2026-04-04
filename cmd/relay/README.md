@@ -100,7 +100,8 @@ relay --timing https://httpbin.org/get
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--timeout` | `30s` | Request timeout |
+| `--timeout` | `0` | Max total transfer duration — **0 means no limit** (Ctrl+C always cancels). Set e.g. `--timeout 60s` for API calls where you want a hard deadline. |
+| `--connect-timeout` | `30s` | TCP/TLS connection timeout. Does **not** affect body transfer time. |
 | `-L n` | `10` | Maximum redirects (0 disables redirects) |
 | `--proxy url` | | HTTP/HTTPS proxy URL |
 | `--insecure` | | Skip TLS certificate verification |
