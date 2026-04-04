@@ -216,6 +216,17 @@ type Config struct {
 	// Use [WithResponseDecoder] to set it.
 	ResponseDecoder func(contentType string, body []byte, v any) error
 
+	// Signer is called for each outgoing HTTP request, after all headers and
+	// the idempotency key have been applied, and before the request is sent.
+	// Use it to implement request authentication that must inspect and/or
+	// mutate the final *http.Request (e.g. HMAC-SHA256, OAuth 1.0a, JWS).
+	//
+	// Returning a non-nil error from Sign aborts the request attempt and
+	// propagates as the [Client.Execute] error.
+	//
+	// Use [WithSigner] to set it.
+	Signer RequestSigner
+
 	// Logger is used for internal structured logging (retries, circuit-breaker
 	// transitions, rate-limit events, shutdown). Defaults to NoopLogger.
 	Logger Logger
