@@ -130,9 +130,14 @@ func (s *inMemoryCacheStore) Set(key string, entry *CachedResponse) {
 // remove stale references left from previous deletions.
 func (s *inMemoryCacheStore) evict() {
 	// Pass 1: scan for and remove all expired entries.
-	expired := make(map[string]struct{})
+	// The map is only allocated when at least one expired entry is found,
+	// avoiding an unconditional heap allocation on every eviction call.
+	var expired map[string]struct{}
 	for k, e := range s.entries {
 		if e.isExpired() {
+			if expired == nil {
+				expired = make(map[string]struct{})
+			}
 			delete(s.entries, k)
 			expired[k] = struct{}{}
 		}
