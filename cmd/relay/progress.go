@@ -96,7 +96,7 @@ func (pw *progressWriter) render() {
 		line = fmt.Sprintf("  %-18s [%s] %3d%%  %8s/s  %-12s",
 			name, bar, pct, formatBytes(int64(speed)), eta)
 	} else {
-		// Unknown total — show spinner + transferred + speed.
+		// Unknown total - show spinner + transferred + speed.
 		frames := []string{"|", "/", "-", "\\"}
 		spin := frames[int(elapsed.Milliseconds()/200)%len(frames)]
 		line = fmt.Sprintf("  %-18s  %s  %8s  @ %s/s",

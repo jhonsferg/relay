@@ -73,7 +73,7 @@ Every layer is opt-in via `relay.Option` - compose exactly the behaviour your se
 graph LR
     APP["Your Application"] --> CORE
 
-    subgraph CORE["relay  —  github.com/jhonsferg/relay\n(zero external dependencies)"]
+    subgraph CORE["relay  -  github.com/jhonsferg/relay\n(zero external dependencies)"]
         direction TB
         CB2["Circuit Breaker"]
         RT2["Retry / Backoff"]
