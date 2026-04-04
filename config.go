@@ -161,6 +161,12 @@ type Config struct {
 	// transparent response decompression.
 	DisableCompression bool
 
+	// DisableTiming skips per-request timing instrumentation (httptrace).
+	// When true, [Response.Timing] fields are all zero and roughly 10
+	// allocations per request are avoided. Useful for high-throughput
+	// scenarios where timing metrics are not needed.
+	DisableTiming bool
+
 	// MaxRedirects is the maximum number of redirects to follow automatically.
 	// Set to 0 to disable redirect following.
 	MaxRedirects int
@@ -570,6 +576,12 @@ func WithDefaultHeaders(headers map[string]string) Option {
 // WithDisableCompression disables automatic Accept-Encoding negotiation and
 // transparent response decompression by the transport.
 func WithDisableCompression() Option { return func(c *Config) { c.DisableCompression = true } }
+
+// WithDisableTiming skips per-request timing instrumentation.
+// When set, [Response.Timing] fields are all zero and approximately 10
+// allocations per [Client.Execute] call are avoided. Recommended for
+// high-throughput scenarios where timing metrics are not required.
+func WithDisableTiming() Option { return func(c *Config) { c.DisableTiming = true } }
 
 // WithMaxRedirects sets the maximum number of redirects to follow
 // automatically. Set to 0 to disable redirect following entirely.
