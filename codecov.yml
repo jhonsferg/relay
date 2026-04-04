@@ -50,6 +50,7 @@ ignore:
   - "**/*_test.go"
   - "internal/mock/**"
   - "examples/**"
+  - "cmd/**"
 
 # Comment settings for pull requests
 comment:
