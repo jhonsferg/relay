@@ -51,7 +51,8 @@ func main() {
 	cookieJar := flag.String("c", "", "Netscape cookie `file` to load and save cookies")
 
 	// ── Network ──────────────────────────────────────────────────────────────
-	timeout := flag.Duration("timeout", 30*time.Second, "request timeout")
+	timeout := flag.Duration("timeout", 0, "max transfer `duration` (0 = no limit; Ctrl+C always cancels)")
+	connectTimeout := flag.Duration("connect-timeout", 30*time.Second, "TCP/TLS connection `timeout`")
 	maxRedir := flag.Int("L", 10, "maximum redirects (0 = disabled)")
 	proxyURL := flag.String("proxy", "", "HTTP/HTTPS proxy URL")
 	insecure := flag.Bool("insecure", false, "skip TLS certificate verification")
@@ -125,7 +126,7 @@ func main() {
 	}
 
 	opts, jar := buildOptions(
-		*timeout, *maxRedir, *proxyURL, *insecure,
+		*timeout, *connectTimeout, *maxRedir, *proxyURL, *insecure,
 		*retryMax, *retryDelay, *retryLog,
 		*rateLimit, *cbOn, *cbFail,
 		*user, *token, *apiKey, *cookies, *cookieJar,
@@ -201,7 +202,7 @@ func main() {
 
 // buildOptions assembles relay.Option values from the parsed flags.
 func buildOptions(
-	timeout time.Duration, maxRedirects int, proxyURL string, insecure bool,
+	timeout, connectTimeout time.Duration, maxRedirects int, proxyURL string, insecure bool,
 	retryMax int, retryInterval time.Duration, retryVerbose bool,
 	rateLimit float64, cbEnable bool, cbFailures int,
 	user, token, apiKey, cookies, cookieJarPath string,
@@ -209,6 +210,8 @@ func buildOptions(
 ) ([]relay.Option, *fileCookieJar) {
 	opts := []relay.Option{
 		relay.WithTimeout(timeout),
+		relay.WithDialTimeout(connectTimeout),
+		relay.WithResponseHeaderTimeout(connectTimeout),
 		relay.WithMaxRedirects(maxRedirects),
 	}
 
