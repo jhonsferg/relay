@@ -208,7 +208,7 @@ jobs:
 
       - name: Tag changed modules and notify pkg.go.dev
         run: |
-          set -euo pipefail
+          set -eo pipefail
 
           # ── 1. Determine bump type from Conventional Commits ───────────────
           SUBJECT=$(git log -1 --format="%s")
