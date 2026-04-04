@@ -1,9 +1,9 @@
 module github.com/jhonsferg/relay/ext/openapi
 
-go 1.24.0
+go 1.25.0
 
 require (
-	github.com/getkin/kin-openapi v0.131.0
+	github.com/getkin/kin-openapi v0.134.0
 	github.com/jhonsferg/relay v0.1.1
 )
 
@@ -21,6 +21,7 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
+	github.com/woodsbury/decimal128 v1.3.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
