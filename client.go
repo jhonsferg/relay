@@ -325,6 +325,15 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		}
 	}
 
+	// Translate HTTP error codes into typed Go errors when a decoder is set.
+	// Runs after all OnAfterResponse hooks so hooks see the raw response first.
+	if c.config.ErrorDecoder != nil && resp.StatusCode >= 400 {
+		if decErr := c.config.ErrorDecoder(resp.StatusCode, resp.Body()); decErr != nil {
+			PutResponse(resp)
+			return nil, decErr
+		}
+	}
+
 	return resp, nil
 }
 
