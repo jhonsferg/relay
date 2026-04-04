@@ -226,7 +226,7 @@ jobs:
           # ── 3. Detect which Go modules were touched ────────────────────────
           # Walk each changed file upward until we find a go.mod directory.
           # Use whitelist approach: only consider changes to .go, go.mod, go.sum, README
-          declare -A AFFECTED
+          declare -A AFFECTED=()
 
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             mapfile -t CHANGED < <(git diff --name-only HEAD~1 HEAD)
@@ -257,7 +257,10 @@ jobs:
                 break
               fi
               if [[ -f "$d/go.mod" ]]; then
-                AFFECTED["$d"]=1  # ext module
+                # Only tag ext/* modules - ignore examples/, benchmarks/, testutil/, etc.
+                if [[ "$d" == ext/* ]]; then
+                  AFFECTED["$d"]=1
+                fi
                 break
               fi
               d=$(dirname "$d")
