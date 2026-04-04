@@ -1,4 +1,4 @@
 github.com/jhonsferg/relay v0.1.11 h1:955bh8JnihfY2VgXCXPIQ9qBuZustKXm66CbFJph05g=
 github.com/jhonsferg/relay v0.1.11/go.mod h1:w4AP3tyYOUhiO5KtzM1bF715rsB88fJRUh4AHq836rk=
-golang.org/x/sync v0.16.0 h1:ycBJEhp9p4vXvUZNszeOq0kGTPghopOL8q0fq3vstxw=
-golang.org/x/sync v0.16.0/go.mod h1:1dzgHSNfp02xaA81J2MS99Qcpr2w7fw1gpm99rleRqA=
+golang.org/x/sync v0.19.0 h1:vV+1eWNmZ5geRlYjzm2adRgW2/mcpevXNg50YZtPCE4=
+golang.org/x/sync v0.19.0/go.mod h1:9KTHXmSnoGruLpwFjVSX0lNNA75CykiMECbovNTZqGI=
