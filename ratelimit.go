@@ -20,33 +20,49 @@ type RateLimitConfig struct {
 	Burst int
 }
 
+// nanoTokensPerToken is the fixed-point scale factor: one real token equals
+// 1_000_000_000 internal "nano-token" units. This avoids float64 arithmetic on
+// the hot path while preserving sub-microsecond refill precision.
+const nanoTokensPerToken = int64(1_000_000_000)
+
 // tokenBucket is a thread-safe token-bucket rate limiter. Tokens are refilled
 // continuously at the configured rate up to the burst cap.
+//
+// Internally, token quantities are stored as integer "nano-tokens" (real tokens
+// multiplied by nanoTokensPerToken). All arithmetic uses int64, eliminating
+// float64 conversions and FP-unit pressure on the hot path.
 type tokenBucket struct {
 	// mu protects all mutable fields.
 	mu sync.Mutex
 
-	// tokens is the current number of available tokens.
-	tokens float64
+	// nanoTokens is the current token balance scaled by nanoTokensPerToken.
+	nanoTokens int64
 
-	// maxBurst is the maximum token capacity (equals Burst at construction).
-	maxBurst float64
+	// maxNanoBurst is the maximum token capacity scaled by nanoTokensPerToken.
+	maxNanoBurst int64
 
-	// rate is the token replenishment speed in tokens per second.
-	rate float64
+	// ratePerUs is the refill speed in nano-tokens per microsecond.
+	// Precomputed at construction time as int64(rps * 1000).
+	// Minimum value is 1 to avoid division by zero in wait calculations.
+	ratePerUs int64
 
-	// lastTime is when tokens was last refilled. Used to compute elapsed time.
+	// lastTime is when nanoTokens was last refilled.
 	lastTime time.Time
 }
 
 // newTokenBucket constructs a token bucket pre-filled to burst capacity,
 // with the given replenishment rate.
 func newTokenBucket(rps float64, burst int) *tokenBucket {
+	ratePerUs := int64(rps * 1000)
+	if ratePerUs < 1 {
+		ratePerUs = 1 // guard against very low rates (< 0.001 req/s)
+	}
+	maxNano := int64(burst) * nanoTokensPerToken
 	return &tokenBucket{
-		tokens:   float64(burst),
-		maxBurst: float64(burst),
-		rate:     rps,
-		lastTime: time.Now(),
+		nanoTokens:   maxNano,
+		maxNanoBurst: maxNano,
+		ratePerUs:    ratePerUs,
+		lastTime:     time.Now(),
 	}
 }
 
@@ -56,18 +72,21 @@ func newTokenBucket(rps float64, burst int) *tokenBucket {
 // requests that violates the configured rate.
 const maxRefillInterval = 5 * time.Second
 
-// refill adds tokens proportional to the time elapsed since the last call,
-// capped at maxBurst. The elapsed time is capped at maxRefillInterval to
-// prevent burst accumulation after long pauses. Must be called with tb.mu held.
+// maxRefillUs is maxRefillInterval expressed in microseconds for use in the
+// integer refill arithmetic.
+var maxRefillUs = maxRefillInterval.Microseconds()
+
+// refill adds nano-tokens proportional to elapsed microseconds since the last
+// call, capped at maxNanoBurst. Must be called with tb.mu held.
 func (tb *tokenBucket) refill() {
 	now := time.Now()
-	elapsed := now.Sub(tb.lastTime)
-	if elapsed > maxRefillInterval {
-		elapsed = maxRefillInterval
+	elapsedUs := now.Sub(tb.lastTime).Microseconds()
+	if elapsedUs > maxRefillUs {
+		elapsedUs = maxRefillUs
 	}
-	tb.tokens += elapsed.Seconds() * tb.rate
-	if tb.tokens > tb.maxBurst {
-		tb.tokens = tb.maxBurst
+	tb.nanoTokens += elapsedUs * tb.ratePerUs
+	if tb.nanoTokens > tb.maxNanoBurst {
+		tb.nanoTokens = tb.maxNanoBurst
 	}
 	tb.lastTime = now
 }
@@ -78,16 +97,17 @@ func (tb *tokenBucket) Wait(ctx context.Context) error {
 	for {
 		tb.mu.Lock()
 		tb.refill()
-		if tb.tokens >= 1 {
-			tb.tokens--
+		if tb.nanoTokens >= nanoTokensPerToken {
+			tb.nanoTokens -= nanoTokensPerToken
 			tb.mu.Unlock()
 			return nil
 		}
-		// Compute how long to wait for the next token to become available.
-		wait := time.Duration((1 - tb.tokens) / tb.rate * float64(time.Second))
+		// Compute wait duration: ceil((deficit) / ratePerUs) microseconds.
+		deficit := nanoTokensPerToken - tb.nanoTokens
+		waitUs := (deficit + tb.ratePerUs - 1) / tb.ratePerUs
 		tb.mu.Unlock()
 
-		timer := pool.GetTimer(wait)
+		timer := pool.GetTimer(time.Duration(waitUs) * time.Microsecond)
 		select {
 		case <-ctx.Done():
 			pool.PutTimer(timer)
@@ -104,8 +124,8 @@ func (tb *tokenBucket) TryAcquire() bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	tb.refill()
-	if tb.tokens >= 1 {
-		tb.tokens--
+	if tb.nanoTokens >= nanoTokensPerToken {
+		tb.nanoTokens -= nanoTokensPerToken
 		return true
 	}
 	return false
