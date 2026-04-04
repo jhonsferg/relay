@@ -50,6 +50,13 @@ jobs:
             (cd "$dir" && go test -v -race -count=1 ./...)
           done
 
+      - name: Filter coverage to library packages only
+        if: matrix.go-version == '1.24' && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          grep -v -E "^github\.com/jhonsferg/relay/(cmd|examples|benchmarks)/" coverage.out > coverage_lib.out
+          mv coverage_lib.out coverage.out
+
       - name: Upload coverage artifact
         if: matrix.go-version == '1.24' && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

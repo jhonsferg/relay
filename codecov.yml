@@ -51,6 +51,7 @@ ignore:
   - "internal/mock/**"
   - "examples/**"
   - "cmd/**"
+  - "benchmarks/**"
 
 # Comment settings for pull requests
 comment:
