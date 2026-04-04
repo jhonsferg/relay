@@ -13,14 +13,15 @@ const renderInterval = 80 * time.Millisecond
 // progressWriter wraps an io.Writer and renders a progress bar to stderr on
 // each Write call (throttled by renderInterval to avoid excessive redraws).
 type progressWriter struct {
-	dest       io.Writer
-	filename   string
-	total      int64 // total bytes remaining for this transfer (0 = unknown)
-	offset     int64 // bytes already on disk before this session (resume offset)
-	written    int64 // bytes written in this session
-	startTime  time.Time
-	lastRender time.Time
-	done       bool
+	dest        io.Writer
+	filename    string
+	total       int64 // total bytes remaining for this transfer (0 = unknown)
+	offset      int64 // bytes already on disk before this session (resume offset)
+	written     int64 // bytes written in this session
+	startTime   time.Time
+	lastRender  time.Time
+	lastLineLen int // width of last rendered line; used to erase stale chars
+	done        bool
 }
 
 func newProgressWriter(dest io.Writer, filename string, offset, total int64) *progressWriter {
@@ -68,6 +69,7 @@ func (pw *progressWriter) render() {
 		name = name[:15] + "..."
 	}
 
+	var line string
 	if pw.total > 0 {
 		pct := int(float64(pw.written) / float64(pw.total) * 100)
 		if pct > 100 {
@@ -85,21 +87,29 @@ func (pw *progressWriter) render() {
 		eta := ""
 		switch {
 		case pct >= 100:
-			eta = "Done  "
+			eta = "Done"
 		case speed > 0:
 			secs := int(float64(pw.total-pw.written)/speed) + 1
 			eta = fmt.Sprintf("ETA %s", formatDuration(time.Duration(secs)*time.Second))
 		}
 
-		fmt.Fprintf(os.Stderr, "\r  %-18s [%s] %3d%%  %8s/s  %s",
+		line = fmt.Sprintf("  %-18s [%s] %3d%%  %8s/s  %-12s",
 			name, bar, pct, formatBytes(int64(speed)), eta)
 	} else {
 		// Unknown total — show spinner + transferred + speed.
 		frames := []string{"|", "/", "-", "\\"}
 		spin := frames[int(elapsed.Milliseconds()/200)%len(frames)]
-		fmt.Fprintf(os.Stderr, "\r  %-18s  %s  %8s  @ %s/s",
+		line = fmt.Sprintf("  %-18s  %s  %8s  @ %s/s",
 			name, spin, formatBytes(transferred), formatBytes(int64(speed)))
 	}
+
+	// Pad to last line length so stale characters are fully overwritten.
+	if len(line) < pw.lastLineLen {
+		line += strings.Repeat(" ", pw.lastLineLen-len(line))
+	}
+	pw.lastLineLen = len(line)
+
+	fmt.Fprint(os.Stderr, "\r"+line)
 }
 
 // formatBytes returns a human-readable byte count (e.g. "1.5 MB").
