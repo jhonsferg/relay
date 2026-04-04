@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/examples
 go 1.24.0
 
 require (
-	github.com/alicebob/miniredis/v2 v2.33.0
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/jhonsferg/relay v0.1.11
 	github.com/jhonsferg/relay/ext/metrics v0.1.1
 	github.com/jhonsferg/relay/ext/oauth v0.1.1
@@ -22,7 +22,6 @@ require (
 )
 
 require (
-	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
