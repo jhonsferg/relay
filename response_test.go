@@ -239,6 +239,7 @@ func TestResponse_IsSuccess(t *testing.T) {
 	}
 }
 
+// TestClient_Execute_WithRequestTimeout_Cancels verifies per-request timeout.
 func TestClient_Execute_WithRequestTimeout_Cancels(t *testing.T) {
 	t.Parallel()
 	srv := testutil.NewMockServer()
@@ -249,5 +250,204 @@ func TestClient_Execute_WithRequestTimeout_Cancels(t *testing.T) {
 	_, err := c.Execute(c.Get(srv.URL() + "/slow"))
 	if err == nil {
 		t.Error("expected error for timed-out request")
+	}
+}
+
+// TestResponse_Decode_NoDecoder_JSON verifies Decode falls back to JSON when no
+// ResponseDecoder is configured and the content type is application/json.
+func TestResponse_Decode_NoDecoder_JSON(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    `{"id":1,"name":"relay"}`,
+	})
+
+	type Payload struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	resp, err := c.Execute(c.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	defer PutResponse(resp)
+
+	var p Payload
+	if err = resp.Decode(&p); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if p.ID != 1 || p.Name != "relay" {
+		t.Errorf("got %+v, want {1 relay}", p)
+	}
+}
+
+// TestResponse_Decode_NoDecoder_XML verifies Decode falls back to XML when no
+// ResponseDecoder is configured and the content type contains xml.
+func TestResponse_Decode_NoDecoder_XML(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/xml"},
+		Body:    `<payload><id>2</id><name>relay</name></payload>`,
+	})
+
+	type Payload struct {
+		XMLName struct{} `xml:"payload"`
+		ID      int      `xml:"id"`
+		Name    string   `xml:"name"`
+	}
+
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	resp, err := c.Execute(c.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	defer PutResponse(resp)
+
+	var p Payload
+	if err = resp.Decode(&p); err != nil {
+		t.Fatalf("Decode XML: %v", err)
+	}
+	if p.ID != 2 || p.Name != "relay" {
+		t.Errorf("got %+v, want {2 relay}", p)
+	}
+}
+
+// TestResponse_Decode_CustomDecoder verifies that WithResponseDecoder replaces
+// the default JSON/XML deserialiser.
+func TestResponse_Decode_CustomDecoder(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/x-custom"},
+		Body:    "custom:42",
+	})
+
+	type Payload struct{ Value int }
+
+	called := false
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithResponseDecoder(func(ct string, body []byte, v any) error {
+			called = true
+			if ct != "application/x-custom" {
+				t.Errorf("contentType = %q, want application/x-custom", ct)
+			}
+			p, ok := v.(*Payload)
+			if !ok {
+				t.Errorf("v is %T, want *Payload", v)
+				return nil
+			}
+			p.Value = 42
+			return nil
+		}),
+	)
+
+	resp, err := c.Execute(c.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	defer PutResponse(resp)
+
+	var p Payload
+	if err = resp.Decode(&p); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if !called {
+		t.Error("custom decoder was not called")
+	}
+	if p.Value != 42 {
+		t.Errorf("Value = %d, want 42", p.Value)
+	}
+}
+
+// TestResponse_Decode_CustomDecoder_Error verifies that a non-nil error from
+// ResponseDecoder propagates from Decode.
+func TestResponse_Decode_CustomDecoder_Error(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    `{}`,
+	})
+
+	decodeErr := &xml.SyntaxError{Msg: "test error"}
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithResponseDecoder(func(_ string, _ []byte, _ any) error {
+			return decodeErr
+		}),
+	)
+
+	resp, err := c.Execute(c.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	defer PutResponse(resp)
+
+	var v any
+	if err = resp.Decode(&v); err != decodeErr {
+		t.Errorf("Decode error = %v, want %v", err, decodeErr)
+	}
+}
+
+// TestResponse_Decode_PoolReuse verifies that the decode field is cleared when
+// a Response is returned to the pool and reused.
+func TestResponse_Decode_PoolReuse(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    `{"id":1}`,
+	})
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    `{"id":2}`,
+	})
+
+	type P struct{ ID int }
+
+	// First request with a custom decoder.
+	c1 := New(
+		WithDisableRetry(), WithDisableCircuitBreaker(),
+		WithResponseDecoder(func(_ string, _ []byte, v any) error {
+			v.(*P).ID = 99 // sentinel
+			return nil
+		}),
+	)
+	resp1, _ := c1.Execute(c1.Get(srv.URL() + "/"))
+	PutResponse(resp1) // return to pool
+
+	// Second request without a decoder - must NOT use c1's decoder.
+	c2 := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	resp2, err := c2.Execute(c2.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	defer PutResponse(resp2)
+
+	var p P
+	if err = resp2.Decode(&p); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if p.ID == 99 {
+		t.Error("pooled response leaked decode func from previous client")
 	}
 }
