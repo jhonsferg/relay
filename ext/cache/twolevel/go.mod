@@ -9,4 +9,4 @@ require (
 
 replace github.com/jhonsferg/relay/ext/cache/lru v0.1.0 => ../lru
 
-require golang.org/x/sync v0.16.0 // indirect
+require golang.org/x/sync v0.19.0 // indirect
