@@ -138,7 +138,7 @@ func newCircuitBreaker(cfg *CircuitBreakerConfig) *CircuitBreaker {
 func (cb *CircuitBreaker) transition(to CircuitBreakerState) {
 	from := cb.state
 	cb.state = to
-	cb.atomicState.Store(uint32(to))
+	cb.atomicState.Store(uint32(to)) //nolint:gosec // G115: state is a bounded iota (0-2), conversion to uint32 is always safe
 	if cb.config.OnStateChange != nil && from != to {
 		fn := cb.config.OnStateChange
 		cb.mu.Unlock()
