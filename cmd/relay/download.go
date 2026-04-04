@@ -120,7 +120,7 @@ func downloadOne(ctx context.Context, client *relay.Client, rawURL string, cfg d
 	if offset > 0 && stream.StatusCode == http.StatusPartialContent {
 		f, err = os.OpenFile(outPath, os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304
 	} else {
-		offset = 0                  // server sent 200 instead of 206 — start over
+		offset = 0                  // server sent 200 instead of 206 - start over
 		f, err = os.Create(outPath) // #nosec G304
 	}
 	if err != nil {
@@ -168,7 +168,7 @@ func uploadFile(ctx context.Context, client *relay.Client, rawURL, filePath stri
 	if !quiet && isTerminal(os.Stderr) {
 		filename := filepath.Base(filePath)
 		fmt.Fprintf(os.Stderr, "  uploading %s (%s)\n", filename, formatBytes(total))
-		pw := newProgressWriter(io.Discard, filename, 0, total) // tracks but discards — actual write is to pw.dest below
+		pw := newProgressWriter(io.Discard, filename, 0, total) // tracks but discards - actual write is to pw.dest below
 		_ = pw
 		// Use relay's built-in upload progress via WithUploadProgress.
 	}

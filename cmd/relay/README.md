@@ -80,7 +80,7 @@ relay --timing https://httpbin.org/get
 |------|---------|-------------|
 | `-X method` | `GET` | HTTP method (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS) |
 | `-d body` | | Request body. Prefix with `@file` to read from a file, `@-` to read from stdin |
-| `-j json` | | JSON body — sets `Content-Type: application/json` automatically |
+| `-j json` | | JSON body - sets `Content-Type: application/json` automatically |
 | `-H "K: V"` | | Add request header (repeatable) |
 | `-q "k=v"` | | Add query parameter (repeatable) |
 | `-F "k=v"` | | Add multipart form field (repeatable) |
@@ -94,13 +94,13 @@ relay --timing https://httpbin.org/get
 | `-t token` | Bearer token (`Authorization: Bearer <token>`) |
 | `-k Header=value` | Arbitrary API-key header (e.g. `-k X-API-Key=secret`) |
 | `-b "Name=Val"` | Send cookies as a string |
-| `-c file` | Netscape cookie jar — loads cookies on start, saves on exit |
+| `-c file` | Netscape cookie jar - loads cookies on start, saves on exit |
 
 ### Network
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--timeout` | `0` | Max total transfer duration — **0 means no limit** (Ctrl+C always cancels). Set e.g. `--timeout 60s` for API calls where you want a hard deadline. |
+| `--timeout` | `0` | Max total transfer duration - **0 means no limit** (Ctrl+C always cancels). Set e.g. `--timeout 60s` for API calls where you want a hard deadline. |
 | `--connect-timeout` | `30s` | TCP/TLS connection timeout. Does **not** affect body transfer time. |
 | `-L n` | `10` | Maximum redirects (0 disables redirects) |
 | `--proxy url` | | HTTP/HTTPS proxy URL |
@@ -129,9 +129,9 @@ relay --timing https://httpbin.org/get
 | `-D file` | Write response headers to file (HTTP/1.1 format) |
 | `-I` | Perform a HEAD request and print headers |
 | `--pretty` | Pretty-print JSON response body |
-| `-s` | Silent — suppress all output (exit code reflects HTTP status) |
+| `-s` | Silent - suppress all output (exit code reflects HTTP status) |
 | `-i` | Include response headers in stdout output |
-| `-v` | Verbose — print request/response headers to stderr |
+| `-v` | Verbose - print request/response headers to stderr |
 | `--timing` | Print per-phase timing breakdown to stderr |
 | `--no-progress` | Disable download/upload progress bar |
 | `--version` | Print version and exit |

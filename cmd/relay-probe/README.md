@@ -1,7 +1,7 @@
 # relay-probe
 
 A health-monitoring tool for HTTP endpoints, powered by the [relay](../../README.md) library.  
-Checks one or more URLs against configurable expectations (status code, body content, response time) and optionally watches them on a recurring interval — ideal for readiness checks, smoke tests, and uptime monitoring.
+Checks one or more URLs against configurable expectations (status code, body content, response time) and optionally watches them on a recurring interval - ideal for readiness checks, smoke tests, and uptime monitoring.
 
 ---
 
@@ -128,7 +128,7 @@ relay-probe --watch --interval 30s --max-latency 1s \
 # Use exit code in a CI pipeline
 relay-probe --expect 200 https://staging.example.com/health
 if [ $? -ne 0 ]; then
-  echo "Staging health check failed — aborting deployment"
+  echo "Staging health check failed - aborting deployment"
   exit 1
 fi
 

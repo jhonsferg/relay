@@ -31,7 +31,7 @@ func main() {
 	body := flag.String("b", "", "request body")
 	jsonBody := flag.String("j", "", "JSON request body (sets Content-Type: application/json)")
 	count := flag.Int("n", 100, "total number of requests (ignored when -d is set)")
-	conc := flag.Int("c", 10, "concurrency — simultaneous in-flight requests")
+	conc := flag.Int("c", 10, "concurrency - simultaneous in-flight requests")
 	dur := flag.Duration("d", 0, "run duration (e.g. 30s); overrides -n when set")
 	reqTout := flag.Duration("timeout", 10*time.Second, "per-request timeout")
 	rateLimit := flag.Float64("rate", 0, "requests per second limit (0 = unlimited)")
@@ -43,7 +43,7 @@ func main() {
 
 	flag.Var(&headers, "H", "add request `header` as \"Key: Value\" (repeatable)")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "relay-bench %s — HTTP load tester powered by relay\n\n", version)
+		fmt.Fprintf(os.Stderr, "relay-bench %s - HTTP load tester powered by relay\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n  relay-bench [OPTIONS] <URL>\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
@@ -106,7 +106,7 @@ func main() {
 
 	reqFactory := makeFactory(client, strings.ToUpper(*method), rawURL, headers, *body, *jsonBody)
 
-	// Warm-up phase — results are discarded so the connection pool is primed.
+	// Warm-up phase - results are discarded so the connection pool is primed.
 	if *warm > 0 {
 		if !*quiet {
 			fmt.Fprintf(os.Stderr, "warming up with %d requests…\n", *warm)
