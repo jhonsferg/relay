@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/sigv4
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.4
@@ -10,5 +10,5 @@ require (
 
 require (
 	github.com/aws/smithy-go v1.20.4 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 )
