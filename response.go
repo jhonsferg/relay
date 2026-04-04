@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/jhonsferg/relay/internal/pool"
@@ -17,12 +18,13 @@ import (
 type Response struct {
 	raw           *http.Response
 	body          []byte
+	decode        func(contentType string, body []byte, v any) error
 	StatusCode    int
 	Status        string
 	Headers       http.Header
 	Truncated     bool          // true when body was cut at MaxResponseBodyBytes
 	RedirectCount int           // number of redirects followed to reach this response
-	Timing        RequestTiming // per-phase timing breakdown (DNS, TCP, TLS, TTFB, …)
+	Timing        RequestTiming // per-phase timing breakdown (DNS, TCP, TLS, TTFB, ...)
 }
 
 var responsePool = &sync.Pool{
@@ -40,6 +42,7 @@ func getResponse() *Response {
 func (r *Response) reset() {
 	r.raw = nil
 	r.body = r.body[:0]
+	r.decode = nil
 	r.StatusCode = 0
 	r.Status = ""
 	r.Headers = nil
@@ -147,6 +150,24 @@ func (r *Response) JSON(v interface{}) error { return json.Unmarshal(r.body, v) 
 
 // XML unmarshals the response body into v using encoding/xml.
 func (r *Response) XML(v interface{}) error { return xml.Unmarshal(r.body, v) }
+
+// Decode deserialises the response body into v. When a [WithResponseDecoder]
+// has been configured on the client, it is called with the response
+// Content-Type header and the body bytes. Otherwise Decode falls back to
+// JSON for application/json content and XML for application/xml content.
+//
+// Decode is used internally by [ExecuteAs] to allow pluggable decoders
+// (e.g. Protocol Buffers, MessagePack) without changing call sites.
+func (r *Response) Decode(v any) error {
+	if r.decode != nil {
+		return r.decode(r.ContentType(), r.body, v)
+	}
+	ct := r.ContentType()
+	if strings.Contains(ct, "xml") {
+		return xml.Unmarshal(r.body, v)
+	}
+	return json.Unmarshal(r.body, v)
+}
 
 // IsSuccess reports whether the status code is 2xx.
 func (r *Response) IsSuccess() bool { return r.StatusCode >= 200 && r.StatusCode < 300 }
