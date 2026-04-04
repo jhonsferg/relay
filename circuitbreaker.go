@@ -82,7 +82,7 @@ func defaultCircuitBreakerConfig() *CircuitBreakerConfig {
 // CircuitBreaker implements the three-state circuit-breaker pattern
 // (Closed → Open → Half-Open → Closed). It is safe for concurrent use.
 //
-// The fast path — Allow() when the breaker is in StateClosed — uses an atomic
+// The fast path - Allow() when the breaker is in StateClosed - uses an atomic
 // load and returns without acquiring the mutex, minimising lock contention on
 // healthy services. All state machine transitions and counter mutations are
 // still serialised under mu.
@@ -159,7 +159,7 @@ func (cb *CircuitBreaker) Allow() bool {
 		return true
 	}
 
-	// Slow path: Open or HalfOpen — need mutex for timer check and counter updates.
+	// Slow path: Open or HalfOpen - need mutex for timer check and counter updates.
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
@@ -228,7 +228,7 @@ func (cb *CircuitBreaker) RecordFailure() {
 }
 
 // State returns the current CircuitBreakerState without modifying any counters.
-// Uses an atomic load — no mutex acquisition required.
+// Uses an atomic load - no mutex acquisition required.
 func (cb *CircuitBreaker) State() CircuitBreakerState {
 	return CircuitBreakerState(cb.atomicState.Load())
 }

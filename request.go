@@ -596,7 +596,7 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 	}
 	if len(r.query) > 0 {
 		if !strings.Contains(fullURL, "?") {
-			// Fast path: no existing query params — skip url.Parse and
+			// Fast path: no existing query params - skip url.Parse and
 			// use cached encoded query when params haven't changed.
 			if r.queryDirty || r.encodedQuery == "" {
 				r.encodedQuery = r.query.Encode()
@@ -609,7 +609,7 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 			sb.WriteString(r.encodedQuery)
 			fullURL = sb.String()
 		} else {
-			// Slow path: URL already contains a query string — merge.
+			// Slow path: URL already contains a query string - merge.
 			parsed, err := url.Parse(fullURL)
 			if err != nil {
 				return nil, err

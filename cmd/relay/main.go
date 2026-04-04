@@ -87,7 +87,7 @@ func main() {
 	flag.Var(&formFields, "F", "add form `field` as \"key=value\" (repeatable, multipart body)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "relay %s — HTTP client powered by the relay library\n\n", version)
+		fmt.Fprintf(os.Stderr, "relay %s - HTTP client powered by the relay library\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "  relay [OPTIONS] <URL> [URL...]\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
@@ -166,7 +166,7 @@ func main() {
 		parallel:    *parallel,
 	}
 
-	// ── Multi-URL download mode — only when -O is explicitly set ────────────
+	// ── Multi-URL download mode - only when -O is explicitly set ────────────
 	if *remoteName {
 		if err := downloadAll(ctx, client, args, dlCfg); err != nil {
 			fmt.Fprintf(os.Stderr, "download error: %v\n", err)
