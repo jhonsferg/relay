@@ -7,8 +7,6 @@ require (
 	github.com/jhonsferg/relay v0.1.1
 )
 
-replace github.com/jhonsferg/relay v0.1.1 => ../../
-
 require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect

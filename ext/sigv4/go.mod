@@ -12,5 +12,3 @@ require (
 	github.com/aws/smithy-go v1.20.4 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 )
-
-replace github.com/jhonsferg/relay v0.1.1 => ../../
