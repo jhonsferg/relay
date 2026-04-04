@@ -207,24 +207,16 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	var hasRequestTimeout bool
 	var cancel context.CancelFunc
 
-	// Build context chain: timeout → redirect counter → tracing
+	// Apply per-request timeout first so hooks and the rate limiter respect it.
 	if req.timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, req.timeout)
 		defer cancel()
 		hasRequestTimeout = true
 	}
 
-	// Embed a redirect counter so CheckRedirect can populate it.
-	var redirectCount int
-	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
-
-	// Inject httptrace for request timing unless the caller has disabled it.
-	var timingCol *timingCollector
-	if !c.config.DisableTiming {
-		ctx, timingCol = injectTraceContext(ctx)
-	}
-
-	// Update request with final context only once (single clone).
+	// Clone request with the timeout context so hooks see an up-to-date ctx.
+	// The redirect counter and httptrace context are injected below, after the
+	// circuit breaker check, to avoid allocating them on rejected requests.
 	req = req.withCtx(ctx)
 
 	// Auto-generate idempotency key once per request (reused across retries).
@@ -249,6 +241,21 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if c.circuitBreaker != nil && !c.circuitBreaker.Allow() {
 		return nil, ErrCircuitOpen
 	}
+
+	// Embed a redirect counter so CheckRedirect can populate it.
+	// Done after the circuit breaker check to avoid allocating on rejected requests.
+	var redirectCount int
+	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
+
+	// Inject httptrace for request timing unless the caller has disabled it.
+	var timingCol *timingCollector
+	if !c.config.DisableTiming {
+		ctx, timingCol = injectTraceContext(ctx)
+	}
+
+	// Update the cloned request's stored context in-place (zero allocation)
+	// to carry the redirect counter and timing trace for req.build().
+	req.ctx = ctx
 
 	var httpResp *http.Response
 	httpResp, err = c.retrier.Do(ctx, func() (*http.Response, error) {
@@ -322,6 +329,15 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	for _, hook := range c.config.OnAfterResponse {
 		if hookErr := hook(ctx, resp); hookErr != nil {
 			return nil, fmt.Errorf("OnAfterResponse: %w", hookErr)
+		}
+	}
+
+	// Translate HTTP error codes into typed Go errors when a decoder is set.
+	// Runs after all OnAfterResponse hooks so hooks see the raw response first.
+	if c.config.ErrorDecoder != nil && resp.StatusCode >= 400 {
+		if decErr := c.config.ErrorDecoder(resp.StatusCode, resp.Body()); decErr != nil {
+			PutResponse(resp)
+			return nil, decErr
 		}
 	}
 

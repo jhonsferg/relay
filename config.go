@@ -191,6 +191,18 @@ type Config struct {
 	// returns a non-nil error propagates as the [Client.Execute] return value.
 	OnAfterResponse []func(context.Context, *Response) error
 
+	// ErrorDecoder is called by [Client.Execute] whenever the HTTP response
+	// status code is >= 400. It receives the numeric status code and the full,
+	// already-buffered response body. When the function returns a non-nil error,
+	// [Client.Execute] releases the response and returns that error directly to
+	// the caller. When it returns nil the response is returned normally,
+	// preserving the default behaviour where HTTP error codes are not
+	// automatically treated as errors.
+	//
+	// ErrorDecoder is invoked after all [OnAfterResponse] hooks have run.
+	// Use [WithErrorDecoder] to set it.
+	ErrorDecoder func(statusCode int, body []byte) error
+
 	// Logger is used for internal structured logging (retries, circuit-breaker
 	// transitions, rate-limit events, shutdown). Defaults to NoopLogger.
 	Logger Logger
@@ -614,6 +626,31 @@ func WithOnBeforeRequest(hook func(context.Context, *Request) error) Option {
 // non-nil error propagates as the [Client.Execute] return value.
 func WithOnAfterResponse(hook func(context.Context, *Response) error) Option {
 	return func(c *Config) { c.OnAfterResponse = append(c.OnAfterResponse, hook) }
+}
+
+// WithErrorDecoder sets a function that translates HTTP error status codes
+// (>= 400) into typed Go errors. The function receives the numeric status code
+// and the fully-buffered response body. When it returns a non-nil error,
+// [Client.Execute] releases the response and returns that error to the caller.
+// When it returns nil the response is returned unchanged, preserving the
+// default behaviour where HTTP error codes are not automatically errors.
+//
+// The decoder runs after all [WithOnAfterResponse] hooks.
+//
+// Example - map 404 to a sentinel:
+//
+//	var ErrNotFound = errors.New("not found")
+//
+//	client := relay.New(
+//	    relay.WithErrorDecoder(func(status int, body []byte) error {
+//	        if status == http.StatusNotFound {
+//	            return ErrNotFound
+//	        }
+//	        return nil
+//	    }),
+//	)
+func WithErrorDecoder(fn func(statusCode int, body []byte) error) Option {
+	return func(c *Config) { c.ErrorDecoder = fn }
 }
 
 // WithLogger sets the structured logger used for internal relay events such as
