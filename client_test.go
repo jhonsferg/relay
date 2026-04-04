@@ -3,6 +3,8 @@ package relay
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -486,5 +488,139 @@ func TestExecute_WithDisableTiming_TimingIsZero(t *testing.T) {
 
 	if resp.Timing.Total != 0 || resp.Timing.DNSLookup != 0 {
 		t.Errorf("expected zero timing when disabled, got %+v", resp.Timing)
+	}
+}
+
+// --- ErrorDecoder tests ---
+
+func TestExecute_ErrorDecoder_4xxReturnsDecodedError(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	sentinel := errors.New("not found")
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithErrorDecoder(func(status int, _ []byte) error {
+			if status == http.StatusNotFound {
+				return sentinel
+			}
+			return nil
+		}),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusNotFound, Body: `{"error":"not found"}`})
+
+	resp, err := c.Execute(c.Get("/missing"))
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("expected sentinel error, got err=%v resp=%v", err, resp)
+	}
+	if resp != nil {
+		t.Error("expected nil response when ErrorDecoder returns an error")
+	}
+}
+
+func TestExecute_ErrorDecoder_5xxReturnsDecodedError(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	serverErr := errors.New("server error")
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithErrorDecoder(func(status int, body []byte) error {
+			if status >= 500 {
+				return fmt.Errorf("%w: status=%d body=%s", serverErr, status, body)
+			}
+			return nil
+		}),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError, Body: `internal`})
+
+	resp, err := c.Execute(c.Get("/boom"))
+	if !errors.Is(err, serverErr) {
+		t.Fatalf("expected serverErr in chain, got err=%v resp=%v", err, resp)
+	}
+}
+
+func TestExecute_ErrorDecoder_2xxNotCalled(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	called := false
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithErrorDecoder(func(_ int, _ []byte) error {
+			called = true
+			return errors.New("should not be called")
+		}),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `ok`})
+
+	resp, err := c.Execute(c.Get("/ok"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called {
+		t.Error("ErrorDecoder should not be called on 2xx responses")
+	}
+	if resp == nil {
+		t.Error("expected non-nil response on 2xx")
+	}
+}
+
+func TestExecute_ErrorDecoder_NilReturnAllowsResponse(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		// Decoder that always returns nil - should not suppress the response.
+		WithErrorDecoder(func(_ int, _ []byte) error { return nil }),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusBadRequest, Body: `bad`})
+
+	resp, err := c.Execute(c.Get("/bad"))
+	if err != nil {
+		t.Fatalf("expected no error when decoder returns nil, got: %v", err)
+	}
+	if resp == nil || resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 response, got resp=%v", resp)
+	}
+}
+
+func TestExecute_ErrorDecoder_RunsAfterOnAfterResponseHooks(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	var order []string
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithOnAfterResponse(func(_ context.Context, _ *Response) error {
+			order = append(order, "hook")
+			return nil
+		}),
+		WithErrorDecoder(func(_ int, _ []byte) error {
+			order = append(order, "decoder")
+			return nil
+		}),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusNotFound})
+
+	_, _ = c.Execute(c.Get("/x"))
+	if len(order) != 2 || order[0] != "hook" || order[1] != "decoder" {
+		t.Errorf("expected [hook decoder], got %v", order)
 	}
 }
