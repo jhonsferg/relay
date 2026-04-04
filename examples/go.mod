@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.33.0
-	github.com/jhonsferg/relay v0.1.1
+	github.com/jhonsferg/relay v0.1.11
 	github.com/jhonsferg/relay/ext/metrics v0.1.1
 	github.com/jhonsferg/relay/ext/oauth v0.1.1
 	github.com/jhonsferg/relay/ext/prometheus v0.1.1
