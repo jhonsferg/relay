@@ -465,3 +465,26 @@ func TestIsHealthy_NoBreakerAlwaysTrue(t *testing.T) {
 		t.Error("client without circuit breaker should always be healthy")
 	}
 }
+
+func TestExecute_WithDisableTiming_TimingIsZero(t *testing.T) {
+srv := testutil.NewMockServer()
+defer srv.Close()
+
+c := New(
+WithBaseURL(srv.URL()),
+WithDisableRetry(),
+WithDisableCircuitBreaker(),
+WithDisableTiming(),
+)
+
+srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{}`})
+
+resp, err := c.Execute(c.Get("/check"))
+if err != nil {
+t.Fatalf("Execute: %v", err)
+}
+
+if resp.Timing.Total != 0 || resp.Timing.DNSLookup != 0 {
+t.Errorf("expected zero timing when disabled, got %+v", resp.Timing)
+}
+}
