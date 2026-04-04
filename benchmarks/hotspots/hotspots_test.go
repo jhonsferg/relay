@@ -372,73 +372,73 @@ func BenchmarkHotspot_MultipleContextWrap(b *testing.B) {
 // BenchmarkHotspot_PathBuilder measures PathBuilder.String() allocation cost.
 // Currently: "/" + strings.Join() = 2 allocs per call.
 func BenchmarkHotspot_PathBuilder_String5(b *testing.B) {
-pb := relay.NewPathBuilder("/api/v1").
-Add("users").
-Add("123").
-Add("orders").
-Add("456")
+	pb := relay.NewPathBuilder("/api/v1").
+		Add("users").
+		Add("123").
+		Add("orders").
+		Add("456")
 
-b.ResetTimer()
-b.ReportAllocs()
-for i := 0; i < b.N; i++ {
-_ = pb.String()
-}
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = pb.String()
+	}
 }
 
 // BenchmarkHotspot_CacheHitReplay measures the full stack cost of a cache hit.
 // Target: reduce bytes.Reader + NopCloser allocs via pooling.
 func BenchmarkHotspot_CacheHitReplay(b *testing.B) {
-srv := testutil.NewMockServer()
-defer srv.Close()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
 
-client := relay.New(
-relay.WithBaseURL(srv.URL()),
-relay.WithDisableRetry(),
-relay.WithDisableCircuitBreaker(),
-relay.WithCache(relay.NewInMemoryCacheStore(1000)),
-)
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithCache(relay.NewInMemoryCacheStore(1000)),
+	)
 
-// Prime the cache once (not part of the benchmark).
-srv.Enqueue(testutil.MockResponse{
-Status: http.StatusOK,
-Headers: map[string]string{"Cache-Control": "public, max-age=3600"},
-Body:   `{"id":1,"name":"test"}`,
-})
-resp, _ := client.Execute(client.Get("/bench/cached"))
-_ = resp
+	// Prime the cache once (not part of the benchmark).
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Cache-Control": "public, max-age=3600"},
+		Body:    `{"id":1,"name":"test"}`,
+	})
+	resp, _ := client.Execute(client.Get("/bench/cached"))
+	_ = resp
 
-b.ResetTimer()
-b.ReportAllocs()
+	b.ResetTimer()
+	b.ReportAllocs()
 
-for i := 0; i < b.N; i++ {
-resp, _ := client.Execute(client.Get("/bench/cached"))
-_ = resp
-}
+	for i := 0; i < b.N; i++ {
+		resp, _ := client.Execute(client.Get("/bench/cached"))
+		_ = resp
+	}
 }
 
 // BenchmarkHotspot_StreamOpen measures the alloc overhead of opening a stream
 // (managedReadCloser + cleanups slice).
 func BenchmarkHotspot_StreamOpen(b *testing.B) {
-srv := testutil.NewMockServer()
-defer srv.Close()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
 
-client := relay.New(
-relay.WithBaseURL(srv.URL()),
-relay.WithDisableRetry(),
-relay.WithDisableCircuitBreaker(),
-)
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
 
-b.ResetTimer()
-b.ReportAllocs()
+	b.ResetTimer()
+	b.ReportAllocs()
 
-for i := 0; i < b.N; i++ {
-srv.Enqueue(testutil.MockResponse{
-Status: http.StatusOK,
-Body:   `{"id":1}`,
-})
-stream, err := client.ExecuteStream(client.Get("/bench/stream"))
-if err == nil {
-_ = stream.Body.Close()
-}
-}
+	for i := 0; i < b.N; i++ {
+		srv.Enqueue(testutil.MockResponse{
+			Status: http.StatusOK,
+			Body:   `{"id":1}`,
+		})
+		stream, err := client.ExecuteStream(client.Get("/bench/stream"))
+		if err == nil {
+			_ = stream.Body.Close()
+		}
+	}
 }
