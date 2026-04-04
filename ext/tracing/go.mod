@@ -16,5 +16,3 @@ require (
 	go.opentelemetry.io/otel/metric v1.41.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 )
-
-replace github.com/jhonsferg/relay v0.1.1 => ../../
