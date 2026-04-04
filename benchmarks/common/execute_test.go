@@ -264,3 +264,42 @@ func BenchmarkExecuteAsync(b *testing.B) {
 		wg.Wait()
 	}
 }
+
+// ---------------------------------------------------------------------------
+// BenchmarkExecute_NoTiming
+//
+// Measures the Execute pipeline with timing instrumentation disabled via
+// [relay.WithDisableTiming]. Skipping httptrace avoids roughly 10 allocations
+// per call (timingCollector, ClientTrace, 7 closures, context value). Compare
+// against BenchmarkExecute_Simple to quantify the timing overhead.
+// ---------------------------------------------------------------------------
+func BenchmarkExecute_NoTiming(b *testing.B) {
+srv := testutil.NewMockServer()
+defer srv.Close()
+
+client := relay.New(
+relay.WithBaseURL(srv.URL()),
+relay.WithDisableRetry(),
+relay.WithDisableCircuitBreaker(),
+relay.WithDisableTiming(),
+relay.WithTimeout(5*time.Second),
+)
+
+b.ResetTimer()
+b.ReportAllocs()
+
+for i := 0; i < b.N; i++ {
+srv.Enqueue(testutil.MockResponse{
+Status: http.StatusOK,
+Body:   `{"id":1,"name":"relay"}`,
+})
+
+resp, err := client.Execute(client.Get("/bench"))
+if err != nil {
+b.Fatalf("Execute failed: %v", err)
+}
+if resp.StatusCode != http.StatusOK {
+b.Fatalf("unexpected status %d", resp.StatusCode)
+}
+}
+}
