@@ -274,32 +274,32 @@ func BenchmarkExecuteAsync(b *testing.B) {
 // against BenchmarkExecute_Simple to quantify the timing overhead.
 // ---------------------------------------------------------------------------
 func BenchmarkExecute_NoTiming(b *testing.B) {
-srv := testutil.NewMockServer()
-defer srv.Close()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
 
-client := relay.New(
-relay.WithBaseURL(srv.URL()),
-relay.WithDisableRetry(),
-relay.WithDisableCircuitBreaker(),
-relay.WithDisableTiming(),
-relay.WithTimeout(5*time.Second),
-)
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithDisableTiming(),
+		relay.WithTimeout(5*time.Second),
+	)
 
-b.ResetTimer()
-b.ReportAllocs()
+	b.ResetTimer()
+	b.ReportAllocs()
 
-for i := 0; i < b.N; i++ {
-srv.Enqueue(testutil.MockResponse{
-Status: http.StatusOK,
-Body:   `{"id":1,"name":"relay"}`,
-})
+	for i := 0; i < b.N; i++ {
+		srv.Enqueue(testutil.MockResponse{
+			Status: http.StatusOK,
+			Body:   `{"id":1,"name":"relay"}`,
+		})
 
-resp, err := client.Execute(client.Get("/bench"))
-if err != nil {
-b.Fatalf("Execute failed: %v", err)
-}
-if resp.StatusCode != http.StatusOK {
-b.Fatalf("unexpected status %d", resp.StatusCode)
-}
-}
+		resp, err := client.Execute(client.Get("/bench"))
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b.Fatalf("unexpected status %d", resp.StatusCode)
+		}
+	}
 }
