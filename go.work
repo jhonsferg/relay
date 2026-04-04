@@ -6,6 +6,7 @@ use (
 	./ext/brotli
 	./ext/cache/lru
 	./ext/cache/twolevel
+	./ext/graphql
 	./ext/grpc
 	./ext/jitterbug
 	./ext/logrus
@@ -20,30 +21,8 @@ use (
 	./ext/sentry
 	./ext/sigv4
 	./ext/tracing
+	./ext/websocket
 	./ext/zap
 	./ext/zerolog
 )
 
-replace (
-	github.com/jhonsferg/relay v0.1.1 => .
-	github.com/jhonsferg/relay/ext/breaker/gobreaker v0.1.1 => ./ext/breaker/gobreaker
-	github.com/jhonsferg/relay/ext/brotli v0.1.1 => ./ext/brotli
-	github.com/jhonsferg/relay/ext/cache/lru v0.1.1 => ./ext/cache/lru
-	github.com/jhonsferg/relay/ext/cache/twolevel v0.1.1 => ./ext/cache/twolevel
-	github.com/jhonsferg/relay/ext/grpc v0.1.1 => ./ext/grpc
-	github.com/jhonsferg/relay/ext/jitterbug v0.1.1 => ./ext/jitterbug
-	github.com/jhonsferg/relay/ext/logrus v0.1.1 => ./ext/logrus
-	github.com/jhonsferg/relay/ext/memcached v0.1.1 => ./ext/memcached
-	github.com/jhonsferg/relay/ext/metrics v0.1.1 => ./ext/metrics
-	github.com/jhonsferg/relay/ext/mock v0.1.1 => ./ext/mock
-	github.com/jhonsferg/relay/ext/oauth v0.1.1 => ./ext/oauth
-	github.com/jhonsferg/relay/ext/openapi v0.1.1 => ./ext/openapi
-	github.com/jhonsferg/relay/ext/prometheus v0.1.1 => ./ext/prometheus
-	github.com/jhonsferg/relay/ext/ratelimit/distributed v0.1.1 => ./ext/ratelimit/distributed
-	github.com/jhonsferg/relay/ext/redis v0.1.1 => ./ext/redis
-	github.com/jhonsferg/relay/ext/sentry v0.1.1 => ./ext/sentry
-	github.com/jhonsferg/relay/ext/sigv4 v0.1.1 => ./ext/sigv4
-	github.com/jhonsferg/relay/ext/tracing v0.1.1 => ./ext/tracing
-	github.com/jhonsferg/relay/ext/zap v0.1.1 => ./ext/zap
-	github.com/jhonsferg/relay/ext/zerolog v0.1.1 => ./ext/zerolog
-)
