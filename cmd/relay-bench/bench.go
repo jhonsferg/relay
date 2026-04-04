@@ -26,8 +26,8 @@ type Stats struct {
 	Concurrency   int         `json:"concurrency"`
 	Total         int         `json:"total"`
 	Successes     int         `json:"successes"`
-	Failures      int         `json:"failures"`  // 4xx/5xx responses
-	Errors        int         `json:"errors"`    // transport / dial errors
+	Failures      int         `json:"failures"` // 4xx/5xx responses
+	Errors        int         `json:"errors"`   // transport / dial errors
 	Duration      duration    `json:"duration"`
 	RPS           float64     `json:"requests_per_second"`
 	LatencyMin    duration    `json:"latency_min"`
@@ -95,15 +95,12 @@ func runDuration(ctx context.Context, client *relay.Client, factory func() *rela
 	sem := make(chan struct{}, conc)
 	start := time.Now()
 
+loop:
 	for dctx.Err() == nil {
 		select {
 		case sem <- struct{}{}:
 		case <-dctx.Done():
-			break
-		}
-		if dctx.Err() != nil {
-			<-sem
-			break
+			break loop
 		}
 
 		wg.Add(1)

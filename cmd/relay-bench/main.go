@@ -27,19 +27,19 @@ func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 func main() {
 	var headers multiFlag
 
-	method    := flag.String("m", "GET", "HTTP `method`")
-	body      := flag.String("b", "", "request body")
-	jsonBody  := flag.String("j", "", "JSON request body (sets Content-Type: application/json)")
-	count     := flag.Int("n", 100, "total number of requests (ignored when -d is set)")
-	conc      := flag.Int("c", 10, "concurrency — simultaneous in-flight requests")
-	dur       := flag.Duration("d", 0, "run duration (e.g. 30s); overrides -n when set")
-	reqTout   := flag.Duration("timeout", 10*time.Second, "per-request timeout")
+	method := flag.String("m", "GET", "HTTP `method`")
+	body := flag.String("b", "", "request body")
+	jsonBody := flag.String("j", "", "JSON request body (sets Content-Type: application/json)")
+	count := flag.Int("n", 100, "total number of requests (ignored when -d is set)")
+	conc := flag.Int("c", 10, "concurrency — simultaneous in-flight requests")
+	dur := flag.Duration("d", 0, "run duration (e.g. 30s); overrides -n when set")
+	reqTout := flag.Duration("timeout", 10*time.Second, "per-request timeout")
 	rateLimit := flag.Float64("rate", 0, "requests per second limit (0 = unlimited)")
-	cbEnable  := flag.Bool("cb", false, "enable circuit breaker (trips at 10 consecutive failures)")
-	warm      := flag.Int("warm", 0, "warm-up requests sent before measurement (results discarded)")
-	jsonOut   := flag.Bool("json", false, "output results as JSON")
-	quiet     := flag.Bool("q", false, "suppress progress output during benchmark")
-	showVer   := flag.Bool("version", false, "print version and exit")
+	cbEnable := flag.Bool("cb", false, "enable circuit breaker (trips at 10 consecutive failures)")
+	warm := flag.Int("warm", 0, "warm-up requests sent before measurement (results discarded)")
+	jsonOut := flag.Bool("json", false, "output results as JSON")
+	quiet := flag.Bool("q", false, "suppress progress output during benchmark")
+	showVer := flag.Bool("version", false, "print version and exit")
 
 	flag.Var(&headers, "H", "add request `header` as \"Key: Value\" (repeatable)")
 	flag.Usage = func() {

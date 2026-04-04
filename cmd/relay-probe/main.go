@@ -18,16 +18,16 @@ import (
 const version = "0.1.0"
 
 func main() {
-	expect   := flag.Int("expect", 200, "expected HTTP status code")
-	timeout  := flag.Duration("timeout", 10*time.Second, "per-request timeout")
-	retries  := flag.Int("retry", 2, "retry attempts on failure")
+	expect := flag.Int("expect", 200, "expected HTTP status code")
+	timeout := flag.Duration("timeout", 10*time.Second, "per-request timeout")
+	retries := flag.Int("retry", 2, "retry attempts on failure")
 	interval := flag.Duration("interval", 0, "watch interval — 0 runs a single check")
 	watchCnt := flag.Int("count", 0, "watch iterations (0 = unlimited, requires -interval)")
-	maxLat   := flag.Duration("latency", 0, "maximum acceptable latency (0 = no limit)")
+	maxLat := flag.Duration("latency", 0, "maximum acceptable latency (0 = no limit)")
 	cbEnable := flag.Bool("cb", false, "enable circuit breaker per endpoint")
-	verbose  := flag.Bool("v", false, "verbose output")
-	jsonOut  := flag.Bool("json", false, "output results as JSON")
-	showVer  := flag.Bool("version", false, "print version and exit")
+	verbose := flag.Bool("v", false, "verbose output")
+	jsonOut := flag.Bool("json", false, "output results as JSON")
+	showVer := flag.Bool("version", false, "print version and exit")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "relay-probe %s — health probe powered by relay\n\n", version)
