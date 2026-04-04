@@ -17,8 +17,10 @@ type DNSCacheConfig struct {
 }
 
 // dnsCacheEntry is a single cached DNS result.
+// addresses holds pre-joined "ip:port" strings so DialContext avoids calling
+// net.JoinHostPort on every dial attempt (one allocation per address saved).
 type dnsCacheEntry struct {
-	addrs     []string  // resolved IP addresses
+	addresses []string  // pre-joined "ip:port" strings
 	expiresAt time.Time // wall-clock expiry
 }
 
@@ -39,32 +41,40 @@ func newDNSCache(ttl time.Duration) *dnsCache {
 	}
 }
 
-// lookup returns cached addresses for host or resolves them via the system
-// resolver and caches the result.
-func (c *dnsCache) lookup(ctx context.Context, host string) ([]string, error) {
-	// Fast path: cache hit.
+// lookup returns pre-joined "ip:port" addresses for the given host+port pair.
+// On a cache hit the entry is returned without any string allocation.
+// On a cache miss the host is resolved via the system resolver and the results
+// are pre-joined with port and stored under cacheKey (the original "host:port"
+// addr string), avoiding repeated net.JoinHostPort calls on subsequent dials.
+func (c *dnsCache) lookup(ctx context.Context, host, port, cacheKey string) ([]string, error) {
+	// Fast path: cache hit - return pre-joined addresses without allocation.
 	c.mu.RLock()
-	entry, ok := c.entries[host]
+	entry, ok := c.entries[cacheKey]
 	c.mu.RUnlock()
 
 	if ok && time.Now().Before(entry.expiresAt) {
-		return entry.addrs, nil
+		return entry.addresses, nil
 	}
 
-	// Slow path: resolve and cache.
-	addrs, err := c.resolver.LookupHost(ctx, host)
+	// Slow path: resolve and pre-join with port, then cache.
+	ips, err := c.resolver.LookupHost(ctx, host)
 	if err != nil {
 		return nil, err
 	}
 
+	addresses := make([]string, len(ips))
+	for i, ip := range ips {
+		addresses[i] = net.JoinHostPort(ip, port)
+	}
+
 	c.mu.Lock()
-	c.entries[host] = dnsCacheEntry{
-		addrs:     addrs,
+	c.entries[cacheKey] = dnsCacheEntry{
+		addresses: addresses,
 		expiresAt: time.Now().Add(c.ttl),
 	}
 	c.mu.Unlock()
 
-	return addrs, nil
+	return addresses, nil
 }
 
 // cachedDialer wraps a [net.Dialer] and uses a [dnsCache] to resolve hostnames
@@ -77,6 +87,9 @@ type cachedDialer struct {
 // DialContext resolves host via the DNS cache, then dials the first successful
 // address. Mirrors the standard dialer's Happy Eyeballs behaviour by trying
 // all resolved addresses in order.
+//
+// Addresses are stored pre-joined ("ip:port") in the cache so the hot path
+// avoids calling net.JoinHostPort on every dial attempt.
 func (d *cachedDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -88,15 +101,17 @@ func (d *cachedDialer) DialContext(ctx context.Context, network, addr string) (n
 		return d.base.DialContext(ctx, network, addr)
 	}
 
-	addrs, err := d.cache.lookup(ctx, host)
+	// addr is already "host:port" - use it directly as the cache key
+	// to avoid an extra string allocation for the lookup.
+	addresses, err := d.cache.lookup(ctx, host, port, addr)
 	if err != nil {
 		// Fall back to the base dialer on resolution failure.
 		return d.base.DialContext(ctx, network, addr)
 	}
 
 	var lastErr error
-	for _, ip := range addrs {
-		resolved := net.JoinHostPort(ip, port)
+	for _, resolved := range addresses {
+		// resolved is pre-joined "ip:port" - no net.JoinHostPort needed.
 		conn, dialErr := d.base.DialContext(ctx, network, resolved)
 		if dialErr == nil {
 			return conn, nil
