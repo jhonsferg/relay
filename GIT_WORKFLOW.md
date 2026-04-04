@@ -1,4 +1,4 @@
-# Git Workflow — relay
+# Git Workflow - relay
 
 Engineering standards and Git workflow for the relay project.
 This document is the authoritative reference for contributors and automated agents.
@@ -28,7 +28,7 @@ This document is the authoritative reference for contributors and automated agen
 
 ## 1. Commit Rules
 
-- No Co-Authored-By, no Signed-off-by, no author emails in commits — ever.
+- No Co-Authored-By, no Signed-off-by, no author emails in commits - ever.
 - Subject line 72 characters maximum, imperative mood, no trailing period.
 - Format: `type(scope): description`
 
@@ -110,7 +110,7 @@ Use lowercase and hyphens only (no underscores, no extra slashes).
 Rules:
 
 - Never commit directly to `master`.
-- One branch per logical change — do not bundle unrelated work.
+- One branch per logical change - do not bundle unrelated work.
 - Delete remote branches after the PR is merged.
 
 ---
@@ -419,7 +419,7 @@ result, _ := doSomething() //nolint:errcheck // documented: always returns nil
 ### golangci-lint v2 constraints
 
 - Formatters (`gofmt`, `goimports`) go under `formatters:` section, not `linters:`.
-- `gosimple` and `typecheck` do not exist in v2 — do not add them.
+- `gosimple` and `typecheck` do not exist in v2 - do not add them.
 - `exclude-dirs` does not exist at the top level or under `issues:`.
 - `misspell` locale must be `UK`.
 
@@ -443,7 +443,7 @@ Hooks run `gofmt` and `golangci-lint` automatically before every commit.
 - Every exported type, function, method, constant, and variable must have a doc comment.
 - Start comments with the symbol name: `// FunctionName does X.`
 - Use complete sentences ending with a period.
-- Describe *what* and *why*, not *how* — the code shows how.
+- Describe *what* and *why*, not *how* - the code shows how.
 
 ### Package-level documentation
 
@@ -486,8 +486,8 @@ type CacheStore interface {
 
 - Comment non-obvious logic, not self-evident code.
 - Use `// NOTE:` for important observations.
-- Use `// TODO: #issue-number` for known gaps — always link to an issue.
-- Use `// FIXME:` only for bugs that need a follow-up PR — never merge FIXME.
+- Use `// TODO: #issue-number` for known gaps - always link to an issue.
+- Use `// FIXME:` only for bugs that need a follow-up PR - never merge FIXME.
 - Avoid block comments (`/* */`) in Go source.
 
 ### Testable examples
@@ -535,9 +535,9 @@ go tool cover -html=coverage_lib.out -o coverage.html
 
 These packages have intentionally 0% and must not inflate the denominator:
 
-- `cmd/**` — binary entrypoints, not library code
-- `examples/**` — illustrative examples
-- `benchmarks/**` — benchmark-only code
+- `cmd/**` - binary entrypoints, not library code
+- `examples/**` - illustrative examples
+- `benchmarks/**` - benchmark-only code
 
 Configure in `codecov.yml`:
 
@@ -552,7 +552,7 @@ ignore:
 
 - Test all exported functions including error paths.
 - Test boundary conditions: nil input, empty slice, zero value, maximum value.
-- Use `testutil/recorder` for HTTP-level tests — no live network calls in unit tests.
+- Use `testutil/recorder` for HTTP-level tests - no live network calls in unit tests.
 - Use `go test -race ./...` when writing any concurrent code.
 
 ---
@@ -564,11 +564,11 @@ ignore:
 - Any data race is a release blocker, not a warning.
 - Table-driven tests are preferred for functions with multiple input variants.
 - Test file naming: `<file>_test.go` in the same package; use `_test` package suffix for black-box public API tests.
-- Do not use `time.Sleep` in tests — use channels, `sync.WaitGroup`, or mock clocks.
+- Do not use `time.Sleep` in tests - use channels, `sync.WaitGroup`, or mock clocks.
 
 ### Known concurrency trap
 
-Never pool `httptrace.ClientTrace` — the transport's `dialParallel` fires
+Never pool `httptrace.ClientTrace` - the transport's `dialParallel` fires
 callbacks from background goroutines after `Do()` returns. Use `atomic.Int64`
 for any field written by trace callbacks (see `timing.go`).
 
@@ -599,7 +599,7 @@ client, _ := relay.New(relay.WithBaseURL(rec.URL()))
 - Public `Response` fields are stable: `StatusCode`, `Status`, `Headers`, `Timing`,
   `Truncated`, `RedirectCount`, `Body()`, `String()`.
 - New options use the functional options pattern: `WithXxx(...) Option`.
-- New behaviour is always opt-in via options — never change default behaviour.
+- New behaviour is always opt-in via options - never change default behaviour.
 - Deprecate before removing: add `// Deprecated: use Xxx instead.` and keep for one minor version.
 - `PutResponse(r)` is opt-in; callers who do not call it are safe (no use-after-free).
 
@@ -608,7 +608,7 @@ client, _ := relay.New(relay.WithBaseURL(rec.URL()))
 ## 12. Memory Safety
 
 - Pooled buffers from `pool.GetSizedBuffer` must be returned via `pool.PutSizedBuffer`
-  before handing the `Response` back to the caller — the caller owns the body slice.
+  before handing the `Response` back to the caller - the caller owns the body slice.
 - `bytes.Reader` from `pool.GetBytesReader` must be released in `releasePooledReader()`,
   called after every `RoundTrip` attempt (success or failure).
 - Never return a slice that aliases a pool buffer to the caller.
@@ -619,7 +619,7 @@ client, _ := relay.New(relay.WithBaseURL(rec.URL()))
 ## 13. Security
 
 - Run `govulncheck ./...` before any release tag.
-- Never commit secrets, tokens, or credentials — use environment variables or `gh secret set`.
+- Never commit secrets, tokens, or credentials - use environment variables or `gh secret set`.
 - TLS minimum version is `tls.VersionTLS12` (enforced via Trivy and CodeQL).
 - `gosec` linter is enabled; suppressions require a written justification comment.
 - Dependency updates: run `go get -u ./... && go mod tidy` monthly and open a `chore/` PR.
@@ -629,7 +629,13 @@ client, _ := relay.New(relay.WithBaseURL(rec.URL()))
 ## 14. Typography and Style
 
 - UK English throughout: `colour`, `behaviour`, `licence`, `initialise`, `optimise`.
-- Never use the em-dash symbol. Use a plain hyphen ( - ) instead.
+- **Never use the em-dash character `—` (U+2014) anywhere** - not in Go source comments,
+  documentation, README files, commit messages, PR descriptions, YAML files, or any other
+  project file. Use a plain hyphen surrounded by spaces (` - `) as a sentence-break separator
+  instead. The em-dash is not typed by most keyboards and causes visual inconsistency across
+  editors and terminals.
+  - Wrong: `// fast path — uses atomic`
+  - Right: `// fast path - uses atomic`
 - No trailing whitespace in any file.
 - Files end with a single newline character.
 - Maximum line length for comments and documentation: 80 characters.
@@ -645,7 +651,7 @@ Each `ext/*` directory is an independent Go module:
 - Must compile and lint cleanly with `GOWORK=off`.
 - Must reference a released version of the core relay module (no `replace` directive in CI).
 - Coverage threshold: 75%.
-- Tag format: `ext/<name>/v0.X.Y` — push tag after merging the PR.
+- Tag format: `ext/<name>/v0.X.Y` - push tag after merging the PR.
 
 ---
 

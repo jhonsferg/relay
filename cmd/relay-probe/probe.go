@@ -60,7 +60,7 @@ func check(ctx context.Context, p *probe, cfg checkConfig) CheckResult {
 		r.CBOpen = true
 		r.Reason = "circuit breaker open"
 		if cfg.verbose {
-			fmt.Fprintf(os.Stderr, "  [%s] circuit breaker open — skipping\n", p.url)
+			fmt.Fprintf(os.Stderr, "  [%s] circuit breaker open - skipping\n", p.url)
 		}
 		return r
 	}
@@ -140,7 +140,7 @@ func printReport(results []CheckResult, asJSON bool) int {
 	}
 
 	ts := time.Now().Format("15:04:05")
-	fmt.Printf("\n[%s] Health check — %d endpoint(s)\n", ts, len(results))
+	fmt.Printf("\n[%s] Health check - %d endpoint(s)\n", ts, len(results))
 	fmt.Println("──────────────────────────────────────────────────")
 
 	for _, r := range results {

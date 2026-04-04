@@ -68,7 +68,7 @@ func TestNext_WithJitter(t *testing.T) {
 		Multiplier:      2.0,
 		RandomFactor:    0.5,
 	}
-	// Collect several values — should not all be identical due to jitter
+	// Collect several values - should not all be identical due to jitter
 	seen := map[time.Duration]bool{}
 	for i := 0; i < 20; i++ {
 		seen[c.Next(1)] = true
