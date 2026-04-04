@@ -1,6 +1,7 @@
 package sentry_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,11 @@ func (t *captureTransport) Events() []*sentrygo.Event {
 
 func (t *captureTransport) Flush(timeout time.Duration) bool { return true }
 
+func (t *captureTransport) FlushWithContext(_ context.Context) bool { return true }
+
 func (t *captureTransport) Configure(options sentrygo.ClientOptions) {}
+
+func (t *captureTransport) Close() {}
 
 // newTestHub creates a Sentry Hub backed by the captureTransport so we can
 // inspect captured events without a real Sentry DSN.
