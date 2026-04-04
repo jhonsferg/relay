@@ -203,6 +203,19 @@ type Config struct {
 	// Use [WithErrorDecoder] to set it.
 	ErrorDecoder func(statusCode int, body []byte) error
 
+	// ResponseDecoder is used by [Response.Decode] and [ExecuteAs] to
+	// deserialise response bodies into Go values. When set, it replaces the
+	// default encoding/json and encoding/xml decoders. The contentType
+	// parameter receives the response Content-Type header (e.g.
+	// "application/json", "application/protobuf") so the decoder can pick
+	// the right format.
+	//
+	// Returning a non-nil error from ResponseDecoder propagates as the error
+	// from [Response.Decode] or [ExecuteAs].
+	//
+	// Use [WithResponseDecoder] to set it.
+	ResponseDecoder func(contentType string, body []byte, v any) error
+
 	// Logger is used for internal structured logging (retries, circuit-breaker
 	// transitions, rate-limit events, shutdown). Defaults to NoopLogger.
 	Logger Logger
@@ -651,6 +664,28 @@ func WithOnAfterResponse(hook func(context.Context, *Response) error) Option {
 //	)
 func WithErrorDecoder(fn func(statusCode int, body []byte) error) Option {
 	return func(c *Config) { c.ErrorDecoder = fn }
+}
+
+// WithResponseDecoder sets a custom deserialiser used by [Response.Decode] and
+// [ExecuteAs]. When configured it replaces the built-in encoding/json and
+// encoding/xml decoders. The contentType parameter receives the response
+// Content-Type header value so the function can select the appropriate format.
+//
+// Returning a non-nil error propagates as the error from [Response.Decode] or
+// [ExecuteAs].
+//
+// Example - use Protocol Buffers when the server sends application/protobuf:
+//
+//	client := relay.New(
+//	    relay.WithResponseDecoder(func(ct string, body []byte, v any) error {
+//	        if strings.Contains(ct, "protobuf") {
+//	            return proto.Unmarshal(body, v.(proto.Message))
+//	        }
+//	        return json.Unmarshal(body, v) // fallback to JSON
+//	    }),
+//	)
+func WithResponseDecoder(fn func(contentType string, body []byte, v any) error) Option {
+	return func(c *Config) { c.ResponseDecoder = fn }
 }
 
 // WithLogger sets the structured logger used for internal relay events such as
