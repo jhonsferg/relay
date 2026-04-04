@@ -20,15 +20,15 @@ type checkConfig struct {
 
 // CheckResult holds the outcome of checking a single endpoint.
 type CheckResult struct {
-	URL            string        `json:"url"`
-	Healthy        bool          `json:"healthy"`
-	StatusCode     int           `json:"status_code,omitempty"`
-	Latency        time.Duration `json:"latency_ns,omitempty"`
-	LatencyHuman   string        `json:"latency,omitempty"`
-	Error          string        `json:"error,omitempty"`
-	Reason         string        `json:"reason,omitempty"`
-	CBOpen         bool          `json:"circuit_breaker_open,omitempty"`
-	CheckedAt      time.Time     `json:"checked_at"`
+	URL          string        `json:"url"`
+	Healthy      bool          `json:"healthy"`
+	StatusCode   int           `json:"status_code,omitempty"`
+	Latency      time.Duration `json:"latency_ns,omitempty"`
+	LatencyHuman string        `json:"latency,omitempty"`
+	Error        string        `json:"error,omitempty"`
+	Reason       string        `json:"reason,omitempty"`
+	CBOpen       bool          `json:"circuit_breaker_open,omitempty"`
+	CheckedAt    time.Time     `json:"checked_at"`
 }
 
 // runChecks executes health checks against all probes concurrently and
