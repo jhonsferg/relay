@@ -2,6 +2,7 @@ package relay
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -80,11 +81,22 @@ func defaultCircuitBreakerConfig() *CircuitBreakerConfig {
 
 // CircuitBreaker implements the three-state circuit-breaker pattern
 // (Closed → Open → Half-Open → Closed). It is safe for concurrent use.
+//
+// The fast path — Allow() when the breaker is in StateClosed — uses an atomic
+// load and returns without acquiring the mutex, minimising lock contention on
+// healthy services. All state machine transitions and counter mutations are
+// still serialised under mu.
 type CircuitBreaker struct {
-	// mu protects all mutable state below. Placed first as it's used in hot paths.
+	// atomicState mirrors state for lock-free reads in Allow() and State().
+	// Written only while mu is held (in transition and newCircuitBreaker).
+	// Placed first to keep it in its own cache line away from mu.
+	atomicState atomic.Uint32
+	_           [60]byte // padding to separate atomicState from mu cache line
+
+	// mu serialises all state machine transitions and mutable counter updates.
 	mu sync.Mutex
 
-	// state is the current circuit breaker state.
+	// state is the authoritative circuit breaker state, protected by mu.
 	state CircuitBreakerState
 
 	// failures counts consecutive failures while in StateClosed.
@@ -111,10 +123,12 @@ func newCircuitBreaker(cfg *CircuitBreakerConfig) *CircuitBreaker {
 	if cfg == nil {
 		cfg = defaultCircuitBreakerConfig()
 	}
-	return &CircuitBreaker{
+	cb := &CircuitBreaker{
 		config: cfg,
 		state:  StateClosed,
 	}
+	cb.atomicState.Store(uint32(StateClosed))
+	return cb
 }
 
 // transition changes the breaker state and fires OnStateChange when the new
@@ -124,6 +138,7 @@ func newCircuitBreaker(cfg *CircuitBreakerConfig) *CircuitBreaker {
 func (cb *CircuitBreaker) transition(to CircuitBreakerState) {
 	from := cb.state
 	cb.state = to
+	cb.atomicState.Store(uint32(to))
 	if cb.config.OnStateChange != nil && from != to {
 		fn := cb.config.OnStateChange
 		cb.mu.Unlock()
@@ -135,12 +150,23 @@ func (cb *CircuitBreaker) transition(to CircuitBreakerState) {
 // Allow reports whether a request should be attempted given the current state.
 // In StateOpen it transitions to StateHalfOpen when the reset timeout has
 // elapsed. In StateHalfOpen it limits concurrent probes to HalfOpenRequests.
+//
+// Fast path: when the breaker is Closed, the state is read atomically with no
+// mutex acquisition, avoiding contention on healthy services.
 func (cb *CircuitBreaker) Allow() bool {
+	// Fast path: closed state is by far the common case.
+	if CircuitBreakerState(cb.atomicState.Load()) == StateClosed {
+		return true
+	}
+
+	// Slow path: Open or HalfOpen — need mutex for timer check and counter updates.
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
 	switch cb.state {
 	case StateClosed:
+		// Another goroutine may have transitioned back to Closed between the
+		// atomic load above and acquiring the mutex.
 		return true
 	case StateOpen:
 		if time.Since(cb.lastFailureTime) > cb.config.ResetTimeout {
@@ -202,10 +228,9 @@ func (cb *CircuitBreaker) RecordFailure() {
 }
 
 // State returns the current CircuitBreakerState without modifying any counters.
+// Uses an atomic load — no mutex acquisition required.
 func (cb *CircuitBreaker) State() CircuitBreakerState {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-	return cb.state
+	return CircuitBreakerState(cb.atomicState.Load())
 }
 
 // Reset forces the breaker back to StateClosed and clears all counters.
