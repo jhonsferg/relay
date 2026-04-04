@@ -23,8 +23,9 @@ coverage.html
 .DS_Store
 Thumbs.db
 
-# Claude Code local configuration (never commit)
-.claude/
+# Claude Code local configuration (never commit session files)
+.claude/*
+!.claude/RULES.md
 CLAUDE.md
 
 # Benchmark output files
