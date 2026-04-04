@@ -623,6 +623,12 @@ client, _ := relay.New(relay.WithBaseURL(rec.URL()))
 - TLS minimum version is `tls.VersionTLS12` (enforced via Trivy and CodeQL).
 - `gosec` linter is enabled; suppressions require a written justification comment.
 - Dependency updates: run `go get -u ./... && go mod tidy` monthly and open a `chore/` PR.
+- **Never include AI model attribution in commit messages.** Do not add `Co-authored-by` trailers
+  that identify an AI model, assistant, or automated tool (e.g. `Co-authored-by: Copilot`,
+  `Co-authored-by: Claude`, `Co-authored-by: ChatGPT`, or any similar line). Such trailers
+  expose the toolchain in the public git log, can be used for prompt-injection attacks by
+  crafting repository content that targets known model identifiers, and leak information about
+  the development process. Commits must only list human authors.
 
 ---
 
