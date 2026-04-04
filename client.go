@@ -218,8 +218,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	var redirectCount int
 	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
 
-	// Inject httptrace for request timing (pooled).
-	ctx, timingCol := injectTraceContext(ctx)
+	// Inject httptrace for request timing unless the caller has disabled it.
+	var timingCol *timingCollector
+	if !c.config.DisableTiming {
+		ctx, timingCol = injectTraceContext(ctx)
+	}
 
 	// Update request with final context only once (single clone).
 	req = req.withCtx(ctx)
@@ -310,12 +313,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if err != nil {
 		return nil, err
 	}
-	// Calculate total duration using nanosecond precision to avoid
-	// timing precision issues on Windows and other systems.
-	startNano := timingCol.requestStart.Load()
-	totalNano := nowNano() - startNano
-	totalDur := time.Duration(totalNano)
-	resp.Timing = buildTiming(timingCol, totalDur)
+	if timingCol != nil {
+		startNano := timingCol.requestStart.Load()
+		totalNano := nowNano() - startNano
+		resp.Timing = buildTiming(timingCol, time.Duration(totalNano))
+	}
 
 	for _, hook := range c.config.OnAfterResponse {
 		if hookErr := hook(ctx, resp); hookErr != nil {

@@ -124,12 +124,23 @@ type Request struct {
 // literals directly.
 func newRequest(method, rawURL string) *Request {
 	return &Request{
-		method:     method,
-		rawURL:     rawURL,
-		headers:    make(map[string]string),
-		query:      url.Values{},
-		ctx:        context.Background(),
-		pathParams: make(map[string]string),
+		method: method,
+		rawURL: rawURL,
+		ctx:    context.Background(),
+	}
+}
+
+// initHeaders lazily allocates the headers map on first write.
+func (r *Request) initHeaders() {
+	if r.headers == nil {
+		r.headers = make(map[string]string)
+	}
+}
+
+// initPathParams lazily allocates the pathParams map on first write.
+func (r *Request) initPathParams() {
+	if r.pathParams == nil {
+		r.pathParams = make(map[string]string)
 	}
 }
 
@@ -155,6 +166,7 @@ func (r *Request) WithTimeout(d time.Duration) *Request { r.timeout = d; return 
 //	client.Get("/users/{id}").WithPathParam("id", "usr_42")
 //	// → GET /users/usr_42
 func (r *Request) WithPathParam(key, value string) *Request {
+	r.initPathParams()
 	r.pathParams[key] = value
 	r.urlDirty = true
 	return r
@@ -167,6 +179,9 @@ func (r *Request) WithPathParam(key, value string) *Request {
 //	    "id":  "usr_42",
 //	})
 func (r *Request) WithPathParams(params map[string]string) *Request {
+	if len(params) > 0 {
+		r.initPathParams()
+	}
 	for k, v := range params {
 		r.pathParams[k] = v
 	}
@@ -207,6 +222,7 @@ func (r *Request) Tags() map[string]string {
 // WithHeader sets (or replaces) a single request header. Per-request headers
 // take precedence over [Config.DefaultHeaders].
 func (r *Request) WithHeader(key, value string) *Request {
+	r.initHeaders()
 	r.headers[key] = value
 	return r
 }
@@ -214,14 +230,25 @@ func (r *Request) WithHeader(key, value string) *Request {
 // WithHeaders merges the given map into the request headers. Later keys in the
 // map override earlier ones; per-request headers always beat defaults.
 func (r *Request) WithHeaders(headers map[string]string) *Request {
+	if len(headers) > 0 {
+		r.initHeaders()
+	}
 	for k, v := range headers {
 		r.headers[k] = v
 	}
 	return r
 }
 
+// initQuery lazily allocates the query map on first write.
+func (r *Request) initQuery() {
+	if r.query == nil {
+		r.query = make(url.Values)
+	}
+}
+
 // WithQueryParam sets (or replaces) a single URL query parameter.
 func (r *Request) WithQueryParam(key, value string) *Request {
+	r.initQuery()
 	r.query.Set(key, value)
 	r.urlDirty = true
 	r.queryDirty = true
@@ -231,6 +258,9 @@ func (r *Request) WithQueryParam(key, value string) *Request {
 // WithQueryParams merges the given map into the URL query string. Later keys
 // override earlier ones for the same name.
 func (r *Request) WithQueryParams(params map[string]string) *Request {
+	if len(params) > 0 {
+		r.initQuery()
+	}
 	for k, v := range params {
 		r.query.Set(k, v)
 	}
@@ -245,6 +275,7 @@ func (r *Request) WithQueryParams(params map[string]string) *Request {
 //	req.WithQueryParamValues("ids", []string{"1", "2", "3"})
 //	// → ?ids=1&ids=2&ids=3
 func (r *Request) WithQueryParamValues(key string, values []string) *Request {
+	r.initQuery()
 	r.query[key] = values
 	r.urlDirty = true
 	r.queryDirty = true
@@ -256,24 +287,41 @@ func (r *Request) WithQueryParamValues(key string, values []string) *Request {
 func (r *Request) WithBody(body []byte) *Request { r.bodyBytes = body; return r }
 
 // WithContentType sets the Content-Type request header.
-func (r *Request) WithContentType(ct string) *Request { r.headers["Content-Type"] = ct; return r }
+func (r *Request) WithContentType(ct string) *Request {
+	r.initHeaders()
+	r.headers["Content-Type"] = ct
+	return r
+}
 
 // WithAccept sets the Accept request header.
-func (r *Request) WithAccept(accept string) *Request { r.headers["Accept"] = accept; return r }
+func (r *Request) WithAccept(accept string) *Request {
+	r.initHeaders()
+	r.headers["Accept"] = accept
+	return r
+}
 
 // WithUserAgent sets the User-Agent request header, overriding any client-level
 // default set via [WithDefaultHeaders].
-func (r *Request) WithUserAgent(ua string) *Request { r.headers["User-Agent"] = ua; return r }
+func (r *Request) WithUserAgent(ua string) *Request {
+	r.initHeaders()
+	r.headers["User-Agent"] = ua
+	return r
+}
 
 // WithRequestID sets the X-Request-Id header. Useful for distributed tracing
 // and log correlation when managing request identifiers outside of OTel.
-func (r *Request) WithRequestID(id string) *Request { r.headers["X-Request-Id"] = id; return r }
+func (r *Request) WithRequestID(id string) *Request {
+	r.initHeaders()
+	r.headers["X-Request-Id"] = id
+	return r
+}
 
 // WithAPIKey sets a header-based API key. The header name varies by service;
 // common choices are "X-API-Key" and "Authorization".
 //
 //	req.WithAPIKey("X-API-Key", os.Getenv("SERVICE_API_KEY"))
 func (r *Request) WithAPIKey(headerName, apiKey string) *Request {
+	r.initHeaders()
 	r.headers[headerName] = apiKey
 	return r
 }
@@ -298,6 +346,7 @@ func (r *Request) WithJSON(v interface{}) *Request {
 		return r
 	}
 	r.bodyBytes = data
+	r.initHeaders()
 	r.headers["Content-Type"] = "application/json"
 	return r
 }
@@ -310,6 +359,7 @@ func (r *Request) WithFormData(data map[string]string) *Request {
 		form.Set(k, v)
 	}
 	r.bodyBytes = []byte(form.Encode())
+	r.initHeaders()
 	r.headers["Content-Type"] = "application/x-www-form-urlencoded"
 	return r
 }
@@ -344,12 +394,14 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 	}
 	_ = w.Close()
 	r.bodyBytes = buf.Bytes()
+	r.initHeaders()
 	r.headers["Content-Type"] = w.FormDataContentType()
 	return r
 }
 
 // WithBearerToken sets the Authorization header to "Bearer <token>".
 func (r *Request) WithBearerToken(token string) *Request {
+	r.initHeaders()
 	r.headers["Authorization"] = "Bearer " + token
 	return r
 }
@@ -358,6 +410,7 @@ func (r *Request) WithBearerToken(token string) *Request {
 // for the given username and password.
 func (r *Request) WithBasicAuth(username, password string) *Request {
 	credentials := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	r.initHeaders()
 	r.headers["Authorization"] = "Basic " + credentials
 	return r
 }
@@ -399,19 +452,25 @@ func (r *Request) WithMaxBodySize(n int64) *Request { r.maxBodyBytes = n; return
 func (r *Request) Clone() *Request {
 	clone := *r
 
-	clone.headers = make(map[string]string, len(r.headers))
-	for k, v := range r.headers {
-		clone.headers[k] = v
+	if len(r.headers) > 0 {
+		clone.headers = make(map[string]string, len(r.headers))
+		for k, v := range r.headers {
+			clone.headers[k] = v
+		}
 	}
 
-	clone.query = make(url.Values, len(r.query))
-	for k, v := range r.query {
-		clone.query[k] = append([]string(nil), v...)
+	if len(r.query) > 0 {
+		clone.query = make(url.Values, len(r.query))
+		for k, v := range r.query {
+			clone.query[k] = append([]string(nil), v...)
+		}
 	}
 
-	clone.pathParams = make(map[string]string, len(r.pathParams))
-	for k, v := range r.pathParams {
-		clone.pathParams[k] = v
+	if len(r.pathParams) > 0 {
+		clone.pathParams = make(map[string]string, len(r.pathParams))
+		for k, v := range r.pathParams {
+			clone.pathParams[k] = v
+		}
 	}
 
 	if r.tags != nil {
@@ -510,10 +569,15 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 		}
 
 		if useRFC3986 {
-			// Path 1: Use pre-parsed URL for RFC 3986 resolution (host-only URLs).
-			// Zero allocations; reuses parsed URL. Safe for URLs without path components.
-			resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
-			fullURL = resolved.String()
+			// Fast path: host-only base URL + absolute path - avoid 4 allocs from
+			// ResolveReference (&url.URL, internal copy, String(), plus escaping).
+			if parsedBaseURL.Path == "" && len(fullURL) > 0 && fullURL[0] == '/' && parsedBaseURL.User == nil {
+				fullURL = parsedBaseURL.Scheme + "://" + parsedBaseURL.Host + fullURL
+			} else {
+				// Slow path: proper RFC 3986 resolution for complex base URLs.
+				resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
+				fullURL = resolved.String()
+			}
 		} else {
 			// Path 2: Use safe string normalisation for API URLs.
 			// Handles API base URLs with path components (e.g., http://api.com/v1/odata)
