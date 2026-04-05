@@ -412,6 +412,9 @@ jobs:
 
           git fetch origin badges 2>/dev/null || true
 
+          # Discard any files modified by go toolchain (e.g. go.work.sum) before switching branches
+          git checkout -- . 2>/dev/null || true
+
           if git ls-remote --exit-code --heads origin badges > /dev/null 2>&1; then
             git checkout -B badges origin/badges
           else
