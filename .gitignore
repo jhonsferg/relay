@@ -36,3 +36,6 @@ bench_comprehensive_report.txt
 __pycache__/
 *.pyc
 *.pyo
+
+# Copilot local work plans (never commit)
+.copilot/
