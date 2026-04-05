@@ -245,6 +245,12 @@ type Config struct {
 	// GET/HEAD requests. Only one real request is made; all waiters share a copy.
 	EnableCoalescing bool
 
+	// Deduplication configures opt-in singleflight request deduplication.
+	// When Enabled, concurrent GET/HEAD requests with the same URL are
+	// collapsed into a single real HTTP call. All callers receive their own
+	// copy of the response body. Disabled by default.
+	Deduplication DeduplicationConfig
+
 	// DigestUsername and DigestPassword enable HTTP Digest Authentication.
 	DigestUsername string
 	DigestPassword string
@@ -785,6 +791,14 @@ func WithCertificatePinning(pins []string) Option {
 // HEAD requests. Only one real HTTP call is made; all callers sharing the same
 // URL receive independent copies of the response body.
 func WithRequestCoalescing() Option { return func(c *Config) { c.EnableCoalescing = true } }
+
+// WithRequestDeduplication enables singleflight-based deduplication for GET
+// and HEAD requests. Concurrent requests to the same URL are collapsed into a
+// single real HTTP call; all callers receive their own copy of the response.
+// Disabled by default. Use per-request WithDeduplication to override.
+func WithRequestDeduplication() Option {
+	return func(c *Config) { c.Deduplication.Enabled = true }
+}
 
 // WithDigestAuth enables HTTP Digest Authentication (RFC 7616). The client
 // automatically handles the 401 challenge/response cycle.
