@@ -1,42 +1,143 @@
-# Binaries
+# ─── Go ──────────────────────────────────────────────────────────────────────
+# Compiled binaries and shared libraries
 *.exe
 *.exe~
 *.dll
 *.so
+*.so.*
 *.dylib
+*.a
 
-# Test binary
+# Test binaries
 *.test
 
-# Output
+# Go coverage output
 *.out
 coverage.out
 coverage.html
+coverage.xml
+coverage.json
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Claude Code local configuration (never commit)
-.claude/
-CLAUDE.md
-
-# Benchmark output files
-bench_*.txt
+# Go profiling output
 *.prof
+*.pprof
+mem.prof
+cpu.prof
+trace.out
+
+# Benchmark reports
+bench_*.txt
 bench_comprehensive_report.txt
 
-# Python artifacts
+# go build / install cache (local dev)
+/bin/
+/dist/
+
+# Vendor directory (only if not intentionally vendored)
+# vendor/
+
+# ─── Docs ────────────────────────────────────────────────────────────────────
+# MkDocs build output (never commit - deployed via GitHub Pages)
+site/
+
+# ─── Secrets & Credentials ───────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+.env
+.env.*
+!.env.example
+*.secret
+secrets.yaml
+secrets.yml
+credentials.json
+service-account.json
+
+# ─── IDE & Editors ───────────────────────────────────────────────────────────
+# JetBrains (GoLand, IntelliJ, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.*.swp
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ─── Operating System ────────────────────────────────────────────────────────
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Thumbs.db:encdata
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ─── Build & Tooling ─────────────────────────────────────────────────────────
+# GoReleaser output
+dist/
+
+# Temporary files
+tmp/
+*.tmp
+*.bak
+*.orig
+
+# Air (hot reload) temp files
+tmp/
+
+# ─── Test & CI ───────────────────────────────────────────────────────────────
+# HAR captures
+*.har
+
+# Test fixture overrides (local only)
+testdata/local/
+
+# ─── Python (docs tooling) ───────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+.pip/
 
-# Copilot local work plans (never commit)
+# ─── AI tooling (never commit AI model config or session data) ───────────────
+.claude/
+CLAUDE.md
 .copilot/
-site/
