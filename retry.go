@@ -78,7 +78,8 @@ func defaultRetryConfig() *RetryConfig {
 // retrier wraps a RetryConfig and executes the retry loop around each HTTP
 // call via [retrier.Do].
 type retrier struct {
-	cfg *RetryConfig
+	cfg    *RetryConfig
+	budget *retryBudgetTracker
 }
 
 // newRetrier constructs a retrier from cfg. If cfg is nil the default config
@@ -156,8 +157,22 @@ func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*h
 		pendingWait time.Duration
 	)
 
+	// Record the initial (non-retry) attempt for budget accounting.
+	if r.budget != nil {
+		r.budget.RecordAttempt()
+	}
+
 	for attempt := 0; attempt < r.cfg.MaxAttempts; attempt++ {
 		if attempt > 0 {
+			// Check retry budget before sleeping and retrying.
+			if r.budget != nil && !r.budget.CanRetry() {
+				if lastErr != nil {
+					return nil, ErrRetryBudgetExhausted
+				}
+				// Budget exhausted after a retryable status - return budget error.
+				return nil, ErrRetryBudgetExhausted
+			}
+
 			wait := pendingWait
 			if wait == 0 {
 				wait = r.backoff(attempt - 1)
