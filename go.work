@@ -8,6 +8,7 @@ use (
 	./ext/cache/twolevel
 	./ext/graphql
 	./ext/grpc
+	./ext/http3
 	./ext/jitterbug
 	./ext/logrus
 	./ext/memcached
