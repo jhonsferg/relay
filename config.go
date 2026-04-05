@@ -319,6 +319,21 @@ type Config struct {
 	// HedgeMaxAttempts is the maximum number of concurrent hedge requests
 	// (including the original). Defaults to 2 when HedgeAfter > 0.
 	HedgeMaxAttempts int
+
+	// CertWatcher holds the active dynamic TLS certificate watcher created by
+	// [WithDynamicTLSCert] or [WithCertWatcher]. Callers can call Stop() to
+	// halt the background reload goroutine.
+	CertWatcher *CertWatcher
+
+	// WebSocketDialTimeout is the handshake timeout for [Client.ExecuteWebSocket].
+	// Zero uses the client Timeout.
+	WebSocketDialTimeout time.Duration
+
+	// SchemeAdapters maps URL schemes to custom [http.RoundTripper] instances.
+	// Requests whose scheme matches a key are dispatched to the corresponding
+	// transport instead of the default HTTP/HTTPS transport. Set via
+	// [WithTransportAdapter].
+	SchemeAdapters map[string]http.RoundTripper
 }
 
 // defaultConfig returns a Config populated with all production-ready defaults.
@@ -363,6 +378,13 @@ func (cfg *Config) clone() *Config {
 	c.BeforeRetryHooks = append([]BeforeRetryHookFunc(nil), cfg.BeforeRetryHooks...)
 	c.BeforeRedirectHooks = append([]BeforeRedirectHookFunc(nil), cfg.BeforeRedirectHooks...)
 	c.OnErrorHooks = append([]OnErrorHookFunc(nil), cfg.OnErrorHooks...)
+
+	if cfg.SchemeAdapters != nil {
+		c.SchemeAdapters = make(map[string]http.RoundTripper, len(cfg.SchemeAdapters))
+		for k, v := range cfg.SchemeAdapters {
+			c.SchemeAdapters[k] = v
+		}
+	}
 
 	return &c
 }
@@ -912,5 +934,26 @@ func WithHedgingN(after time.Duration, maxAttempts int) Option {
 	return func(c *Config) {
 		c.HedgeAfter = after
 		c.HedgeMaxAttempts = maxAttempts
+	}
+}
+
+// WithWebSocketDialTimeout sets the handshake timeout used by
+// [Client.ExecuteWebSocket]. Zero (the default) falls back to the client
+// [Config.Timeout].
+func WithWebSocketDialTimeout(d time.Duration) Option {
+	return func(c *Config) { c.WebSocketDialTimeout = d }
+}
+
+// WithTransportAdapter registers a custom [http.RoundTripper] for requests
+// whose URL scheme matches scheme (e.g. "myproto", "grpc", "ftp"). When the
+// scheme router encounters a request with that scheme, it dispatches to rt
+// instead of the default transport. "http" and "https" cannot be overridden
+// with this option; use [WithTransportMiddleware] for those.
+func WithTransportAdapter(scheme string, rt http.RoundTripper) Option {
+	return func(c *Config) {
+		if c.SchemeAdapters == nil {
+			c.SchemeAdapters = make(map[string]http.RoundTripper)
+		}
+		c.SchemeAdapters[scheme] = rt
 	}
 }
