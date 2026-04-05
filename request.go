@@ -443,6 +443,18 @@ func (r *Request) WithIdempotencyKey(key string) *Request {
 // Pass -1 to remove the limit entirely for this request.
 func (r *Request) WithMaxBodySize(n int64) *Request { r.maxBodyBytes = n; return r }
 
+// WithDeduplication overrides the client-level deduplication setting for this
+// single request. Call with no argument or true to force deduplication on;
+// call with false to disable it even when the client has deduplication enabled.
+func (r *Request) WithDeduplication(enabled ...bool) *Request {
+	e := true
+	if len(enabled) > 0 {
+		e = enabled[0]
+	}
+	r.ctx = context.WithValue(r.ctx, deduplicationOverrideKey{}, e)
+	return r
+}
+
 // Clone returns a deep copy of the request. All maps and slices are
 // independently duplicated so mutations to the clone do not affect the
 // original, and vice-versa. The body bytes slice is also copied.
