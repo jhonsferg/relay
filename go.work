@@ -3,6 +3,7 @@ go 1.24.0
 use (
 	.
 	./ext/breaker/gobreaker
+	./ext/chaos
 	./ext/brotli
 	./ext/cache/lru
 	./ext/cache/twolevel
