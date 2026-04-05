@@ -142,6 +142,11 @@ func buildClient(cfg *Config) *Client {
 		if len(via) >= cfg.MaxRedirects {
 			return fmt.Errorf("stopped after %d redirects", cfg.MaxRedirects)
 		}
+		for _, hook := range cfg.BeforeRedirectHooks {
+			if hookErr := hook(req, via); hookErr != nil {
+				return hookErr
+			}
+		}
 		return nil
 	}
 
@@ -220,9 +225,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	req = req.withCtx(ctx)
 
 	// Auto-generate idempotency key once per request (reused across retries).
-	if c.config.AutoIdempotencyKey && req.idempotencyKey == "" {
-		if key, genErr := generateIdempotencyKey(); genErr == nil {
-			req.idempotencyKey = key
+	if req.idempotencyKey == "" {
+		if c.config.AutoIdempotencyKey ||
+			(c.config.AutoIdempotencyOnSafeRetries && isSafeMethod(req.method)) {
+			if key, genErr := generateIdempotencyKey(); genErr == nil {
+				req.idempotencyKey = key
+			}
 		}
 	}
 
@@ -258,7 +266,24 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	req.ctx = ctx
 
 	var httpResp *http.Response
-	httpResp, err = c.retrier.Do(ctx, func() (*http.Response, error) {
+	// If BeforeRetryHooks are registered, compose them with any existing
+	// RetryConfig.OnRetry into a per-Execute retrier (thread-safe copy).
+	activeRetrier := c.retrier
+	if len(c.config.BeforeRetryHooks) > 0 {
+		cfgCopy := *c.retrier.cfg
+		origOnRetry := cfgCopy.OnRetry
+		hooks := c.config.BeforeRetryHooks // capture slice, not c.config
+		cfgCopy.OnRetry = func(attempt int, httpR *http.Response, retryErr error) {
+			if origOnRetry != nil {
+				origOnRetry(attempt, httpR, retryErr)
+			}
+			for _, hook := range hooks {
+				hook(ctx, attempt, req, httpR, retryErr)
+			}
+		}
+		activeRetrier = &retrier{cfg: &cfgCopy}
+	}
+	httpResp, err = activeRetrier.Do(ctx, func() (*http.Response, error) {
 		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalisationMode)
 		if buildErr != nil {
 			return nil, buildErr
@@ -295,6 +320,9 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		}
 		if hasRequestTimeout && errors.Is(err, context.DeadlineExceeded) {
 			err = fmt.Errorf("%w: %w", ErrTimeout, err)
+		}
+		for _, hook := range c.config.OnErrorHooks {
+			hook(ctx, req, err)
 		}
 		return nil, err
 	}

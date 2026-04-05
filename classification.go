@@ -113,3 +113,25 @@ func IsPermanentError(err error, resp *Response) bool {
 func IsRateLimitedError(err error, resp *Response) bool {
 	return ClassifyError(err, resp) == ErrorClassRateLimited
 }
+
+// IsRetryableError reports whether the error is worth retrying - that is,
+// whether [ClassifyError] returns [ErrorClassTransient] or
+// [ErrorClassRateLimited]. It is a convenience shorthand for the common
+// "should I back off and try again?" decision.
+func IsRetryableError(err error, resp *Response) bool {
+	class := ClassifyError(err, resp)
+	return class == ErrorClassTransient || class == ErrorClassRateLimited
+}
+
+// IsTimeout reports whether the error represents a request timeout. It matches
+// both [ErrTimeout] (returned when a per-request timeout fires) and the
+// standard [context.DeadlineExceeded] sentinel.
+func IsTimeout(err error) bool {
+	return errors.Is(err, ErrTimeout) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// IsCircuitOpen reports whether the error was caused by the circuit breaker
+// being in the Open state (i.e. [ErrCircuitOpen]).
+func IsCircuitOpen(err error) bool {
+	return errors.Is(err, ErrCircuitOpen)
+}
