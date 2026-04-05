@@ -64,6 +64,10 @@ type Client struct {
 	// loadBalancer distributes requests across multiple backends. Nil when disabled.
 	loadBalancer *loadBalancer
 
+	// adaptiveTimeout tracks observed response latencies and computes
+	// dynamic per-request timeouts. Nil when adaptive timeout is disabled.
+	adaptiveTimeout *adaptiveTimeoutTracker
+
 	// inFlight tracks requests that are currently in progress so that
 	// [Shutdown] can wait for them to complete before closing the pool.
 	inFlight sync.WaitGroup
@@ -221,6 +225,10 @@ func buildClient(cfg *Config) *Client {
 		c.loadBalancer = newLoadBalancer(cfg.LoadBalancerConfig)
 	}
 
+	if cfg.AdaptiveTimeoutConfig != nil {
+		c.adaptiveTimeout = newAdaptiveTimeoutTracker(cfg.AdaptiveTimeoutConfig)
+	}
+
 	if cfg.MaxConcurrentRequests > 0 {
 		c.bulkhead = make(chan struct{}, cfg.MaxConcurrentRequests)
 	}
@@ -344,6 +352,18 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 	// to carry the redirect counter and timing trace for req.build().
 	req.ctx = ctx
 
+	// Apply adaptive timeout if configured and no per-request timeout is set.
+	if c.adaptiveTimeout != nil && !hasRequestTimeout {
+		adaptiveTimeoutDur := c.adaptiveTimeout.computeTimeout()
+		if adaptiveTimeoutDur > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, adaptiveTimeoutDur)
+			defer cancel()
+			hasRequestTimeout = true
+			req.ctx = ctx
+		}
+	}
+
 	var httpResp *http.Response
 	var err error
 	// If BeforeRetryHooks are registered, compose them with any existing
@@ -457,6 +477,11 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 		startNano := timingCol.requestStart.Load()
 		totalNano := nowNano() - startNano
 		resp.Timing = buildTiming(timingCol, time.Duration(totalNano))
+
+		// Record the response latency for adaptive timeout if configured.
+		if c.adaptiveTimeout != nil && resp.Timing.Total > 0 {
+			c.adaptiveTimeout.record(resp.Timing.Total)
+		}
 	}
 
 	for _, hook := range c.config.OnAfterResponse {
