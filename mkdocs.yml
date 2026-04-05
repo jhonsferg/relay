@@ -112,6 +112,7 @@ nav:
     - Response: reference/response.md
     - Errors: reference/errors.md
     - Generic Decode: reference/generics.md
+    - URL Resolution (RFC 3986): reference/url-resolution.md
   - Changelog: changelog.md
 
 extra:
