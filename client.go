@@ -54,6 +54,9 @@ type Client struct {
 	// retrier executes the retry loop around each HTTP call.
 	retrier *retrier
 
+	// retryBudgetTracker enforces the sliding-window retry budget. Nil when disabled.
+	retryBudgetTracker *retryBudgetTracker
+
 	// rateLimiter enforces the client-side request rate. Nil when disabled.
 	rateLimiter *tokenBucket
 
@@ -193,6 +196,10 @@ func buildClient(cfg *Config) *Client {
 		circuitBreaker: newCircuitBreaker(cfg.CircuitBreakerConfig),
 		retrier:        newRetrier(cfg.RetryConfig),
 		bgCancel:       bgCancel,
+	}
+
+	if cfg.RetryBudget != nil {
+		c.retryBudgetTracker = newRetryBudgetTracker(*cfg.RetryBudget)
 	}
 
 	if cfg.RateLimitConfig != nil {
@@ -342,7 +349,11 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 				hook(ctx, attempt, req, httpR, retryErr)
 			}
 		}
-		activeRetrier = &retrier{cfg: &cfgCopy}
+		activeRetrier = &retrier{cfg: &cfgCopy, budget: c.retryBudgetTracker}
+	} else if c.retryBudgetTracker != nil {
+		// Attach budget to a shallow copy so the base retrier stays immutable.
+		cfgCopy := *c.retrier.cfg
+		activeRetrier = &retrier{cfg: &cfgCopy, budget: c.retryBudgetTracker}
 	}
 	httpResp, err = activeRetrier.Do(ctx, func() (*http.Response, error) {
 		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalisationMode)
