@@ -33,6 +33,10 @@ var (
 
 	// ErrClientClosed is returned when Execute is called after Shutdown.
 	ErrClientClosed = errors.New("client is closed")
+
+	// ErrBulkheadFull is returned when the bulkhead limit is reached and the
+	// context is cancelled before a slot becomes available.
+	ErrBulkheadFull = errors.New("relay: bulkhead full")
 )
 
 // HTTPError represents an HTTP response whose status code indicates a client

@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 // overrideDialer is a [net.Dialer] wrapper that substitutes specific hostnames
@@ -86,7 +85,7 @@ func buildTransport(cfg *Config) http.RoundTripper {
 		TLSClientConfig:       tlsCfg,
 		DisableCompression:    cfg.DisableCompression,
 		ForceAttemptHTTP2:     true,
-		ExpectContinueTimeout: 1 * time.Second,
+		ExpectContinueTimeout: cfg.ExpectContinueTimeout,
 		WriteBufferSize:       64 * 1024,
 		ReadBufferSize:        64 * 1024,
 	}
