@@ -348,3 +348,70 @@ func TestIsCircuitOpen(t *testing.T) {
 		t.Error("nil should not be circuit open")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// E5 - Redirect chain tracking
+// ---------------------------------------------------------------------------
+
+func TestRedirectChain(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/a":
+			http.Redirect(w, r, "/b", http.StatusFound)
+		case "/b":
+			http.Redirect(w, r, "/c", http.StatusMovedPermanently)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/a"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	if !resp.WasRedirected() {
+		t.Error("WasRedirected() should be true")
+	}
+	if got := resp.RedirectCount; got != 2 {
+		t.Errorf("RedirectCount = %d, want 2", got)
+	}
+
+	chain := resp.RedirectChain()
+	if len(chain) != 2 {
+		t.Fatalf("RedirectChain() length = %d, want 2", len(chain))
+	}
+
+	if chain[0].StatusCode != http.StatusFound {
+		t.Errorf("chain[0].StatusCode = %d, want 302", chain[0].StatusCode)
+	}
+	if chain[1].StatusCode != http.StatusMovedPermanently {
+		t.Errorf("chain[1].StatusCode = %d, want 301", chain[1].StatusCode)
+	}
+}
+
+func TestRedirectChain_NoRedirects(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if got := len(resp.RedirectChain()); got != 0 {
+		t.Errorf("RedirectChain() length = %d, want 0", got)
+	}
+}

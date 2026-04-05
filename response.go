@@ -19,12 +19,24 @@ type Response struct {
 	raw           *http.Response
 	body          []byte
 	decode        func(contentType string, body []byte, v any) error
+	redirectChain []RedirectInfo
 	StatusCode    int
 	Status        string
 	Headers       http.Header
 	Truncated     bool          // true when body was cut at MaxResponseBodyBytes
 	RedirectCount int           // number of redirects followed to reach this response
 	Timing        RequestTiming // per-phase timing breakdown (DNS, TCP, TLS, TTFB, ...)
+}
+
+// RedirectInfo records a single redirect hop followed during [Client.Execute].
+type RedirectInfo struct {
+	// From is the URL of the request that received the redirect response.
+	From string
+	// To is the URL the client was redirected to.
+	To string
+	// StatusCode is the HTTP status of the redirect response (e.g. 302).
+	// Zero if the status could not be determined.
+	StatusCode int
 }
 
 var responsePool = &sync.Pool{
@@ -43,6 +55,7 @@ func (r *Response) reset() {
 	r.raw = nil
 	r.body = r.body[:0]
 	r.decode = nil
+	r.redirectChain = r.redirectChain[:0]
 	r.StatusCode = 0
 	r.Status = ""
 	r.Headers = nil
@@ -60,7 +73,7 @@ func PutResponse(r *Response) {
 	}
 }
 
-func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Response, error) {
+func newResponse(resp *http.Response, maxBytes int64, redirectCount int, chain []RedirectInfo) (*Response, error) {
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 
 	var reader io.Reader = resp.Body
@@ -106,6 +119,9 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int) (*Respo
 	r.Headers = resp.Header
 	r.Truncated = truncated
 	r.RedirectCount = redirectCount
+	if len(chain) > 0 {
+		r.redirectChain = append(r.redirectChain[:0], chain...)
+	}
 
 	return r, nil
 }
@@ -126,6 +142,13 @@ func (r *Response) IsTruncated() bool { return r.Truncated }
 
 // WasRedirected reports whether at least one redirect was followed.
 func (r *Response) WasRedirected() bool { return r.RedirectCount > 0 }
+
+// RedirectChain returns the sequence of redirects followed to reach this
+// response, in order. Each entry records the From URL, the To URL, and the
+// HTTP status code of the redirect response. The slice is empty when no
+// redirects were followed. It is useful for debugging auth/SSO flows that
+// involve multiple redirect hops.
+func (r *Response) RedirectChain() []RedirectInfo { return r.redirectChain }
 
 // ContentType returns the Content-Type response header value.
 func (r *Response) ContentType() string { return r.Headers.Get("Content-Type") }
@@ -150,6 +173,21 @@ func (r *Response) JSON(v interface{}) error { return json.Unmarshal(r.body, v) 
 
 // XML unmarshals the response body into v using encoding/xml.
 func (r *Response) XML(v interface{}) error { return xml.Unmarshal(r.body, v) }
+
+// Text returns the response body decoded as a UTF-8 string. It is equivalent
+// to [Response.String] and is provided for API discoverability.
+func (r *Response) Text() string { return string(r.body) }
+
+// Bytes returns a copy of the raw response body bytes. It is equivalent to
+// [Response.Body] and is provided for API discoverability.
+func (r *Response) Bytes() []byte {
+	if len(r.body) == 0 {
+		return nil
+	}
+	out := make([]byte, len(r.body))
+	copy(out, r.body)
+	return out
+}
 
 // Decode deserialises the response body into v. When a [WithResponseDecoder]
 // has been configured on the client, it is called with the response
