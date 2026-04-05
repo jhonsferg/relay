@@ -150,8 +150,15 @@ func (r *Response) WasRedirected() bool { return r.RedirectCount > 0 }
 // involve multiple redirect hops.
 func (r *Response) RedirectChain() []RedirectInfo { return r.redirectChain }
 
-// ContentType returns the Content-Type response header value.
-func (r *Response) ContentType() string { return r.Headers.Get("Content-Type") }
+// ContentType returns the media type from the Content-Type header, stripped
+// of any parameters (e.g. "application/json" from "application/json; charset=utf-8").
+func (r *Response) ContentType() string {
+	ct := r.Headers.Get("Content-Type")
+	if idx := strings.Index(ct, ";"); idx >= 0 {
+		ct = strings.TrimSpace(ct[:idx])
+	}
+	return ct
+}
 
 // Header returns the value of the named response header.
 func (r *Response) Header(key string) string { return r.Headers.Get(key) }

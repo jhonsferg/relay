@@ -114,6 +114,11 @@ type Config struct {
 	// active connection.
 	DialKeepAlive time.Duration
 
+	// ExpectContinueTimeout is the maximum time to wait for a server's first
+	// response headers after fully writing the request headers if the request
+	// has an Expect: 100-continue header. Zero means no specific timeout.
+	ExpectContinueTimeout time.Duration
+
 	// TLSConfig replaces the default TLS configuration. When nil, a config
 	// enforcing TLS 1.2 as the minimum version is used.
 	TLSConfig *tls.Config
@@ -296,6 +301,24 @@ type Config struct {
 	// Reduces allocations in request.build() by reusing the parsed URL.
 	// Only set by WithBaseURL; never modified after client creation.
 	parsedBaseURL *url.URL
+
+	// MaxConcurrentRequests is the maximum number of in-flight requests
+	// allowed simultaneously. Zero or negative means no limit.
+	MaxConcurrentRequests int
+
+	// DefaultAccept is the value sent in the Accept header when no explicit
+	// Accept header has been set on the request. Empty string means no default
+	// Accept header is added.
+	DefaultAccept string
+
+	// HedgeAfter is the delay before sending a duplicate (hedge) request.
+	// Zero disables hedging. When set, a second request is sent after this
+	// duration if the first has not completed. The first response wins.
+	HedgeAfter time.Duration
+
+	// HedgeMaxAttempts is the maximum number of concurrent hedge requests
+	// (including the original). Defaults to 2 when HedgeAfter > 0.
+	HedgeMaxAttempts int
 }
 
 // defaultConfig returns a Config populated with all production-ready defaults.
@@ -850,4 +873,44 @@ func WithOnErrorHook(fn OnErrorHookFunc) Option {
 // methods unconditionally.
 func WithAutoIdempotencyOnSafeRetries() Option {
 	return func(c *Config) { c.AutoIdempotencyOnSafeRetries = true }
+}
+
+// WithTLSHandshakeTimeout sets the deadline for completing the TLS handshake.
+func WithTLSHandshakeTimeout(d time.Duration) Option {
+	return func(c *Config) { c.TLSHandshakeTimeout = d }
+}
+
+// WithExpectContinueTimeout sets the maximum time to wait for a server's
+// first response headers when the request has an Expect: 100-continue header.
+// Zero disables the timeout.
+func WithExpectContinueTimeout(d time.Duration) Option {
+	return func(c *Config) { c.ExpectContinueTimeout = d }
+}
+
+// WithMaxConcurrentRequests sets the maximum number of in-flight requests
+// allowed simultaneously (bulkhead). Zero or negative means no limit.
+func WithMaxConcurrentRequests(n int) Option {
+	return func(c *Config) { c.MaxConcurrentRequests = n }
+}
+
+// WithDefaultAccept sets the default Accept header sent when the request does
+// not already carry one. Empty string disables the default.
+func WithDefaultAccept(accept string) Option {
+	return func(c *Config) { c.DefaultAccept = accept }
+}
+
+// WithHedging enables request hedging: a duplicate request is sent after d if
+// the first has not completed. The first response wins; the other is cancelled.
+// Defaults to 2 concurrent attempts.
+func WithHedging(after time.Duration) Option {
+	return func(c *Config) { c.HedgeAfter = after }
+}
+
+// WithHedgingN enables request hedging with up to maxAttempts concurrent
+// duplicates. after is the delay between launching each attempt.
+func WithHedgingN(after time.Duration, maxAttempts int) Option {
+	return func(c *Config) {
+		c.HedgeAfter = after
+		c.HedgeMaxAttempts = maxAttempts
+	}
 }
