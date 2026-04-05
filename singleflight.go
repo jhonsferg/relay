@@ -98,6 +98,6 @@ func newDetachedContext(parent context.Context) context.Context {
 }
 
 func (d detachedContext) Deadline() (time.Time, bool)       { return time.Time{}, false }
-func (d detachedContext) Done() <-chan struct{}              { return nil }
+func (d detachedContext) Done() <-chan struct{}             { return nil }
 func (d detachedContext) Err() error                        { return nil }
 func (d detachedContext) Value(key interface{}) interface{} { return d.parent.Value(key) }
