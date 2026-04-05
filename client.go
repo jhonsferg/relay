@@ -20,6 +20,11 @@ type contextKey int
 // [Response.RedirectCount].
 const redirectCountKey contextKey = 0
 
+// redirectChainKey is the context key used to pass the redirect chain from
+// the CheckRedirect policy back to Execute so it can populate
+// [Response.RedirectChain].
+const redirectChainKey contextKey = 1
+
 // Client is a production-grade HTTP client with a configurable transport stack,
 // automatic retry/backoff, circuit breaker, token-bucket rate limiter, HTTP
 // response caching, OpenTelemetry distributed tracing and metrics, streaming,
@@ -139,8 +144,28 @@ func buildClient(cfg *Config) *Client {
 		if countPtr, ok := req.Context().Value(redirectCountKey).(*int); ok {
 			*countPtr = len(via)
 		}
+		if chainPtr, ok := req.Context().Value(redirectChainKey).(*[]RedirectInfo); ok {
+			var statusCode int
+			if req.Response != nil {
+				statusCode = req.Response.StatusCode
+			}
+			var from string
+			if len(via) > 0 {
+				from = via[len(via)-1].URL.String()
+			}
+			*chainPtr = append(*chainPtr, RedirectInfo{
+				From:       from,
+				To:         req.URL.String(),
+				StatusCode: statusCode,
+			})
+		}
 		if len(via) >= cfg.MaxRedirects {
 			return fmt.Errorf("stopped after %d redirects", cfg.MaxRedirects)
+		}
+		for _, hook := range cfg.BeforeRedirectHooks {
+			if hookErr := hook(req, via); hookErr != nil {
+				return hookErr
+			}
 		}
 		return nil
 	}
@@ -220,9 +245,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	req = req.withCtx(ctx)
 
 	// Auto-generate idempotency key once per request (reused across retries).
-	if c.config.AutoIdempotencyKey && req.idempotencyKey == "" {
-		if key, genErr := generateIdempotencyKey(); genErr == nil {
-			req.idempotencyKey = key
+	if req.idempotencyKey == "" {
+		if c.config.AutoIdempotencyKey ||
+			(c.config.AutoIdempotencyOnSafeRetries && isSafeMethod(req.method)) {
+			if key, genErr := generateIdempotencyKey(); genErr == nil {
+				req.idempotencyKey = key
+			}
 		}
 	}
 
@@ -242,10 +270,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		return nil, ErrCircuitOpen
 	}
 
-	// Embed a redirect counter so CheckRedirect can populate it.
+	// Embed a redirect counter and chain so CheckRedirect can populate them.
 	// Done after the circuit breaker check to avoid allocating on rejected requests.
 	var redirectCount int
+	var redirectChain []RedirectInfo
 	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
+	ctx = context.WithValue(ctx, redirectChainKey, &redirectChain)
 
 	// Inject httptrace for request timing unless the caller has disabled it.
 	var timingCol *timingCollector
@@ -258,7 +288,24 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	req.ctx = ctx
 
 	var httpResp *http.Response
-	httpResp, err = c.retrier.Do(ctx, func() (*http.Response, error) {
+	// If BeforeRetryHooks are registered, compose them with any existing
+	// RetryConfig.OnRetry into a per-Execute retrier (thread-safe copy).
+	activeRetrier := c.retrier
+	if len(c.config.BeforeRetryHooks) > 0 {
+		cfgCopy := *c.retrier.cfg
+		origOnRetry := cfgCopy.OnRetry
+		hooks := c.config.BeforeRetryHooks // capture slice, not c.config
+		cfgCopy.OnRetry = func(attempt int, httpR *http.Response, retryErr error) {
+			if origOnRetry != nil {
+				origOnRetry(attempt, httpR, retryErr)
+			}
+			for _, hook := range hooks {
+				hook(ctx, attempt, req, httpR, retryErr)
+			}
+		}
+		activeRetrier = &retrier{cfg: &cfgCopy}
+	}
+	httpResp, err = activeRetrier.Do(ctx, func() (*http.Response, error) {
 		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalisationMode)
 		if buildErr != nil {
 			return nil, buildErr
@@ -296,6 +343,9 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		if hasRequestTimeout && errors.Is(err, context.DeadlineExceeded) {
 			err = fmt.Errorf("%w: %w", ErrTimeout, err)
 		}
+		for _, hook := range c.config.OnErrorHooks {
+			hook(ctx, req, err)
+		}
 		return nil, err
 	}
 
@@ -322,7 +372,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if req.maxBodyBytes != 0 {
 		maxBody = req.maxBodyBytes
 	}
-	resp, err = newResponse(httpResp, maxBody, redirectCount)
+	resp, err = newResponse(httpResp, maxBody, redirectCount, redirectChain)
 	if err != nil {
 		return nil, err
 	}

@@ -251,6 +251,28 @@ type Config struct {
 	// every request. The same key is reused across retry attempts.
 	AutoIdempotencyKey bool
 
+	// AutoIdempotencyOnSafeRetries is like AutoIdempotencyKey but restricts
+	// key injection to HTTP methods that are semantically idempotent or safe:
+	// GET, HEAD, PUT, OPTIONS, and TRACE. POST, PATCH, and DELETE are skipped
+	// unless the caller sets the key explicitly. The same key is reused across
+	// all retry attempts for the request.
+	AutoIdempotencyOnSafeRetries bool
+
+	// BeforeRetryHooks are called before each retry sleep, in order.
+	// attempt is 1-based. httpResp and err reflect the result that triggered
+	// the retry; either may be nil. Use [WithBeforeRetryHook] to append hooks.
+	BeforeRetryHooks []BeforeRetryHookFunc
+
+	// BeforeRedirectHooks are called before each redirect is followed.
+	// Returning a non-nil error stops the redirect chain; the error propagates
+	// as the [Client.Execute] return value. Use [WithBeforeRedirectHook].
+	BeforeRedirectHooks []BeforeRedirectHookFunc
+
+	// OnErrorHooks are called when [Client.Execute] returns a non-nil error.
+	// They run after all internal error handling and are intended for logging
+	// and metrics; the return value is discarded. Use [WithOnErrorHook].
+	OnErrorHooks []OnErrorHookFunc
+
 	// HealthCheck enables a background goroutine that proactively probes a
 	// health endpoint while the circuit breaker is open and resets it on
 	// success. Nil disables the feature.
@@ -315,6 +337,9 @@ func (cfg *Config) clone() *Config {
 	c.TransportMiddlewares = append([]func(http.RoundTripper) http.RoundTripper(nil), cfg.TransportMiddlewares...)
 	c.OnBeforeRequest = append([]func(context.Context, *Request) error(nil), cfg.OnBeforeRequest...)
 	c.OnAfterResponse = append([]func(context.Context, *Response) error(nil), cfg.OnAfterResponse...)
+	c.BeforeRetryHooks = append([]BeforeRetryHookFunc(nil), cfg.BeforeRetryHooks...)
+	c.BeforeRedirectHooks = append([]BeforeRedirectHookFunc(nil), cfg.BeforeRedirectHooks...)
+	c.OnErrorHooks = append([]OnErrorHookFunc(nil), cfg.OnErrorHooks...)
 
 	return &c
 }
@@ -766,4 +791,63 @@ func WithDNSCache(ttl time.Duration) Option {
 	return func(c *Config) {
 		c.DNSCache = &DNSCacheConfig{TTL: ttl}
 	}
+}
+
+// --- Semantic hook types -----------------------------------------------------
+
+// BeforeRetryHookFunc is called before each retry sleep. attempt is 1-based
+// (first retry = 1). req is the original relay [Request]. httpResp and err
+// reflect the result that triggered the retry; either may be nil.
+type BeforeRetryHookFunc func(ctx context.Context, attempt int, req *Request, httpResp *http.Response, err error)
+
+// BeforeRedirectHookFunc is called before each redirect is followed. Returning
+// a non-nil error stops the redirect chain and propagates as the
+// [Client.Execute] return value.
+type BeforeRedirectHookFunc func(req *http.Request, via []*http.Request) error
+
+// OnErrorHookFunc is called when [Client.Execute] returns a non-nil error.
+// It is intended for logging and metrics; its return value is discarded.
+type OnErrorHookFunc func(ctx context.Context, req *Request, err error)
+
+// WithBeforeRetryHook appends a hook invoked before each retry sleep.
+// Multiple hooks are called in the order they are registered.
+//
+//	WithBeforeRetryHook(func(ctx context.Context, attempt int, req *relay.Request, httpResp *http.Response, err error) {
+//	   slog.InfoContext(ctx, "retrying", "attempt", attempt, "err", err)
+//	})
+func WithBeforeRetryHook(fn BeforeRetryHookFunc) Option {
+	return func(c *Config) { c.BeforeRetryHooks = append(c.BeforeRetryHooks, fn) }
+}
+
+// WithBeforeRedirectHook appends a hook invoked before each redirect.
+// Returning a non-nil error aborts the redirect chain.
+//
+//	WithBeforeRedirectHook(func(req *http.Request, via []*http.Request) error {
+//	   if len(via) > 3 { return errors.New("too many redirects") }
+//	   return nil
+//	})
+func WithBeforeRedirectHook(fn BeforeRedirectHookFunc) Option {
+	return func(c *Config) { c.BeforeRedirectHooks = append(c.BeforeRedirectHooks, fn) }
+}
+
+// WithOnErrorHook appends a hook invoked whenever [Client.Execute] returns a
+// non-nil error. Use it for structured error logging or metrics.
+//
+//	WithOnErrorHook(func(ctx context.Context, req *relay.Request, err error) {
+//	   slog.ErrorContext(ctx, "request failed", "method", req.Method(), "err", err)
+//	})
+func WithOnErrorHook(fn OnErrorHookFunc) Option {
+	return func(c *Config) { c.OnErrorHooks = append(c.OnErrorHooks, fn) }
+}
+
+// WithAutoIdempotencyOnSafeRetries automatically injects an X-Idempotency-Key
+// header for HTTP methods that are semantically idempotent or safe (GET, HEAD,
+// PUT, OPTIONS, TRACE). POST, PATCH, and DELETE are skipped unless the caller
+// sets a key explicitly. The same key is reused across all retry attempts for
+// a given request.
+//
+// Use [WithAutoIdempotencyKey] instead if you want to inject the key for all
+// methods unconditionally.
+func WithAutoIdempotencyOnSafeRetries() Option {
+	return func(c *Config) { c.AutoIdempotencyOnSafeRetries = true }
 }
