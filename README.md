@@ -471,6 +471,299 @@ preserves the default behaviour (the `*Response` is returned without error).
 
 ---
 
+### Semantic Hooks
+
+Beyond the general `OnBeforeRequest` / `OnAfterResponse` hooks, relay provides
+lifecycle-specific hooks for precise observation of retry, redirect, and error events.
+
+#### BeforeRetry Hook
+
+Called before each retry sleep. Receives the context, the request, the last response
+(may be nil on transport errors), and the error that triggered the retry:
+
+```go
+client := relay.New(
+    relay.WithRetry(&relay.RetryConfig{MaxAttempts: 3}),
+    relay.WithBeforeRetryHook(func(ctx context.Context, req *relay.Request, resp *http.Response, err error) {
+        attempt := 0
+        if resp != nil {
+            log.Printf("retrying after %d: %s %s", resp.StatusCode, req.Method(), req.URL())
+        }
+        _ = attempt
+    }),
+)
+```
+
+#### BeforeRedirect Hook
+
+Called for every redirect hop. Return an error to abort the redirect chain:
+
+```go
+client := relay.New(
+    relay.WithBeforeRedirectHook(func(ctx context.Context, req *http.Request, via []*http.Request) error {
+        if len(via) >= 3 {
+            return fmt.Errorf("too many redirects")
+        }
+        log.Printf("redirecting to %s", req.URL)
+        return nil
+    }),
+)
+```
+
+#### OnError Hook
+
+Called after every failed execution (transport error or circuit-breaker open),
+useful for error logging and metrics without wrapping every call site:
+
+```go
+client := relay.New(
+    relay.WithOnErrorHook(func(ctx context.Context, req *relay.Request, err error) {
+        metrics.IncrCounter("http.errors", 1)
+        log.Printf("request failed: %s %s: %v", req.Method(), req.URL(), err)
+    }),
+)
+```
+
+Multiple hooks are supported for all three types; they are called in registration order.
+
+---
+
+### Auto Idempotency on Safe Retries
+
+Automatically inject an `X-Idempotency-Key` header on retried requests for safe HTTP
+methods (GET, HEAD, PUT, OPTIONS, TRACE). This prevents accidental duplicate writes
+when a non-idempotent-by-nature POST is retried, and signals intent to servers that
+support idempotency keys:
+
+```go
+client := relay.New(
+    relay.WithAutoIdempotencyOnSafeRetries(),
+)
+```
+
+For all methods (including POST/PATCH), use the broader option:
+
+```go
+relay.WithAutoIdempotencyKey() // adds key to every request
+```
+
+The key is generated once per `Execute` call and reused across all retry attempts,
+so the server can deduplicate safely.
+
+---
+
+### Error Classification Helpers
+
+Inspect errors returned by `Execute` without manual type assertions:
+
+```go
+resp, err := client.Execute(req)
+if err != nil {
+    switch {
+    case relay.IsTimeout(err):
+        // context deadline or client-side timeout
+        log.Println("request timed out")
+    case relay.IsCircuitOpen(err):
+        // circuit breaker tripped; fast-fail
+        fallback()
+    case relay.IsRetryableError(err, resp):
+        // transient network error or 429/5xx - could retry manually
+        scheduleRetry()
+    }
+}
+```
+
+| Helper | Returns true when |
+|--------|-------------------|
+| `IsTimeout(err)` | `ErrTimeout` or `context.DeadlineExceeded` |
+| `IsCircuitOpen(err)` | `ErrCircuitOpen` - circuit breaker is open |
+| `IsRetryableError(err, resp)` | transport error, 429, 500, 502, 503, 504 |
+
+---
+
+### Generic Response Coercion
+
+Decode a response body into any type without an intermediate variable:
+
+```go
+// Package-level generics - work with any *Response
+user, err := relay.DecodeJSON[User](resp)
+item, err := relay.DecodeXML[Item](resp)
+val,  err := relay.DecodeAs[MyType](resp) // JSON first, fallback XML by Content-Type
+```
+
+Convenience methods on `*Response`:
+
+```go
+text  := resp.Text()    // body as string (copy)
+bytes := resp.Bytes()   // body as []byte (copy)
+ct    := resp.ContentType() // "application/json" (parameters stripped)
+```
+
+Combined with `ExecuteAs[T]` for a one-liner call:
+
+```go
+user, _, err := relay.ExecuteAs[User](client, client.Get("/users/42"))
+```
+
+---
+
+### Redirect Chain Tracking
+
+Inspect every hop in a redirect sequence after the final response is received:
+
+```go
+resp, err := client.Execute(client.Get("/redirect-me"))
+if err != nil {
+    log.Fatal(err)
+}
+
+for i, hop := range resp.RedirectChain() {
+    fmt.Printf("hop %d: %d %s -> %s\n", i+1, hop.StatusCode, hop.From, hop.To)
+}
+```
+
+`RedirectChain()` returns a `[]relay.RedirectInfo` slice, where each entry contains:
+- `From` - the URL that returned the redirect
+- `To` - the URL the client was redirected to
+- `StatusCode` - the HTTP status code (301, 302, 307, 308, ...)
+
+An empty slice is returned when no redirects occurred.
+
+---
+
+### Granular Transport Timeouts
+
+Fine-tune each phase of the TCP/TLS lifecycle independently:
+
+```go
+client := relay.New(
+    relay.WithDialTimeout(3*time.Second),             // TCP connection establishment
+    relay.WithTLSHandshakeTimeout(5*time.Second),     // TLS handshake
+    relay.WithResponseHeaderTimeout(10*time.Second),  // wait for first response byte
+    relay.WithIdleConnTimeout(90*time.Second),        // keep-alive idle cleanup
+    relay.WithExpectContinueTimeout(1*time.Second),   // Expect: 100-continue
+)
+```
+
+These compose with the existing top-level `WithTimeout` (end-to-end). The per-phase
+values are applied to the underlying `http.Transport` directly.
+
+---
+
+### Bulkhead Isolation
+
+Limit the number of requests that can be in-flight at the same time. Excess requests
+block until a slot is available or the context is cancelled - preventing a slow
+downstream from exhausting all goroutines:
+
+```go
+client := relay.New(
+    relay.WithMaxConcurrentRequests(50), // at most 50 in-flight at once
+)
+```
+
+When all slots are taken and the context is cancelled before one frees, `Execute`
+returns `relay.ErrBulkheadFull`. Bulkhead slots are acquired before the retry loop,
+so retries do not consume additional slots.
+
+```go
+resp, err := client.Execute(req)
+if errors.Is(err, relay.ErrBulkheadFull) {
+    // apply back-pressure, circuit-break, or queue the request
+}
+```
+
+---
+
+### Pagination Helper
+
+Iterate through paginated APIs that use `Link: <url>; rel="next"` response headers
+(RFC 5988 - used by GitHub, GitLab, Stripe, and many others):
+
+```go
+err := client.Paginate(
+    ctx,
+    client.Get("/repos/org/project/issues").WithQueryParam("per_page", "100"),
+    func(resp *relay.Response) (bool, error) {
+        var issues []Issue
+        if err := resp.JSON(&issues); err != nil {
+            return false, err
+        }
+        process(issues)
+        return true, nil // return false to stop early
+    },
+)
+```
+
+For APIs with custom pagination (e.g. JSON body `nextCursor` field), use the lower-level
+`PaginateWith`:
+
+```go
+err := client.PaginateWith(ctx, initialReq,
+    func(resp *relay.Response) string {
+        // extract next page URL from JSON body
+        var body struct{ NextPage string `json:"next_page"` }
+        _ = resp.JSON(&body)
+        return body.NextPage // empty string = last page
+    },
+    func(resp *relay.Response) (bool, error) {
+        // process each page
+        return true, nil
+    },
+)
+```
+
+---
+
+### Content Negotiation
+
+Set a default `Accept` header that is applied to every request when no explicit
+`Accept` has been set:
+
+```go
+client := relay.New(
+    relay.WithDefaultAccept("application/json"),
+)
+```
+
+Override per request with `WithAccept`:
+
+```go
+resp, err := client.Execute(
+    client.Get("/data").WithAccept("application/xml"),
+)
+```
+
+Parse the response media type (parameters stripped):
+
+```go
+ct := resp.ContentType() // "application/json" (not "application/json; charset=utf-8")
+```
+
+---
+
+### Request Hedging
+
+Reduce tail latency by sending a duplicate request if the first has not responded
+within a configurable window. The first response wins; the other is cancelled:
+
+```go
+client := relay.New(
+    relay.WithHedging(200*time.Millisecond), // send hedge after 200ms
+)
+
+// For aggressive tail-latency reduction, allow up to 3 parallel attempts:
+client := relay.New(
+    relay.WithHedgingN(100*time.Millisecond, 3),
+)
+```
+
+Hedging is best applied to idempotent, read-only endpoints. It trades a small
+increase in upstream request volume for significantly reduced p99 latency.
+
+---
+
 ### Transport Customisation
 
 #### HTTP/3 / QUIC
