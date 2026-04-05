@@ -121,10 +121,10 @@ func TestExecuteWebSocket_Timeout(t *testing.T) {
 }
 
 func TestExecuteWebSocket_DefaultHeaders(t *testing.T) {
-	var captured http.Header
+	captured := make(chan http.Header, 1)
 	mux := http.NewServeMux()
 	mux.Handle("/ws", xwebsocket.Handler(func(ws *xwebsocket.Conn) {
-		captured = ws.Request().Header
+		captured <- ws.Request().Header.Clone()
 	}))
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -140,8 +140,13 @@ func TestExecuteWebSocket_DefaultHeaders(t *testing.T) {
 	}
 	defer conn.Close() //nolint:errcheck
 
-	if got := captured.Get("X-Relay-Test"); got != "value123" {
-		t.Errorf("expected X-Relay-Test=value123, got %q", got)
+	select {
+	case h := <-captured:
+		if got := h.Get("X-Relay-Test"); got != "value123" {
+			t.Errorf("expected X-Relay-Test=value123, got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for WebSocket handler to receive headers")
 	}
 }
 
