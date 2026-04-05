@@ -162,6 +162,11 @@ type Config struct {
 	// When nil, rate limiting is disabled.
 	RateLimitConfig *RateLimitConfig
 
+	// LoadBalancerConfig distributes requests across multiple backend URLs.
+	// When set, BaseURL is ignored and a backend is selected per request.
+	// When nil, load balancing is disabled.
+	LoadBalancerConfig *LoadBalancerConfig
+
 	// DefaultHeaders are merged into every outgoing request. Per-request headers
 	// always take precedence over these defaults.
 	DefaultHeaders map[string]string
@@ -681,6 +686,15 @@ func WithOnStateChange(fn func(from, to CircuitBreakerState)) Option {
 func WithRateLimit(rps float64, burst int) Option {
 	return func(c *Config) {
 		c.RateLimitConfig = &RateLimitConfig{RequestsPerSecond: rps, Burst: burst}
+	}
+}
+
+// WithLoadBalancer distributes requests across multiple backend URLs using the
+// given strategy. When set, BaseURL is ignored and each request selects a backend
+// from cfg.Backends. Use [RoundRobin] (default) or [Random] as strategy.
+func WithLoadBalancer(cfg LoadBalancerConfig) Option {
+	return func(c *Config) {
+		c.LoadBalancerConfig = &cfg
 	}
 }
 
