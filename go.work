@@ -24,6 +24,7 @@ use (
 	./ext/sigv4
 	./ext/slog
 	./ext/tracing
+	./ext/vcr
 	./ext/websocket
 	./ext/zap
 	./ext/zerolog
