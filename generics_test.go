@@ -1,6 +1,7 @@
 package relay_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -176,5 +177,123 @@ func TestExecuteAs_WithResponseDecoder(t *testing.T) {
 	}
 	if user.ID != 42 || user.Name != "decoded:Bob" {
 		t.Errorf("user = %+v, want {42 decoded:Bob}", user)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// E4 - Generic response coercion
+// ---------------------------------------------------------------------------
+
+func TestDecodeJSON(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":42,"name":"relay"}`))
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	type Item struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	item, err := relay.DecodeJSON[Item](resp)
+	if err != nil {
+		t.Fatalf("DecodeJSON() error: %v", err)
+	}
+	if item.ID != 42 || item.Name != "relay" {
+		t.Errorf("DecodeJSON() = %+v, want {ID:42 Name:relay}", item)
+	}
+}
+
+func TestDecodeXML(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(`<item><ID>7</ID><Name>traverse</Name></item>`))
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	type Item struct {
+		ID   int    `xml:"ID"`
+		Name string `xml:"Name"`
+	}
+	item, err := relay.DecodeXML[Item](resp)
+	if err != nil {
+		t.Fatalf("DecodeXML() error: %v", err)
+	}
+	if item.ID != 7 || item.Name != "traverse" {
+		t.Errorf("DecodeXML() = %+v, want {ID:7 Name:traverse}", item)
+	}
+}
+
+func TestDecodeAs_JSON(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"value":99}`))
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	type Payload struct {
+		Value int `json:"value"`
+	}
+	p, err := relay.DecodeAs[Payload](resp)
+	if err != nil {
+		t.Fatalf("DecodeAs() error: %v", err)
+	}
+	if p.Value != 99 {
+		t.Errorf("DecodeAs() value = %d, want 99", p.Value)
+	}
+}
+
+func TestResponseTextAndBytes(t *testing.T) {
+	t.Parallel()
+
+	body := "hello relay"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	if got := resp.Text(); got != body {
+		t.Errorf("Text() = %q, want %q", got, body)
+	}
+	if got := string(resp.Bytes()); got != body {
+		t.Errorf("Bytes() = %q, want %q", got, body)
 	}
 }

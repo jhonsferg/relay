@@ -72,3 +72,38 @@ func ExecuteAsStream[T any](c *Client, req *Request, handler func(T) bool) error
 	}
 	return scanner.Err()
 }
+
+// DecodeJSON decodes the response body as JSON into a value of type T without
+// requiring a pre-allocated target. It is the typed equivalent of calling
+// [Response.JSON] on a freshly allocated pointer.
+//
+// user, err := relay.DecodeJSON[User](resp)
+func DecodeJSON[T any](resp *Response) (T, error) {
+	var v T
+	err := json.Unmarshal(resp.Body(), &v)
+	return v, err
+}
+
+// DecodeXML decodes the response body as XML into a value of type T.
+//
+// envelope, err := relay.DecodeXML[SOAPEnvelope](resp)
+func DecodeXML[T any](resp *Response) (T, error) {
+	var v T
+	err := resp.XML(&v)
+	return v, err
+}
+
+// DecodeAs decodes the response body into a value of type T using the
+// response's content-type-aware decoder. When a [WithResponseDecoder] has
+// been configured on the client, it is used; otherwise the method falls back
+// to JSON for application/json content and XML for application/xml.
+//
+// Use DecodeAs when you fetch the response manually and decode it separately,
+// or when you want content-type-driven dispatch without specifying the format.
+//
+// order, err := relay.DecodeAs[Order](resp)
+func DecodeAs[T any](resp *Response) (T, error) {
+	var v T
+	err := resp.Decode(&v)
+	return v, err
+}
