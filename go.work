@@ -3,10 +3,10 @@ go 1.24.0
 use (
 	.
 	./ext/breaker/gobreaker
-	./ext/chaos
 	./ext/brotli
 	./ext/cache/lru
 	./ext/cache/twolevel
+	./ext/chaos
 	./ext/graphql
 	./ext/grpc
 	./ext/http3
@@ -22,9 +22,9 @@ use (
 	./ext/redis
 	./ext/sentry
 	./ext/sigv4
+	./ext/slog
 	./ext/tracing
 	./ext/websocket
 	./ext/zap
 	./ext/zerolog
 )
-
