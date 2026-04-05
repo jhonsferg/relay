@@ -149,6 +149,10 @@ type Config struct {
 	// (3 attempts, exponential backoff) is used.
 	RetryConfig *RetryConfig
 
+	// RetryBudget limits the fraction of requests that may be retried within a
+	// sliding window to prevent retry storms. When nil, no budget is enforced.
+	RetryBudget *RetryBudget
+
 	// CircuitBreakerConfig controls the circuit breaker. When nil, a default
 	// (5 failures → Open, 60 s reset) is used. Set explicitly to nil with
 	// [WithDisableCircuitBreaker] to disable it entirely.
@@ -604,6 +608,11 @@ func WithDNSOverride(hosts map[string]string) Option {
 // WithRetry replaces the entire retry configuration. Pass nil to restore
 // the package defaults (3 attempts, exponential backoff).
 func WithRetry(rc *RetryConfig) Option { return func(c *Config) { c.RetryConfig = rc } }
+
+// WithRetryBudget sets a sliding-window retry budget that caps the fraction of
+// requests that may be retried within the window. This prevents retry storms
+// when a downstream service degrades. See [RetryBudget] for field semantics.
+func WithRetryBudget(b *RetryBudget) Option { return func(c *Config) { c.RetryBudget = b } }
 
 // WithDisableRetry disables all retry behaviour so only a single attempt is
 // made.
