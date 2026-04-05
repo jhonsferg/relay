@@ -64,6 +64,10 @@ type Client struct {
 	// bgCancel cancels the context shared by all background goroutines
 	// (health check, etc.). Called by Shutdown to stop them gracefully.
 	bgCancel context.CancelFunc
+
+	// bulkhead limits the maximum number of concurrent in-flight requests.
+	// Nil means unlimited.
+	bulkhead chan struct{}
 }
 
 // New creates a Client from the provided functional options. Options are applied
@@ -194,6 +198,10 @@ func buildClient(cfg *Config) *Client {
 		)
 	}
 
+	if cfg.MaxConcurrentRequests > 0 {
+		c.bulkhead = make(chan struct{}, cfg.MaxConcurrentRequests)
+	}
+
 	if cfg.HealthCheck != nil && cfg.CircuitBreakerConfig != nil {
 		go c.runHealthCheck(bgCtx, cfg.HealthCheck)
 	}
@@ -203,8 +211,8 @@ func buildClient(cfg *Config) *Client {
 
 // Execute sends the request through the full pipeline:
 //
-//	closed-guard → ctx guard → OnBeforeRequest hooks → rate limiter →
-//	circuit breaker → retrier → transport stack → OnAfterResponse hooks
+//	closed-guard -> ctx guard -> OnBeforeRequest hooks -> rate limiter ->
+//	circuit breaker -> retrier -> transport stack -> OnAfterResponse hooks
 //
 // A non-nil error is returned for transport-level failures, context
 // cancellations, and when the circuit breaker is open. HTTP error status codes
@@ -260,6 +268,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		}
 	}
 
+	// Apply default Accept header when not already set on the request (F4).
+	if c.config.DefaultAccept != "" && req.headers["Accept"] == "" {
+		req = req.WithHeader("Accept", c.config.DefaultAccept)
+	}
+
 	if c.rateLimiter != nil {
 		if waitErr := c.rateLimiter.Wait(ctx); waitErr != nil {
 			return nil, waitErr
@@ -270,8 +283,29 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		return nil, ErrCircuitOpen
 	}
 
+	// Acquire a bulkhead slot before entering the retry loop so retries do
+	// not consume additional slots (F2).
+	if c.bulkhead != nil {
+		select {
+		case c.bulkhead <- struct{}{}:
+			defer func() { <-c.bulkhead }()
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w: %w", ErrBulkheadFull, ctx.Err())
+		}
+	}
+
+	if c.config.HedgeAfter > 0 {
+		return c.executeHedged(ctx, req, c.config.HedgeAfter, c.config.HedgeMaxAttempts)
+	}
+
+	return c.executeOnce(ctx, req, hasRequestTimeout)
+}
+
+// executeOnce performs a single full request attempt (including retries)
+// from after the circuit breaker and bulkhead checks. It is called by
+// Execute for the normal path and by executeHedged for each hedge attempt.
+func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeout bool) (*Response, error) {
 	// Embed a redirect counter and chain so CheckRedirect can populate them.
-	// Done after the circuit breaker check to avoid allocating on rejected requests.
 	var redirectCount int
 	var redirectChain []RedirectInfo
 	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
@@ -288,6 +322,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	req.ctx = ctx
 
 	var httpResp *http.Response
+	var err error
 	// If BeforeRetryHooks are registered, compose them with any existing
 	// RetryConfig.OnRetry into a per-Execute retrier (thread-safe copy).
 	activeRetrier := c.retrier
@@ -333,7 +368,6 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 
 	if err != nil {
 		// Do not penalise the circuit breaker for redirect-policy stops: those
-
 		// are configuration-level decisions, not downstream failures. A *url.Error
 		// whose Err does not contain a network-level cause indicates a redirect
 		// stop or similar policy error.
@@ -372,7 +406,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if req.maxBodyBytes != 0 {
 		maxBody = req.maxBodyBytes
 	}
-	resp, err = newResponse(httpResp, maxBody, redirectCount, redirectChain)
+	resp, err := newResponse(httpResp, maxBody, redirectCount, redirectChain)
 	if err != nil {
 		return nil, err
 	}

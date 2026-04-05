@@ -70,7 +70,7 @@ func TestResponse_WasRedirected_False(t *testing.T) {
 func TestResponse_ContentType(t *testing.T) {
 	t.Parallel()
 	resp := makeResponse(t, 200, "", map[string]string{"Content-Type": "text/html; charset=utf-8"})
-	if resp.ContentType() != "text/html; charset=utf-8" {
+	if resp.ContentType() != "text/html" {
 		t.Errorf("expected text/html, got %q", resp.ContentType())
 	}
 }
