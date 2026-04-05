@@ -20,6 +20,11 @@ type contextKey int
 // [Response.RedirectCount].
 const redirectCountKey contextKey = 0
 
+// redirectChainKey is the context key used to pass the redirect chain from
+// the CheckRedirect policy back to Execute so it can populate
+// [Response.RedirectChain].
+const redirectChainKey contextKey = 1
+
 // Client is a production-grade HTTP client with a configurable transport stack,
 // automatic retry/backoff, circuit breaker, token-bucket rate limiter, HTTP
 // response caching, OpenTelemetry distributed tracing and metrics, streaming,
@@ -139,6 +144,21 @@ func buildClient(cfg *Config) *Client {
 		if countPtr, ok := req.Context().Value(redirectCountKey).(*int); ok {
 			*countPtr = len(via)
 		}
+		if chainPtr, ok := req.Context().Value(redirectChainKey).(*[]RedirectInfo); ok {
+			var statusCode int
+			if req.Response != nil {
+				statusCode = req.Response.StatusCode
+			}
+			var from string
+			if len(via) > 0 {
+				from = via[len(via)-1].URL.String()
+			}
+			*chainPtr = append(*chainPtr, RedirectInfo{
+				From:       from,
+				To:         req.URL.String(),
+				StatusCode: statusCode,
+			})
+		}
 		if len(via) >= cfg.MaxRedirects {
 			return fmt.Errorf("stopped after %d redirects", cfg.MaxRedirects)
 		}
@@ -250,10 +270,12 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		return nil, ErrCircuitOpen
 	}
 
-	// Embed a redirect counter so CheckRedirect can populate it.
+	// Embed a redirect counter and chain so CheckRedirect can populate them.
 	// Done after the circuit breaker check to avoid allocating on rejected requests.
 	var redirectCount int
+	var redirectChain []RedirectInfo
 	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
+	ctx = context.WithValue(ctx, redirectChainKey, &redirectChain)
 
 	// Inject httptrace for request timing unless the caller has disabled it.
 	var timingCol *timingCollector
@@ -350,7 +372,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	if req.maxBodyBytes != 0 {
 		maxBody = req.maxBodyBytes
 	}
-	resp, err = newResponse(httpResp, maxBody, redirectCount)
+	resp, err = newResponse(httpResp, maxBody, redirectCount, redirectChain)
 	if err != nil {
 		return nil, err
 	}
