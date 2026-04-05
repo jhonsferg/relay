@@ -1,0 +1,122 @@
+site_name: relay
+site_description: A production-grade declarative HTTP client for Go
+site_url: https://jhonsferg.github.io/relay
+repo_name: jhonsferg/relay
+repo_url: https://github.com/jhonsferg/relay
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: installation.md
+    - Quick Start: quickstart.md
+  - Guides:
+    - Basic Requests: guides/basic-requests.md
+    - Authentication: guides/auth.md
+    - Retries & Backoff: guides/retries.md
+    - Circuit Breaker: guides/circuit-breaker.md
+    - Rate Limiting: guides/rate-limiting.md
+    - Hooks & Middleware: guides/hooks.md
+    - Error Handling: guides/error-handling.md
+    - Pagination: guides/pagination.md
+    - WebSocket: guides/websocket.md
+    - Testing: guides/testing.md
+  - Features:
+    - Bulkhead Isolation: features/bulkhead.md
+    - Request Hedging: features/hedging.md
+    - Content Negotiation: features/content-negotiation.md
+    - TLS & Certificates: features/tls.md
+    - Transport Adapters: features/transport.md
+    - Redirect Chain: features/redirect-chain.md
+    - Idempotency: features/idempotency.md
+    - DNS Cache: features/dns-cache.md
+  - Extensions:
+    - Overview: extensions/index.md
+    - OpenTelemetry Tracing: extensions/tracing.md
+    - OpenTelemetry Metrics: extensions/metrics.md
+    - Prometheus: extensions/prometheus.md
+    - Sentry: extensions/sentry.md
+    - HTTP/3 QUIC: extensions/http3.md
+    - WebSocket: extensions/websocket.md
+    - gRPC Bridge: extensions/grpc.md
+    - GraphQL: extensions/graphql.md
+    - OAuth2: extensions/oauth.md
+    - Cache (Redis): extensions/cache.md
+    - Mock Transport: extensions/mock.md
+    - AWS SigV4: extensions/sigv4.md
+    - OpenAPI: extensions/openapi.md
+  - Reference:
+    - Client: reference/client.md
+    - Configuration: reference/config.md
+    - Request Builder: reference/request.md
+    - Response: reference/response.md
+    - Errors: reference/errors.md
+    - Generic Decode: reference/generics.md
+  - Changelog: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jhonsferg/relay
+
+copyright: Copyright &copy; jhonsferg - MIT License
