@@ -39,3 +39,4 @@ __pycache__/
 
 # Copilot local work plans (never commit)
 .copilot/
+site/
