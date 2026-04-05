@@ -138,6 +138,10 @@ func buildClient(cfg *Config) *Client {
 		transport = newCoalesceTransport(transport)
 	}
 
+	if cfg.Deduplication.Enabled {
+		transport = newDeduplicator(transport)
+	}
+
 	if cfg.HARRecorder != nil {
 		transport = newHARTransport(transport, cfg.HARRecorder)
 	}
