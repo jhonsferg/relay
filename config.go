@@ -349,6 +349,12 @@ type Config struct {
 	// transport instead of the default HTTP/HTTPS transport. Set via
 	// [WithTransportAdapter].
 	SchemeAdapters map[string]http.RoundTripper
+
+	// AdaptiveTimeoutConfig enables adaptive timeout adjustment based on
+	// observed response latencies. When set, per-request timeouts are
+	// dynamically computed from the percentile of recent latencies.
+	// When nil, adaptive timeout is disabled.
+	AdaptiveTimeoutConfig *AdaptiveTimeoutConfig
 }
 
 // defaultConfig returns a Config populated with all production-ready defaults.
@@ -993,4 +999,12 @@ func WithTransportAdapter(scheme string, rt http.RoundTripper) Option {
 		}
 		c.SchemeAdapters[scheme] = rt
 	}
+}
+
+// WithAdaptiveTimeout enables adaptive timeout adjustment based on observed
+// response latencies. The client tracks recent response times and computes
+// per-request timeouts as a percentile of that data, multiplied by a factor.
+// When disabled (nil), all requests use the fixed client timeout.
+func WithAdaptiveTimeout(cfg AdaptiveTimeoutConfig) Option {
+	return func(c *Config) { c.AdaptiveTimeoutConfig = &cfg }
 }
