@@ -109,6 +109,7 @@ nav:
     - OAuth2: extensions/oauth.md
     - Cache (Redis): extensions/cache.md
     - Mock Transport: extensions/mock.md
+    - VCR Cassettes: extensions/vcr.md
     - AWS SigV4: extensions/sigv4.md
     - OpenAPI: extensions/openapi.md
   - Reference:
