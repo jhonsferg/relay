@@ -745,30 +745,93 @@ increase in upstream request volume for significantly reduced p99 latency.
 
 ---
 
-### Transport Customisation
+### WebSocket API
 
-#### HTTP/3 / QUIC
-
-HTTP/3 support is available via transport middleware - relay's zero-dependency core
-does not bundle `quic-go`. Add it to your own module and plug it in via
-`WithTransportMiddleware`:
+Upgrade any HTTP connection to WebSocket using the same relay client configuration
+(auth headers, TLS, timeouts, hooks):
 
 ```go
-import (
-    "github.com/quic-go/quic-go/http3"
-    "github.com/jhonsferg/relay"
-)
+req := relay.NewRequest(http.MethodGet, "/ws/feed")
+conn, err := client.ExecuteWebSocket(ctx, req)
+if err != nil {
+    log.Fatal(err)
+}
+defer conn.Close()
 
+// Write a message
+if err := conn.Write(ctx, []byte(`{"type":"subscribe","channel":"prices"}`)); err != nil {
+    log.Fatal(err)
+}
+
+// Read messages in a loop
+for {
+    msg, err := conn.Read(ctx)
+    if err != nil {
+        break
+    }
+    fmt.Println(string(msg))
+}
+```
+
+Configure the WebSocket dial timeout separately from the HTTP timeout:
+
+```go
 client := relay.New(
-    relay.WithTransportMiddleware(func(_ http.RoundTripper) http.RoundTripper {
-        return &http3.RoundTripper{
-            TLSClientConfig: &tls.Config{
-                InsecureSkipVerify: false,
-            },
-        }
-    }),
+    relay.WithBaseURL("wss://stream.example.com"),
+    relay.WithWebSocketDialTimeout(10 * time.Second),
 )
 ```
+
+---
+
+### Dynamic TLS Certificate Reloading
+
+Hot-reload TLS client certificates without restarting the process. Useful for
+short-lived certificates issued by a secrets manager (e.g. Vault PKI):
+
+```go
+client := relay.New(
+    relay.WithDynamicTLSCert("/etc/ssl/client.crt", "/etc/ssl/client.key", 5*time.Minute),
+)
+```
+
+To control the watcher lifecycle explicitly:
+
+```go
+watcher, err := relay.NewCertWatcher("/etc/ssl/client.crt", "/etc/ssl/client.key", time.Minute)
+if err != nil {
+    log.Fatal(err)
+}
+defer watcher.Stop()
+
+client := relay.New(
+    relay.WithCertWatcher(watcher),
+)
+```
+
+---
+
+### Custom Transport Adapters
+
+Route requests to different `http.RoundTripper` implementations based on URL scheme.
+Useful for Unix domain sockets, custom protocols, or test transports:
+
+```go
+client := relay.New(
+    relay.WithTransportAdapter("unix", &http.Transport{
+        DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+            return (&net.Dialer{}).DialContext(ctx, "unix", "/var/run/app.sock")
+        },
+    }),
+    relay.WithTransportAdapter("mock", myMockTransport),
+)
+```
+
+The default transport handles `http` and `https`; adapters are dispatched by scheme only.
+
+---
+
+### Transport Customisation
 
 `WithTransportMiddleware` accepts any `http.RoundTripper`, so any custom transport -
 QUIC, Unix sockets, in-memory test transports, or protocol-specific clients - can be
@@ -777,6 +840,33 @@ injected without modifying relay's core.
 ---
 
 ## Extension Ecosystem
+
+### HTTP/3 / QUIC (`ext/http3`)
+
+HTTP/3 (QUIC) transport as a drop-in relay option. Requires `quic-go` but keeps it
+out of relay's zero-dependency core:
+
+```go
+import relayhttp3 "github.com/jhonsferg/relay/ext/http3"
+
+client := relay.New(
+    relayhttp3.WithHTTP3(),
+)
+```
+
+For custom QUIC configuration:
+
+```go
+client := relay.New(
+    relayhttp3.WithHTTP3Config(relayhttp3.Config{
+        TLSConfig:       myTLSConfig,
+        MaxIdleConns:    100,
+        IdleConnTimeout: 90 * time.Second,
+    }),
+)
+```
+
+---
 
 ### Observability & Monitoring
 
