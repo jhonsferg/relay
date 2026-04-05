@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,6 +60,9 @@ type Client struct {
 
 	// rateLimiter enforces the client-side request rate. Nil when disabled.
 	rateLimiter *tokenBucket
+
+	// loadBalancer distributes requests across multiple backends. Nil when disabled.
+	loadBalancer *loadBalancer
 
 	// inFlight tracks requests that are currently in progress so that
 	// [Shutdown] can wait for them to complete before closing the pool.
@@ -213,6 +217,10 @@ func buildClient(cfg *Config) *Client {
 		)
 	}
 
+	if cfg.LoadBalancerConfig != nil {
+		c.loadBalancer = newLoadBalancer(cfg.LoadBalancerConfig)
+	}
+
 	if cfg.MaxConcurrentRequests > 0 {
 		c.bulkhead = make(chan struct{}, cfg.MaxConcurrentRequests)
 	}
@@ -360,7 +368,22 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 		activeRetrier = &retrier{cfg: &cfgCopy, budget: c.retryBudgetTracker}
 	}
 	httpResp, err = activeRetrier.Do(ctx, func() (*http.Response, error) {
-		httpReq, buildErr := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalisationMode)
+		// Select load-balanced backend if configured; falls back to BaseURL.
+		baseURL := c.config.BaseURL
+		parsedBaseURL := c.config.parsedBaseURL
+		if c.loadBalancer != nil {
+			backend, lbErr := c.loadBalancer.selectBackend()
+			if lbErr != nil {
+				return nil, lbErr
+			}
+			baseURL = backend
+			parsedBackend, parseErr := url.Parse(backend)
+			if parseErr != nil {
+				return nil, fmt.Errorf("load balancer: invalid backend URL %q: %w", backend, parseErr)
+			}
+			parsedBaseURL = parsedBackend
+		}
+		httpReq, buildErr := req.build(baseURL, parsedBaseURL, c.config.URLNormalisationMode)
 		if buildErr != nil {
 			return nil, buildErr
 		}
