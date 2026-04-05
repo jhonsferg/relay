@@ -3,6 +3,7 @@ package relay
 import (
 	"crypto/rand"
 	"fmt"
+	"net/http"
 )
 
 const idempotencyKeyHeader = "X-Idempotency-Key"
@@ -35,4 +36,16 @@ func generateIdempotencyKey() (string, error) {
 		i += 2
 	}
 	return string(buf[:]), nil
+}
+
+// isSafeMethod reports whether method is semantically idempotent or safe
+// per RFC 9110: GET, HEAD, PUT, OPTIONS, and TRACE. POST, PATCH, and DELETE
+// are excluded because they are not guaranteed safe to replay.
+func isSafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPut,
+		http.MethodOptions, http.MethodTrace:
+		return true
+	}
+	return false
 }
