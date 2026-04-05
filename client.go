@@ -122,6 +122,10 @@ func buildClient(cfg *Config) *Client {
 
 	transport := buildTransport(cfg)
 
+	if len(cfg.SchemeAdapters) > 0 {
+		transport = &schemeRouter{adapters: cfg.SchemeAdapters, fallback: transport}
+	}
+
 	if cfg.CacheStore != nil {
 		transport = newCachingTransport(transport, cfg.CacheStore)
 	}
