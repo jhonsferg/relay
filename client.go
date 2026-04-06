@@ -79,6 +79,10 @@ type Client struct {
 	// bulkhead limits the maximum number of concurrent in-flight requests.
 	// Nil means unlimited.
 	bulkhead chan struct{}
+
+	// priorityQueue manages request ordering when enabled and the bulkhead is
+	// at capacity. Nil when priority queue is disabled or bulkhead is disabled.
+	priorityQueue *priorityQueue
 }
 
 // New creates a Client from the provided functional options. Options are applied
@@ -231,6 +235,9 @@ func buildClient(cfg *Config) *Client {
 
 	if cfg.MaxConcurrentRequests > 0 {
 		c.bulkhead = make(chan struct{}, cfg.MaxConcurrentRequests)
+		if cfg.EnablePriorityQueue {
+			c.priorityQueue = newPriorityQueue()
+		}
 	}
 
 	if cfg.HealthCheck != nil && cfg.CircuitBreakerConfig != nil {
@@ -238,6 +245,58 @@ func buildClient(cfg *Config) *Client {
 	}
 
 	return c
+}
+
+// acquireBulkhead acquires a bulkhead slot, using priority queue ordering if enabled.
+// Returns a release function that must be called to release the slot.
+// If ctx is cancelled, returns an error without acquiring.
+func (c *Client) acquireBulkhead(ctx context.Context, req *Request) (func(), error) {
+	if c.bulkhead == nil {
+		// No bulkhead, return no-op release
+		return func() {}, nil
+	}
+
+	if c.priorityQueue == nil {
+		// No priority queue, use simple channel acquisition
+		select {
+		case c.bulkhead <- struct{}{}:
+			return func() { <-c.bulkhead }, nil
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w: %w", ErrBulkheadFull, ctx.Err())
+		}
+	}
+
+	// pqRelease releases the bulkhead slot and wakes the highest-priority
+	// waiter in the priority queue (if any) so it can acquire the freed slot.
+	pqRelease := func() {
+		<-c.bulkhead
+		c.priorityQueue.DequeueNext()
+	}
+
+	// Priority queue enabled: try to acquire immediately, otherwise queue
+	select {
+	case c.bulkhead <- struct{}{}:
+		// Got slot immediately - use priority-aware release so waiting
+		// requests are woken in priority order when this slot frees up.
+		return pqRelease, nil
+	default:
+		// Bulkhead full, queue the request with priority and wait
+		priority := req.priority
+		if priority == 0 {
+			priority = PriorityNormal
+		}
+		if err := c.priorityQueue.EnqueueAndWait(ctx, req, priority); err != nil {
+			return nil, err
+		}
+		// After being dequeued (woken by a pqRelease call), acquire the
+		// bulkhead slot that was just freed.
+		select {
+		case c.bulkhead <- struct{}{}:
+			return pqRelease, nil
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w: %w", ErrBulkheadFull, ctx.Err())
+		}
+	}
 }
 
 // Execute sends the request through the full pipeline:
@@ -316,14 +375,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 
 	// Acquire a bulkhead slot before entering the retry loop so retries do
 	// not consume additional slots (F2).
-	if c.bulkhead != nil {
-		select {
-		case c.bulkhead <- struct{}{}:
-			defer func() { <-c.bulkhead }()
-		case <-ctx.Done():
-			return nil, fmt.Errorf("%w: %w", ErrBulkheadFull, ctx.Err())
-		}
+	releaseBulkhead, err := c.acquireBulkhead(ctx, req)
+	if err != nil {
+		return nil, err
 	}
+	defer releaseBulkhead()
 
 	if c.config.HedgeAfter > 0 {
 		return c.executeHedged(ctx, req, c.config.HedgeAfter, c.config.HedgeMaxAttempts)
@@ -535,6 +591,11 @@ func (c *Client) ExecuteJSON(req *Request, out interface{}) (*Response, error) {
 func (c *Client) Shutdown(ctx context.Context) error {
 	c.closed.Store(true)
 	c.bgCancel() // stop health check and any other background goroutines
+
+	// Close priority queue to prevent new enqueues
+	if c.priorityQueue != nil {
+		c.priorityQueue.Close()
+	}
 
 	done := make(chan struct{})
 	go func() {
