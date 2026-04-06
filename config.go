@@ -175,6 +175,16 @@ type Config struct {
 	// transparent response decompression.
 	DisableCompression bool
 
+	// RequestCompression enables transparent gzip compression of request bodies.
+	// Requests with no body are not affected. Content-Encoding is set automatically.
+	// Set via [WithRequestCompression] or [WithRequestCompressionLevel].
+	RequestCompression bool
+
+	// RequestCompressionLevel is the gzip compression level (0-9).
+	// A value of 0 means gzip.DefaultCompression is used.
+	// Only meaningful when RequestCompression is true.
+	RequestCompressionLevel int
+
 	// DisableTiming skips per-request timing instrumentation (httptrace).
 	// When true, [Response.Timing] fields are all zero and roughly 10
 	// allocations per request are avoided. Useful for high-throughput
