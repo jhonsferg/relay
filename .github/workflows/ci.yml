@@ -147,6 +147,8 @@ jobs:
         run: go vet ./...
 
       - name: go vet (extensions)
+        env:
+          GOWORK: "off"
         run: |
           set -e
           find ext -name "go.mod" | while read modfile; do
