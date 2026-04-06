@@ -1,8 +1,10 @@
 github.com/andybalholm/brotli v1.2.1 h1:R+f5xP285VArJDRgowrfb9DqL18yVK0gKAW/F+eTWro=
 github.com/andybalholm/brotli v1.2.1/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
-github.com/jhonsferg/relay v0.1.1 h1:yU3d8v0XC4es+QHewPrXcYzdn8znlX01xEdOFW5wElA=
-github.com/jhonsferg/relay v0.1.1/go.mod h1:w4AP3tyYOUhiO5KtzM1bF715rsB88fJRUh4AHq836rk=
+github.com/jhonsferg/relay v0.1.24 h1:TVazhCHx3m3jxxSilCFs/7FBJZlU2aRQPCrBwgQxHj0=
+github.com/jhonsferg/relay v0.1.24/go.mod h1:yunfVkrIdZ0ZYMHQyZuef6uzqqUP9YlhBu6p1CWcg2A=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
-golang.org/x/sync v0.16.0 h1:ycBJEhp9p4vXvUZNszeOq0kGTPghopOL8q0fq3vstxw=
-golang.org/x/sync v0.16.0/go.mod h1:1dzgHSNfp02xaA81J2MS99Qcpr2w7fw1gpm99rleRqA=
+golang.org/x/net v0.50.0 h1:ucWh9eiCGyDR3vtzso0WMQinm2Dnt8cFMuQa9K33J60=
+golang.org/x/net v0.50.0/go.mod h1:UgoSli3F/pBgdJBHCTc+tp3gmrU4XswgGRgtnwWTfyM=
+golang.org/x/sync v0.19.0 h1:vV+1eWNmZ5geRlYjzm2adRgW2/mcpevXNg50YZtPCE4=
+golang.org/x/sync v0.19.0/go.mod h1:9KTHXmSnoGruLpwFjVSX0lNNA75CykiMECbovNTZqGI=
