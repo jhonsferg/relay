@@ -60,6 +60,18 @@ func buildTransport(cfg *Config) http.RoundTripper {
 		dialFn = cd.DialContext
 	}
 
+	// Unix domain socket connections bypass TLS and HTTP/2 entirely; the dial
+	// function is overridden to always connect to the socket regardless of the
+	// target host or network supplied by the HTTP stack.
+	forceHTTP2 := true
+	if cfg.UnixSocketPath != "" {
+		socketPath := cfg.UnixSocketPath
+		dialFn = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
+		}
+		forceHTTP2 = false
+	}
+
 	tlsCfg := cfg.TLSConfig
 	if tlsCfg == nil {
 		// Enforce TLS 1.2 minimum when no explicit config is provided.
@@ -84,7 +96,7 @@ func buildTransport(cfg *Config) http.RoundTripper {
 		ResponseHeaderTimeout: cfg.ResponseHeaderTimeout,
 		TLSClientConfig:       tlsCfg,
 		DisableCompression:    cfg.DisableCompression,
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     forceHTTP2,
 		ExpectContinueTimeout: cfg.ExpectContinueTimeout,
 		WriteBufferSize:       64 * 1024,
 		ReadBufferSize:        64 * 1024,
