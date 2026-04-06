@@ -94,6 +94,9 @@ nav:
     - Retry Budget: features/retry-budget.md
     - Load Balancer: features/load-balancer.md
     - Adaptive Timeout: features/adaptive-timeout.md
+    - Priority Queue: features/priority-queue.md
+    - Enhanced SSE: features/enhanced-sse.md
+    - Long Polling: features/long-polling.md
   - Extensions:
     - Overview: extensions/index.md
     - Chaos Engineering: extensions/chaos.md
