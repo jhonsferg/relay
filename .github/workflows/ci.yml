@@ -149,10 +149,22 @@ jobs:
       - name: go vet (extensions)
         run: |
           set -e
+          # Modules listed in go.work use workspace resolution (local relay).
+          # Modules not in go.work (e.g. ext/otel) need GOWORK=off.
+          in_work=$(go work edit -json | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          for u in d.get('Use', []):
+              print(u['DiskPath'].lstrip('./'))
+          " 2>/dev/null || true)
           find ext -name "go.mod" | while read modfile; do
             dir=$(dirname "$modfile")
             echo "=== Vet $dir ==="
-            (cd "$dir" && go vet ./...)
+            if echo "$in_work" | grep -qx "$dir"; then
+              (cd "$dir" && go vet ./...)
+            else
+              (cd "$dir" && GOWORK=off go vet ./...)
+            fi
           done
 
   build-examples:

@@ -1,6 +1,8 @@
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/jhonsferg/relay v0.1.11 h1:955bh8JnihfY2VgXCXPIQ9qBuZustKXm66CbFJph05g=
-github.com/jhonsferg/relay v0.1.11/go.mod h1:w4AP3tyYOUhiO5KtzM1bF715rsB88fJRUh4AHq836rk=
+github.com/jhonsferg/relay v0.1.22 h1:FR0MX5VGBfQkjWvDtr/W0C9fNAHSK9cYsYZcjWqbCr0=
+github.com/jhonsferg/relay v0.1.22/go.mod h1:O9e8VC/SIoAKNrF3ALUNegoO6C5cmjhPPpGjA8VnlYo=
+golang.org/x/net v0.43.0 h1:lat02VYK2j4aLzMzecihNvTlJNQUq316m2Mr9rnM6YE=
+golang.org/x/net v0.43.0/go.mod h1:vhO1fvI4dGsIjh73sWfUVjj3N7CA9WkKJNQm2svM6Jg=
 golang.org/x/sync v0.16.0 h1:ycBJEhp9p4vXvUZNszeOq0kGTPghopOL8q0fq3vstxw=
 golang.org/x/sync v0.16.0/go.mod h1:1dzgHSNfp02xaA81J2MS99Qcpr2w7fw1gpm99rleRqA=
