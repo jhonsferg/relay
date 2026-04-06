@@ -1,4 +1,4 @@
-go 1.24.0
+go 1.25.0
 
 use (
 	.
@@ -17,6 +17,7 @@ use (
 	./ext/mock
 	./ext/oauth
 	./ext/openapi
+	./ext/otel
 	./ext/prometheus
 	./ext/ratelimit/distributed
 	./ext/redis
