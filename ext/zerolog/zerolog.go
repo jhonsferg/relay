@@ -22,6 +22,14 @@
 // convention as log/slog and go.uber.org/zap SugaredLogger). The adapter
 // forwards them via zerolog's event.Fields(), which accepts a []interface{}
 // slice of alternating string keys and arbitrary values.
+//
+// # Deprecation notice
+//
+// This package is deprecated. New applications should use the structured
+// logging adapter in [github.com/jhonsferg/relay/ext/slog], which uses the
+// standard library log/slog interface and avoids a third-party dependency.
+// Existing users may continue to use this package; it will not be removed
+// before relay v1.0.
 package zerolog
 
 import (
