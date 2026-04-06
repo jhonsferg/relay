@@ -321,6 +321,13 @@ type Config struct {
 	// allowed simultaneously. Zero or negative means no limit.
 	MaxConcurrentRequests int
 
+	// EnablePriorityQueue activates priority-aware dequeuing when the bulkhead
+	// is at capacity. When enabled, higher-priority requests are dequeued before
+	// lower-priority ones. Requests within the same priority level maintain FIFO
+	// order. Disabled by default (all requests use PriorityNormal).
+	// Only has an effect when MaxConcurrentRequests > 0.
+	EnablePriorityQueue bool
+
 	// DefaultAccept is the value sent in the Accept header when no explicit
 	// Accept header has been set on the request. Empty string means no default
 	// Accept header is added.
@@ -956,6 +963,14 @@ func WithExpectContinueTimeout(d time.Duration) Option {
 // allowed simultaneously (bulkhead). Zero or negative means no limit.
 func WithMaxConcurrentRequests(n int) Option {
 	return func(c *Config) { c.MaxConcurrentRequests = n }
+}
+
+// WithPriorityQueue enables priority-aware request dequeuing when the bulkhead
+// is at capacity. Must be used with [WithMaxConcurrentRequests]. When enabled,
+// higher-priority requests are dequeued before lower-priority ones. Requests
+// within the same priority level maintain FIFO order. Disabled by default.
+func WithPriorityQueue() Option {
+	return func(c *Config) { c.EnablePriorityQueue = true }
 }
 
 // WithDefaultAccept sets the default Accept header sent when the request does
