@@ -21,7 +21,8 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/woodsbury/decimal128 v1.3.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	github.com/woodsbury/decimal128 v1.4.0 // indirect
+	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
