@@ -1,10 +1,12 @@
 package relay_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jhonsferg/relay"
 )
@@ -165,5 +167,185 @@ func TestExecuteSSE_HandlerReturnFalseOnFirst(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Errorf("handler called %d times, want 1", calls)
+	}
+}
+
+func TestExecuteSSEWithReconnect_SingleStream(t *testing.T) {
+	raw := "id: 1\nevent: update\ndata: hello\n\n"
+	srv := sseServer(raw)
+	defer srv.Close()
+
+	client := relay.New()
+	var received []relay.SSEEvent
+	cfg := relay.SSEClientConfig{
+		MaxReconnects:  0,
+		ReconnectDelay: 1 * time.Millisecond,
+	}
+	err := client.ExecuteSSEWithReconnect(
+		client.Get(srv.URL),
+		cfg,
+		func(ev relay.SSEEvent) bool {
+			received = append(received, ev)
+			return false
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(received) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(received))
+	}
+	if received[0].Data != "hello" {
+		t.Errorf("data = %q, want %q", received[0].Data, "hello")
+	}
+}
+
+func TestExecuteSSEWithReconnect_EventTypeFiltering(t *testing.T) {
+	raw := "event: update\ndata: wanted\n\nevent: ignored\ndata: not-wanted\n\nevent: update\ndata: wanted-too\n\n"
+	srv := sseServer(raw)
+	defer srv.Close()
+
+	client := relay.New()
+	var received []relay.SSEEvent
+	cfg := relay.SSEClientConfig{
+		EventTypes:     []string{"update"},
+		ReconnectDelay: 1 * time.Millisecond,
+	}
+	err := client.ExecuteSSEWithReconnect(
+		client.Get(srv.URL),
+		cfg,
+		func(ev relay.SSEEvent) bool {
+			received = append(received, ev)
+			return len(received) < 2
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(received) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(received))
+	}
+	for _, ev := range received {
+		if ev.Event != "update" {
+			t.Errorf("event type = %q, want %q", ev.Event, "update")
+		}
+	}
+	for _, data := range []string{"wanted", "wanted-too"} {
+		found := false
+		for _, ev := range received {
+			if ev.Data == data {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("data %q not found in received events", data)
+		}
+	}
+}
+
+func TestExecuteSSEStream_BasicUsage(t *testing.T) {
+	raw := "data: first\n\ndata: second\n\ndata: third\n\n"
+	srv := sseServer(raw)
+	defer srv.Close()
+
+	client := relay.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events, errs := client.ExecuteSSEStream(ctx, client.Get(srv.URL))
+
+	var received []relay.SSEEvent
+loop:
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				break loop
+			}
+			received = append(received, ev)
+		case err, ok := <-errs:
+			if !ok {
+				break loop
+			}
+			t.Fatalf("unexpected error: %v", err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for event")
+		}
+	}
+
+	if len(received) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(received))
+	}
+	wantData := []string{"first", "second", "third"}
+	for i, want := range wantData {
+		if received[i].Data != want {
+			t.Errorf("event[%d].Data = %q, want %q", i, received[i].Data, want)
+		}
+	}
+}
+
+func TestExecuteSSEStream_ContextCancellation(t *testing.T) {
+	raw := "data: one\n\n"
+	srv := sseServer(raw)
+	defer srv.Close()
+
+	client := relay.New()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	events, errs := client.ExecuteSSEStream(ctx, client.Get(srv.URL))
+
+	select {
+	case ev := <-events:
+		if ev.Data != "one" {
+			t.Errorf("data = %q, want %q", ev.Data, "one")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for first event")
+	}
+
+	cancel()
+
+	select {
+	case <-events:
+	case <-errs:
+	case <-time.After(5 * time.Second):
+	}
+}
+
+func TestExecuteSSEStream_AllFieldsPreserved(t *testing.T) {
+	raw := "id: 123\nevent: custom\ndata: payload\nretry: 5000\n\n"
+	srv := sseServer(raw)
+	defer srv.Close()
+
+	client := relay.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events, errs := client.ExecuteSSEStream(ctx, client.Get(srv.URL))
+
+	select {
+	case ev, ok := <-events:
+		if !ok {
+			t.Fatal("events channel closed prematurely")
+		}
+		if ev.ID != "123" {
+			t.Errorf("ID = %q, want %q", ev.ID, "123")
+		}
+		if ev.Event != "custom" {
+			t.Errorf("Event = %q, want %q", ev.Event, "custom")
+		}
+		if ev.Data != "payload" {
+			t.Errorf("Data = %q, want %q", ev.Data, "payload")
+		}
+		if ev.Retry != 5000 {
+			t.Errorf("Retry = %d, want 5000", ev.Retry)
+		}
+	case err, ok := <-errs:
+		if ok {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for event")
 	}
 }
