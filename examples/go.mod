@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/examples
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
@@ -39,7 +39,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 )
