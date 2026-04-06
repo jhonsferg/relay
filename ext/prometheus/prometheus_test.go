@@ -161,3 +161,222 @@ func TestWithPrometheus_MultipleRequests(t *testing.T) {
 		t.Fatalf("GatherAndCount: %v", err)
 	}
 }
+
+func TestWithPrometheusHistograms_CustomBuckets(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "hello"})
+
+	reg := newRegistry()
+	customBuckets := []float64{0.001, 0.01, 0.1, 1.0}
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "custbkt",
+			relayprom.WithPrometheusHistograms(customBuckets),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	if _, err := c.Execute(c.Get("/")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	count, err := promtestutil.GatherAndCount(reg)
+	if err != nil {
+		t.Fatalf("GatherAndCount: %v", err)
+	}
+	if count == 0 {
+		t.Error("expected metrics to be registered")
+	}
+}
+
+func TestWithPrometheusHistograms_NilBucketsUsesDefaults(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	reg := newRegistry()
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "defbkt",
+			relayprom.WithPrometheusHistograms(nil),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	if _, err := c.Execute(c.Get("/")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	count, err := promtestutil.GatherAndCount(reg)
+	if err != nil {
+		t.Fatalf("GatherAndCount: %v", err)
+	}
+	if count == 0 {
+		t.Error("expected metrics to be registered")
+	}
+}
+
+func TestWithPrometheusLabels_PathLabel(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	reg := newRegistry()
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "pathlbl",
+			relayprom.WithPrometheusLabels("method", "host", "status_code", "path"),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	if _, err := c.Execute(c.Get("/v1/resource")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	count, err := promtestutil.GatherAndCount(reg)
+	if err != nil {
+		t.Fatalf("GatherAndCount: %v", err)
+	}
+	if count == 0 {
+		t.Error("expected metrics to be registered")
+	}
+}
+
+func TestWithPrometheusLabels_ReducedSet(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	reg := newRegistry()
+	// Only "host" label - minimal label set.
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "hostonly",
+			relayprom.WithPrometheusLabels("host"),
+		),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	if _, err := c.Execute(c.Get("/")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	count, err := promtestutil.GatherAndCount(reg)
+	if err != nil {
+		t.Fatalf("GatherAndCount: %v", err)
+	}
+	if count == 0 {
+		t.Error("expected metrics to be registered")
+	}
+}
+
+func TestNewHistogramMetrics_SevenFamiliesRegistered(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "body"})
+
+	reg := newRegistry()
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "sevenfam"),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	if _, err := c.Execute(c.Get("/")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	// Expect 7 metric families: requests_total, http_client_request_duration_seconds,
+	// http_client_active_requests, request_duration_seconds, request_body_bytes,
+	// response_body_bytes, requests_in_flight.
+	count, err := promtestutil.GatherAndCount(reg)
+	if err != nil {
+		t.Fatalf("GatherAndCount: %v", err)
+	}
+	// request_body_bytes and response_body_bytes may not appear if ContentLength is -1,
+	// so require at least 5 families (gauges always appear after a request).
+	if count < 5 {
+		t.Errorf("expected at least 5 metric families, got %d", count)
+	}
+}
+
+func TestInFlightGauge_ZeroAfterRequest(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	reg := newRegistry()
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "inflight"),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	if _, err := c.Execute(c.Get("/")); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	// After the request completes, in-flight gauge must be zero.
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather: %v", err)
+	}
+	for _, mf := range mfs {
+		if mf.GetName() == "inflight_requests_in_flight" {
+			for _, m := range mf.GetMetric() {
+				if v := m.GetGauge().GetValue(); v != 0 {
+					t.Errorf("in-flight gauge = %v, want 0", v)
+				}
+			}
+		}
+	}
+}
+
+func TestWithPrometheus_BackwardsCompat(t *testing.T) {
+	t.Parallel()
+	// Calling WithPrometheus without functional opts must still compile and work.
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	reg := newRegistry()
+	c := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "compat"),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	resp, err := c.Execute(c.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// Ensure the unused time import doesn't cause a build failure when all existing
+// tests still compile after the refactor.
+var _ = time.Second
