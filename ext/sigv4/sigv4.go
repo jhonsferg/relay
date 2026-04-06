@@ -100,6 +100,57 @@ func WithSigV4(provider aws.CredentialsProvider, service, region string, opts ..
 	})
 }
 
+// Signer is an AWS Signature Version 4 implementation of [relay.RequestSigner].
+// It can be used with [relay.WithRequestSigner] when the transport-middleware
+// approach of [WithSigV4] is not appropriate (e.g. when composing with
+// [relay.NewMultiSigner]).
+//
+// Signer is safe for concurrent use.
+type Signer struct {
+	provider aws.CredentialsProvider
+	signer   *v4.Signer
+	service  string
+	region   string
+	cfg      sigv4Config
+}
+
+// NewSigner returns a new [Signer] that signs requests with AWS Signature
+// Version 4. provider supplies AWS credentials; service and region are the
+// AWS service name and region (e.g. "execute-api", "us-east-1").
+func NewSigner(provider aws.CredentialsProvider, service, region string, opts ...Option) *Signer {
+	cfg := sigv4Config{}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return &Signer{
+		provider: provider,
+		signer:   v4.NewSigner(),
+		service:  service,
+		region:   region,
+		cfg:      cfg,
+	}
+}
+
+// Sign implements [relay.RequestSigner]. It adds the Authorization,
+// X-Amz-Date, and (when a session token is present) X-Amz-Security-Token
+// headers required by AWS SigV4.
+func (s *Signer) Sign(ctx context.Context, req *http.Request) error {
+	creds, err := s.provider.Retrieve(ctx)
+	if err != nil {
+		return fmt.Errorf("sigv4: retrieve credentials: %w", err)
+	}
+
+	payloadHash, err := hashBody(s.cfg, req)
+	if err != nil {
+		return fmt.Errorf("sigv4: hash body: %w", err)
+	}
+
+	if err := s.signer.SignHTTP(ctx, creds, req, payloadHash, s.service, s.region, time.Now()); err != nil {
+		return fmt.Errorf("sigv4: sign request: %w", err)
+	}
+	return nil
+}
+
 type sigv4Transport struct {
 	base     http.RoundTripper
 	provider aws.CredentialsProvider
@@ -123,7 +174,7 @@ func (t *sigv4Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("sigv4: retrieve credentials: %w", err)
 	}
 
-	payloadHash, err := t.hashBody(req)
+	payloadHash, err := hashBody(t.cfg, req)
 	if err != nil {
 		return nil, fmt.Errorf("sigv4: hash body: %w", err)
 	}
@@ -139,8 +190,8 @@ func (t *sigv4Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 // the body so downstream transports can still read it. Returns
 // emptyPayloadHash for nil/empty bodies and unsignedPayloadValue when the
 // WithUnsignedPayload option is set.
-func (t *sigv4Transport) hashBody(req *http.Request) (string, error) {
-	if t.cfg.unsignedPayload {
+func hashBody(cfg sigv4Config, req *http.Request) (string, error) {
+	if cfg.unsignedPayload {
 		return unsignedPayloadValue, nil
 	}
 	if req.Body == nil || req.Body == http.NoBody {
@@ -148,7 +199,7 @@ func (t *sigv4Transport) hashBody(req *http.Request) (string, error) {
 	}
 
 	data, err := io.ReadAll(req.Body)
-	req.Body.Close()
+	req.Body.Close() //nolint:errcheck // best-effort close; read error is already captured
 	if err != nil {
 		return "", err
 	}

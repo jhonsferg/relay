@@ -274,7 +274,7 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 		}
 		// Sign the request if a signer is configured.
 		if c.config.Signer != nil {
-			if signErr := c.config.Signer.Sign(httpReq); signErr != nil {
+			if signErr := c.config.Signer.Sign(ctx, httpReq); signErr != nil {
 				return nil, fmt.Errorf("request signer: %w", signErr)
 			}
 		}
