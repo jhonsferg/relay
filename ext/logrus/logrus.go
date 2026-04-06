@@ -39,6 +39,14 @@
 //
 // Both adapters convert these pairs to logrus.Fields automatically. Odd
 // trailing arguments (unpaired keys) are included under the key "EXTRA".
+//
+// # Deprecation notice
+//
+// This package is deprecated. New applications should use the structured
+// logging adapter in [github.com/jhonsferg/relay/ext/slog], which uses the
+// standard library log/slog interface and avoids a third-party dependency.
+// Existing users may continue to use this package; it will not be removed
+// before relay v1.0.
 package logrus
 
 import (
