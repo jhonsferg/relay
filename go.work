@@ -16,6 +16,7 @@ use (
 	./ext/metrics
 	./ext/mock
 	./ext/oauth
+	./ext/oidc
 	./ext/openapi
 	./ext/prometheus
 	./ext/ratelimit/distributed
