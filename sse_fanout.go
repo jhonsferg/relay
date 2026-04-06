@@ -137,6 +137,10 @@ func (f *SSEFanOut) Start(ctx context.Context) error {
 					errs = nil
 					continue
 				}
+				// Treat context errors as a normal shutdown, not a hard error.
+				if ctx.Err() != nil {
+					return nil
+				}
 				streamErr = err
 				errs = nil
 				events = nil

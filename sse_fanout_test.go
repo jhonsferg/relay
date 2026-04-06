@@ -29,7 +29,7 @@ func streamingSSEServer(events []string, delay time.Duration) *httptest.Server {
 				return
 			default:
 			}
-			fmt.Fprintf(w, "data: %s\n\n", ev)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", ev)
 			flusher.Flush()
 			if delay > 0 {
 				select {
