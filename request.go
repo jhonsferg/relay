@@ -117,6 +117,11 @@ type Request struct {
 	// re-encoding. When false and encodedQuery is non-empty, the cached encoded
 	// query is reused without calling r.query.Encode() again.
 	queryDirty bool
+
+	// priority is the request's priority level for queue ordering when a
+	// priority queue is enabled. Defaults to PriorityNormal. Only used when
+	// the client has WithPriorityQueue() enabled.
+	priority Priority
 }
 
 // newRequest allocates a Request with all maps initialised and a background
@@ -124,9 +129,10 @@ type Request struct {
 // literals directly.
 func newRequest(method, rawURL string) *Request {
 	return &Request{
-		method: method,
-		rawURL: rawURL,
-		ctx:    context.Background(),
+		method:   method,
+		rawURL:   rawURL,
+		ctx:      context.Background(),
+		priority: PriorityNormal,
 	}
 }
 
@@ -159,6 +165,16 @@ func (r *Request) WithContext(ctx context.Context) *Request { r.ctx = ctx; retur
 // WithTimeout sets a per-request timeout that wraps the existing context.
 // When the timeout fires, [Client.Execute] returns [ErrTimeout].
 func (r *Request) WithTimeout(d time.Duration) *Request { r.timeout = d; return r }
+
+// WithPriority sets the priority level for this request. When the client has
+// [WithPriorityQueue] enabled and the bulkhead is at capacity, requests with
+// higher priority are dequeued before lower-priority ones. When WithPriorityQueue
+// is not enabled, this has no effect. Defaults to PriorityNormal.
+func (r *Request) WithPriority(p Priority) *Request { r.priority = p; return r }
+
+// Priority returns the priority level set via [Request.WithPriority].
+// Returns PriorityNormal if not explicitly set.
+func (r *Request) Priority() Priority { return r.priority }
 
 // WithPathParam replaces a {key} placeholder in the URL template before
 // sending. The value is percent-encoded automatically.
