@@ -47,7 +47,20 @@ jobs:
             dir=$(dirname "$modfile")
             echo ""
             echo "=== Testing $dir ==="
-            (cd "$dir" && go test -v -race -count=1 ./...)
+            pkgs=$(cd "$dir" && go list ./... 2>/dev/null || true)
+            if [ -z "$pkgs" ]; then
+              echo "No Go packages in $dir - skipping"
+              continue
+            fi
+            (cd "$dir" && go test -v -race -count=1 -coverprofile=coverage_ext.out ./...)
+
+            # Check coverage threshold
+            pct=$(cd "$dir" && go tool cover -func=coverage_ext.out 2>/dev/null | grep '^total' | awk '{print $3}' | tr -d '%' | cut -d. -f1)
+            if [ -n "$pct" ] && [ "$pct" -lt 60 ]; then
+              echo "::warning::$dir coverage is ${pct}% (below 60% threshold)"
+            fi
+            # Clean up coverage file
+            rm -f "$dir/coverage_ext.out"
           done
 
       - name: Filter coverage to library packages only

@@ -1,0 +1,98 @@
+name: Release Notes
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-notes:
+    name: Generate release notes
+    runs-on: ubuntu-latest
+    # Only run for core module tags (vX.Y.Z, not ext/*/vX.Y.Z)
+    if: "!contains(github.ref_name, '/')"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes from conventional commits
+        id: notes
+        run: |
+          # Get previous tag for comparison
+          PREV_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -v '/' | sort -V | tail -2 | head -1)
+          CURR_TAG="${{ github.ref_name }}"
+
+          echo "Generating notes from ${PREV_TAG}..${CURR_TAG}"
+
+          # Categorise commits by conventional commit type
+          {
+            echo "## What's Changed"
+            echo ""
+
+            # Breaking changes
+            breaking=$(git log "${PREV_TAG}..${CURR_TAG}" --format="%s" 2>/dev/null | grep -E '^[a-z]+(\([^)]*\))?!:|BREAKING CHANGE' || true)
+            if [ -n "$breaking" ]; then
+              echo "### Breaking Changes"
+              while IFS= read -r line; do [ -n "$line" ] && echo "- $line"; done <<< "$breaking"
+              echo ""
+            fi
+
+            # Features
+            feats=$(git log "${PREV_TAG}..${CURR_TAG}" --format="%s" 2>/dev/null | grep -E '^feat(\([^)]*\))?:' || true)
+            if [ -n "$feats" ]; then
+              echo "### New Features"
+              while IFS= read -r line; do [ -n "$line" ] && echo "- $line"; done <<< "$feats"
+              echo ""
+            fi
+
+            # Fixes
+            fixes=$(git log "${PREV_TAG}..${CURR_TAG}" --format="%s" 2>/dev/null | grep -E '^fix(\([^)]*\))?:' || true)
+            if [ -n "$fixes" ]; then
+              echo "### Bug Fixes"
+              while IFS= read -r line; do [ -n "$line" ] && echo "- $line"; done <<< "$fixes"
+              echo ""
+            fi
+
+            # Docs
+            docs=$(git log "${PREV_TAG}..${CURR_TAG}" --format="%s" 2>/dev/null | grep -E '^docs(\([^)]*\))?:' || true)
+            if [ -n "$docs" ]; then
+              echo "### Documentation"
+              while IFS= read -r line; do [ -n "$line" ] && echo "- $line"; done <<< "$docs"
+              echo ""
+            fi
+
+            # Performance
+            perf=$(git log "${PREV_TAG}..${CURR_TAG}" --format="%s" 2>/dev/null | grep -E '^perf(\([^)]*\))?:' || true)
+            if [ -n "$perf" ]; then
+              echo "### Performance"
+              while IFS= read -r line; do [ -n "$line" ] && echo "- $line"; done <<< "$perf"
+              echo ""
+            fi
+
+            # Full changelog link
+            echo "**Full changelog**: https://github.com/jhonsferg/relay/compare/${PREV_TAG}...${CURR_TAG}"
+          } > release_notes.md
+
+          cat release_notes.md
+          echo "notes_file=release_notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Update GitHub Release body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          NOTES_FILE="${{ steps.notes.outputs.notes_file }}"
+
+          # Create or update the release
+          if gh release view "$TAG" --repo jhonsferg/relay > /dev/null 2>&1; then
+            gh release edit "$TAG" --repo jhonsferg/relay --notes-file "$NOTES_FILE"
+          else
+            gh release create "$TAG" --repo jhonsferg/relay \
+              --title "$TAG" \
+              --notes-file "$NOTES_FILE" \
+              --verify-tag
+          fi
