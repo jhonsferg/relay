@@ -472,6 +472,14 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 		if req.idempotencyKey != "" {
 			httpReq.Header.Set(idempotencyKeyHeader, req.idempotencyKey)
 		}
+		// Apply credentials from the CredentialProvider (if set).
+		if c.config.CredentialProvider != nil {
+			creds, credErr := c.config.CredentialProvider.Credentials(ctx)
+			if credErr != nil {
+				return nil, fmt.Errorf("credential provider: %w", credErr)
+			}
+			creds.applyTo(httpReq)
+		}
 		// Sign the request if a signer is configured.
 		if c.config.Signer != nil {
 			if signErr := c.config.Signer.Sign(httpReq); signErr != nil {
