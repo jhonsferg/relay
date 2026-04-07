@@ -1,0 +1,41 @@
+name: Benchmark Dashboard
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  benchmark:
+    name: Run benchmarks and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem -count=3 ./... 2>/dev/null | tee bench-results.txt || true
+          echo "Benchmark run complete"
+
+      - name: Generate HTML dashboard
+        run: |
+          python3 scripts/bench_to_html.py bench-results.txt > docs/benchmarks/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: github.ref == 'refs/heads/master'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/benchmarks
+          destination_dir: benchmarks
+          keep_files: true

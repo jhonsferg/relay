@@ -222,6 +222,7 @@ The full documentation is at **[jhonsferg.github.io/relay](https://jhonsferg.git
 - [All Features](https://jhonsferg.github.io/relay/features/)
 - [Extension Modules](https://jhonsferg.github.io/relay/extensions/)
 - [API Reference](https://pkg.go.dev/github.com/jhonsferg/relay) on pkg.go.dev
+- 📊 **[Live Benchmark Dashboard](https://jhonsferg.github.io/relay/benchmarks/)**
 
 ---
 
