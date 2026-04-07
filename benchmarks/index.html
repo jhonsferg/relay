@@ -1,1 +1,1328 @@
-<!doctype html><html lang=en class=no-js> <head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=description content="A production-grade declarative HTTP client for Go"><link href=https://jhonsferg.github.io/relay/benchmarks/ rel=canonical><link rel=icon href=../assets/images/favicon.png><meta name=generator content="mkdocs-1.6.1, mkdocs-material-9.7.6"><title>relay Benchmark Dashboard - relay</title><link rel=stylesheet href=../assets/stylesheets/main.484c7ddc.min.css><link rel=stylesheet href=../assets/stylesheets/palette.ab4e12ef.min.css><link rel=preconnect href=https://fonts.gstatic.com crossorigin><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback"><style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style><script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script></head> <body dir=ltr data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo> <input class=md-toggle data-md-toggle=drawer type=checkbox id=__drawer autocomplete=off> <input class=md-toggle data-md-toggle=search type=checkbox id=__search autocomplete=off> <label class=md-overlay for=__drawer></label> <div data-md-component=skip> <a href=#relay-benchmark-dashboard class=md-skip> Skip to content </a> </div> <div data-md-component=announce> </div> <header class="md-header md-header--shadow md-header--lifted" data-md-component=header> <nav class="md-header__inner md-grid" aria-label=Header> <a href=.. title=relay class="md-header__button md-logo" aria-label=relay data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg> </a> <label class="md-header__button md-icon" for=__drawer> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg> </label> <div class=md-header__title data-md-component=header-title> <div class=md-header__ellipsis> <div class=md-header__topic> <span class=md-ellipsis> relay </span> </div> <div class=md-header__topic data-md-component=header-topic> <span class=md-ellipsis> relay Benchmark Dashboard </span> </div> </div> </div> <form class=md-header__option data-md-component=palette> <input class=md-option data-md-color-media data-md-color-scheme=default data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to dark mode" type=radio name=__palette id=__palette_0> <label class="md-header__button md-icon" title="Switch to dark mode" for=__palette_1 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg> </label> <input class=md-option data-md-color-media data-md-color-scheme=slate data-md-color-primary=indigo data-md-color-accent=indigo aria-label="Switch to light mode" type=radio name=__palette id=__palette_1> <label class="md-header__button md-icon" title="Switch to light mode" for=__palette_0 hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg> </label> </form> <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script> <label class="md-header__button md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> </label> <div class=md-search data-md-component=search role=dialog> <label class=md-search__overlay for=__search></label> <div class=md-search__inner role=search> <form class=md-search__form name=search> <input type=text class=md-search__input name=query aria-label=Search placeholder=Search autocapitalize=off autocorrect=off autocomplete=off spellcheck=false data-md-component=search-query required> <label class="md-search__icon md-icon" for=__search> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg> </label> <nav class=md-search__options aria-label=Search> <button type=reset class="md-search__icon md-icon" title=Clear aria-label=Clear tabindex=-1> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg> </button> </nav> <div class=md-search__suggest data-md-component=search-suggest></div> </form> <div class=md-search__output> <div class=md-search__scrollwrap tabindex=0 data-md-scrollfix> <div class=md-search-result data-md-component=search-result> <div class=md-search-result__meta> Initializing search </div> <ol class=md-search-result__list role=presentation></ol> </div> </div> </div> </div> </div> <div class=md-header__source> <a href=https://github.com/jhonsferg/relay title="Go to repository" class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 512 512"><!-- Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> jhonsferg/relay </div> </a> </div> </nav> <nav class=md-tabs aria-label=Tabs data-md-component=tabs> <div class=md-grid> <ul class=md-tabs__list> <li class=md-tabs__item> <a href=.. class=md-tabs__link> Home </a> </li> <li class=md-tabs__item> <a href=../installation/ class=md-tabs__link> Getting Started </a> </li> <li class=md-tabs__item> <a href=../guides/basic-requests/ class=md-tabs__link> Guides </a> </li> <li class=md-tabs__item> <a href=../features/bulkhead/ class=md-tabs__link> Features </a> </li> <li class=md-tabs__item> <a href=../extensions/ class=md-tabs__link> Extensions </a> </li> <li class=md-tabs__item> <a href=../reference/client/ class=md-tabs__link> Reference </a> </li> <li class=md-tabs__item> <a href=../changelog/ class=md-tabs__link> Changelog </a> </li> </ul> </div> </nav> </header> <div class=md-container data-md-component=container> <main class=md-main data-md-component=main> <div class="md-main__inner md-grid"> <div class="md-sidebar md-sidebar--primary" data-md-component=sidebar data-md-type=navigation> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--primary md-nav--lifted" aria-label=Navigation data-md-level=0> <label class=md-nav__title for=__drawer> <a href=.. title=relay class="md-nav__button md-logo" aria-label=relay data-md-component=logo> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg> </a> relay </label> <div class=md-nav__source> <a href=https://github.com/jhonsferg/relay title="Go to repository" class=md-source data-md-component=source> <div class="md-source__icon md-icon"> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 512 512"><!-- Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </div> <div class=md-source__repository> jhonsferg/relay </div> </a> </div> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=.. class=md-nav__link> <span class=md-ellipsis> Home </span> </a> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type=checkbox id=__nav_2> <label class=md-nav__link for=__nav_2 id=__nav_2_label tabindex=0> <span class=md-ellipsis> Getting Started </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_2_label aria-expanded=false> <label class=md-nav__title for=__nav_2> <span class="md-nav__icon md-icon"></span> Getting Started </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../installation/ class=md-nav__link> <span class=md-ellipsis> Installation </span> </a> </li> <li class=md-nav__item> <a href=../quickstart/ class=md-nav__link> <span class=md-ellipsis> Quick Start </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type=checkbox id=__nav_3> <label class=md-nav__link for=__nav_3 id=__nav_3_label tabindex=0> <span class=md-ellipsis> Guides </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_3_label aria-expanded=false> <label class=md-nav__title for=__nav_3> <span class="md-nav__icon md-icon"></span> Guides </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../guides/basic-requests/ class=md-nav__link> <span class=md-ellipsis> Basic Requests </span> </a> </li> <li class=md-nav__item> <a href=../guides/auth/ class=md-nav__link> <span class=md-ellipsis> Authentication </span> </a> </li> <li class=md-nav__item> <a href=../guides/retries/ class=md-nav__link> <span class=md-ellipsis> Retries & Backoff </span> </a> </li> <li class=md-nav__item> <a href=../guides/circuit-breaker/ class=md-nav__link> <span class=md-ellipsis> Circuit Breaker </span> </a> </li> <li class=md-nav__item> <a href=../guides/rate-limiting/ class=md-nav__link> <span class=md-ellipsis> Rate Limiting </span> </a> </li> <li class=md-nav__item> <a href=../guides/hooks/ class=md-nav__link> <span class=md-ellipsis> Hooks & Middleware </span> </a> </li> <li class=md-nav__item> <a href=../guides/error-handling/ class=md-nav__link> <span class=md-ellipsis> Error Handling </span> </a> </li> <li class=md-nav__item> <a href=../guides/pagination/ class=md-nav__link> <span class=md-ellipsis> Pagination </span> </a> </li> <li class=md-nav__item> <a href=../guides/websocket/ class=md-nav__link> <span class=md-ellipsis> WebSocket </span> </a> </li> <li class=md-nav__item> <a href=../guides/testing/ class=md-nav__link> <span class=md-ellipsis> Testing </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type=checkbox id=__nav_4> <label class=md-nav__link for=__nav_4 id=__nav_4_label tabindex=0> <span class=md-ellipsis> Features </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_4_label aria-expanded=false> <label class=md-nav__title for=__nav_4> <span class="md-nav__icon md-icon"></span> Features </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../features/bulkhead/ class=md-nav__link> <span class=md-ellipsis> Bulkhead Isolation </span> </a> </li> <li class=md-nav__item> <a href=../features/hedging/ class=md-nav__link> <span class=md-ellipsis> Request Hedging </span> </a> </li> <li class=md-nav__item> <a href=../features/content-negotiation/ class=md-nav__link> <span class=md-ellipsis> Content Negotiation </span> </a> </li> <li class=md-nav__item> <a href=../features/tls/ class=md-nav__link> <span class=md-ellipsis> TLS & Certificates </span> </a> </li> <li class=md-nav__item> <a href=../features/transport/ class=md-nav__link> <span class=md-ellipsis> Transport Adapters </span> </a> </li> <li class=md-nav__item> <a href=../features/redirect-chain/ class=md-nav__link> <span class=md-ellipsis> Redirect Chain </span> </a> </li> <li class=md-nav__item> <a href=../features/idempotency/ class=md-nav__link> <span class=md-ellipsis> Idempotency </span> </a> </li> <li class=md-nav__item> <a href=../features/dns-cache/ class=md-nav__link> <span class=md-ellipsis> DNS Cache </span> </a> </li> <li class=md-nav__item> <a href=../features/deduplication/ class=md-nav__link> <span class=md-ellipsis> Deduplication </span> </a> </li> <li class=md-nav__item> <a href=../features/retry-budget/ class=md-nav__link> <span class=md-ellipsis> Retry Budget </span> </a> </li> <li class=md-nav__item> <a href=../features/load-balancer/ class=md-nav__link> <span class=md-ellipsis> Load Balancer </span> </a> </li> <li class=md-nav__item> <a href=../features/adaptive-timeout/ class=md-nav__link> <span class=md-ellipsis> Adaptive Timeout </span> </a> </li> <li class=md-nav__item> <a href=../features/priority-queue/ class=md-nav__link> <span class=md-ellipsis> Priority Queue </span> </a> </li> <li class=md-nav__item> <a href=../features/enhanced-sse/ class=md-nav__link> <span class=md-ellipsis> Enhanced SSE </span> </a> </li> <li class=md-nav__item> <a href=../features/long-polling/ class=md-nav__link> <span class=md-ellipsis> Long Polling </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type=checkbox id=__nav_5> <label class=md-nav__link for=__nav_5 id=__nav_5_label tabindex=0> <span class=md-ellipsis> Extensions </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_5_label aria-expanded=false> <label class=md-nav__title for=__nav_5> <span class="md-nav__icon md-icon"></span> Extensions </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../extensions/ class=md-nav__link> <span class=md-ellipsis> Overview </span> </a> </li> <li class=md-nav__item> <a href=../extensions/chaos/ class=md-nav__link> <span class=md-ellipsis> Chaos Engineering </span> </a> </li> <li class=md-nav__item> <a href=../extensions/slog/ class=md-nav__link> <span class=md-ellipsis> Structured Logging (slog) </span> </a> </li> <li class=md-nav__item> <a href=../extensions/tracing/ class=md-nav__link> <span class=md-ellipsis> OpenTelemetry Tracing </span> </a> </li> <li class=md-nav__item> <a href=../extensions/metrics/ class=md-nav__link> <span class=md-ellipsis> OpenTelemetry Metrics </span> </a> </li> <li class=md-nav__item> <a href=../extensions/prometheus/ class=md-nav__link> <span class=md-ellipsis> Prometheus </span> </a> </li> <li class=md-nav__item> <a href=../extensions/sentry/ class=md-nav__link> <span class=md-ellipsis> Sentry </span> </a> </li> <li class=md-nav__item> <a href=../extensions/http3/ class=md-nav__link> <span class=md-ellipsis> HTTP/3 QUIC </span> </a> </li> <li class=md-nav__item> <a href=../extensions/websocket/ class=md-nav__link> <span class=md-ellipsis> WebSocket </span> </a> </li> <li class=md-nav__item> <a href=../extensions/grpc/ class=md-nav__link> <span class=md-ellipsis> gRPC Bridge </span> </a> </li> <li class=md-nav__item> <a href=../extensions/graphql/ class=md-nav__link> <span class=md-ellipsis> GraphQL </span> </a> </li> <li class=md-nav__item> <a href=../extensions/oauth/ class=md-nav__link> <span class=md-ellipsis> OAuth2 </span> </a> </li> <li class=md-nav__item> <a href=../extensions/cache/ class=md-nav__link> <span class=md-ellipsis> Cache (Redis) </span> </a> </li> <li class=md-nav__item> <a href=../extensions/mock/ class=md-nav__link> <span class=md-ellipsis> Mock Transport </span> </a> </li> <li class=md-nav__item> <a href=../extensions/vcr/ class=md-nav__link> <span class=md-ellipsis> VCR Cassettes </span> </a> </li> <li class=md-nav__item> <a href=../extensions/sigv4/ class=md-nav__link> <span class=md-ellipsis> AWS SigV4 </span> </a> </li> <li class=md-nav__item> <a href=../extensions/openapi/ class=md-nav__link> <span class=md-ellipsis> OpenAPI </span> </a> </li> </ul> </nav> </li> <li class="md-nav__item md-nav__item--nested"> <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type=checkbox id=__nav_6> <label class=md-nav__link for=__nav_6 id=__nav_6_label tabindex=0> <span class=md-ellipsis> Reference </span> <span class="md-nav__icon md-icon"></span> </label> <nav class=md-nav data-md-level=1 aria-labelledby=__nav_6_label aria-expanded=false> <label class=md-nav__title for=__nav_6> <span class="md-nav__icon md-icon"></span> Reference </label> <ul class=md-nav__list data-md-scrollfix> <li class=md-nav__item> <a href=../reference/client/ class=md-nav__link> <span class=md-ellipsis> Client </span> </a> </li> <li class=md-nav__item> <a href=../reference/config/ class=md-nav__link> <span class=md-ellipsis> Configuration </span> </a> </li> <li class=md-nav__item> <a href=../reference/request/ class=md-nav__link> <span class=md-ellipsis> Request Builder </span> </a> </li> <li class=md-nav__item> <a href=../reference/response/ class=md-nav__link> <span class=md-ellipsis> Response </span> </a> </li> <li class=md-nav__item> <a href=../reference/errors/ class=md-nav__link> <span class=md-ellipsis> Errors </span> </a> </li> <li class=md-nav__item> <a href=../reference/generics/ class=md-nav__link> <span class=md-ellipsis> Generic Decode </span> </a> </li> <li class=md-nav__item> <a href=../reference/url-resolution/ class=md-nav__link> <span class=md-ellipsis> URL Resolution (RFC 3986) </span> </a> </li> </ul> </nav> </li> <li class=md-nav__item> <a href=../changelog/ class=md-nav__link> <span class=md-ellipsis> Changelog </span> </a> </li> </ul> </nav> </div> </div> </div> <div class="md-sidebar md-sidebar--secondary" data-md-component=sidebar data-md-type=toc> <div class=md-sidebar__scrollwrap> <div class=md-sidebar__inner> <nav class="md-nav md-nav--secondary" aria-label="Table of contents"> </nav> </div> </div> </div> <div class=md-content data-md-component=content> <article class="md-content__inner md-typeset"> <h1 id=relay-benchmark-dashboard>relay Benchmark Dashboard<a class=headerlink href=#relay-benchmark-dashboard title="Permanent link">&para;</a></h1> <p>Benchmark results are automatically published here on every push to master.</p> <p>View the live dashboard at: https://jhonsferg.github.io/relay/benchmarks/</p> </article> </div> <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script> <script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script> </div> <button type=button class="md-top md-icon" data-md-component=top hidden> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg> Back to top </button> </main> <footer class=md-footer> <div class="md-footer-meta md-typeset"> <div class="md-footer-meta__inner md-grid"> <div class=md-copyright> <div class=md-copyright__highlight> Copyright &copy; jhonsferg - MIT License </div> Made with <a href=https://squidfunk.github.io/mkdocs-material/ target=_blank rel=noopener> Material for MkDocs </a> </div> <div class=md-social> <a href=https://github.com/jhonsferg/relay target=_blank rel=noopener title=github.com class=md-social__link> <svg xmlns=http://www.w3.org/2000/svg viewbox="0 0 512 512"><!-- Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg> </a> </div> </div> </div> </footer> </div> <div class=md-dialog data-md-component=dialog> <div class="md-dialog__inner md-typeset"></div> </div> <script id=__config type=application/json>{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.expand", "navigation.path", "navigation.top", "search.suggest", "search.highlight", "content.tabs.link", "content.code.annotation", "content.code.copy", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script> <script src=../assets/javascripts/bundle.79ae519e.min.js></script> </body> </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>relay — Benchmark Dashboard</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; }
+  h1 { color: #24292f; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #d0d7de; padding: 8px 12px; text-align: left; }
+  th { background: #f6f8fa; font-weight: 600; }
+  tr:nth-child(even) { background: #f6f8fa; }
+  .ts { color: #57606a; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>relay — Benchmark Results</h1>
+<p class="ts">Generated: 2026-04-07 20:44 UTC · <a href="https://github.com/jhonsferg/relay">jhonsferg/relay</a></p>
+<table>
+<thead><tr><th>Benchmark</th><th>Iterations</th><th>ns/op</th><th>B/op</th><th>allocs/op</th></tr></thead>
+<tbody>
+<tr>
+            <td>BenchmarkDNSCache_WarmDialPath-4</td>
+            <td>1,859,176</td>
+            <td>644.4</td>
+            <td>468.0</td>
+            <td>9</td>
+        </tr>
+<tr>
+            <td>BenchmarkDNSCache_WarmDialPath-4</td>
+            <td>1,867,944</td>
+            <td>643.4</td>
+            <td>468.0</td>
+            <td>9</td>
+        </tr>
+<tr>
+            <td>BenchmarkDNSCache_WarmDialPath-4</td>
+            <td>1,858,921</td>
+            <td>641.7</td>
+            <td>468.0</td>
+            <td>9</td>
+        </tr>
+<tr>
+            <td>BenchmarkGenerateIdempotencyKey-4</td>
+            <td>9,446,422</td>
+            <td>125.9</td>
+            <td>48.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkGenerateIdempotencyKey-4</td>
+            <td>9,608,720</td>
+            <td>132.3</td>
+            <td>48.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkGenerateIdempotencyKey-4</td>
+            <td>9,578,234</td>
+            <td>126.0</td>
+            <td>48.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkCoalesceKey_NoAuth-4</td>
+            <td>4,412,961</td>
+            <td>270.4</td>
+            <td>240.0</td>
+            <td>2</td>
+        </tr>
+<tr>
+            <td>BenchmarkCoalesceKey_NoAuth-4</td>
+            <td>4,394,941</td>
+            <td>271.4</td>
+            <td>240.0</td>
+            <td>2</td>
+        </tr>
+<tr>
+            <td>BenchmarkCoalesceKey_NoAuth-4</td>
+            <td>4,422,648</td>
+            <td>272.9</td>
+            <td>240.0</td>
+            <td>2</td>
+        </tr>
+<tr>
+            <td>BenchmarkCoalesceKey_WithAuth-4</td>
+            <td>3,766,218</td>
+            <td>315.7</td>
+            <td>240.0</td>
+            <td>2</td>
+        </tr>
+<tr>
+            <td>BenchmarkCoalesceKey_WithAuth-4</td>
+            <td>3,770,421</td>
+            <td>316.7</td>
+            <td>240.0</td>
+            <td>2</td>
+        </tr>
+<tr>
+            <td>BenchmarkCoalesceKey_WithAuth-4</td>
+            <td>3,779,674</td>
+            <td>316.5</td>
+            <td>240.0</td>
+            <td>2</td>
+        </tr>
+<tr>
+            <td>BenchmarkRequestBuild_NoQuery-4</td>
+            <td>2,604,667</td>
+            <td>457.8</td>
+            <td>512.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkRequestBuild_NoQuery-4</td>
+            <td>2,574,926</td>
+            <td>458.7</td>
+            <td>512.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkRequestBuild_NoQuery-4</td>
+            <td>2,585,956</td>
+            <td>459.7</td>
+            <td>512.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkRequestBuild_WithQuery-4</td>
+            <td>2,642,208</td>
+            <td>453.7</td>
+            <td>512.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkRequestBuild_WithQuery-4</td>
+            <td>2,618,005</td>
+            <td>454.4</td>
+            <td>512.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkRequestBuild_WithQuery-4</td>
+            <td>2,619,572</td>
+            <td>455.7</td>
+            <td>512.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkPriorityQueueEnqueue-4</td>
+            <td>4,079,900</td>
+            <td>282.2</td>
+            <td>434.0</td>
+            <td>4</td>
+        </tr>
+<tr>
+            <td>BenchmarkPriorityQueueEnqueue-4</td>
+            <td>4,010,596</td>
+            <td>304.7</td>
+            <td>435.0</td>
+            <td>4</td>
+        </tr>
+<tr>
+            <td>BenchmarkPriorityQueueEnqueue-4</td>
+            <td>3,915,477</td>
+            <td>297.6</td>
+            <td>436.0</td>
+            <td>4</td>
+        </tr>
+<tr>
+            <td>BenchmarkPriorityQueueDequeue-4</td>
+            <td>3,683,061</td>
+            <td>334.8</td>
+            <td>0.0</td>
+            <td>0</td>
+        </tr>
+<tr>
+            <td>BenchmarkPriorityQueueDequeue-4</td>
+            <td>4,168,740</td>
+            <td>367.7</td>
+            <td>0.0</td>
+            <td>0</td>
+        </tr>
+<tr>
+            <td>BenchmarkPriorityQueueDequeue-4</td>
+            <td>4,181,510</td>
+            <td>333.5</td>
+            <td>0.0</td>
+            <td>0</td>
+        </tr>
+<tr>
+            <td>BenchmarkHeavy_Parallel_Standard-4</td>
+            <td>16</td>
+            <td>64126141.0</td>
+            <td>78346380.0</td>
+            <td>154239</td>
+        </tr>
+<tr>
+            <td>BenchmarkHeavy_Parallel_Standard-4</td>
+            <td>16</td>
+            <td>1457878386.0</td>
+            <td>78345936.0</td>
+            <td>154236</td>
+        </tr>
+<tr>
+            <td>BenchmarkHeavy_Parallel_Standard-4</td>
+            <td>16</td>
+            <td>86203320.0</td>
+            <td>78346384.0</td>
+            <td>154237</td>
+        </tr>
+<tr>
+            <td>BenchmarkHeavy_Parallel_Relay-4</td>
+            <td>22</td>
+            <td>53739181.0</td>
+            <td>68395305.0</td>
+            <td>154216</td>
+        </tr>
+<tr>
+            <td>BenchmarkHeavy_Parallel_Relay-4</td>
+            <td>21</td>
+            <td>54591361.0</td>
+            <td>68396445.0</td>
+            <td>154218</td>
+        </tr>
+<tr>
+            <td>BenchmarkHeavy_Parallel_Relay-4</td>
+            <td>19</td>
+            <td>53452481.0</td>
+            <td>68399186.0</td>
+            <td>154222</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemoryStress_Relay-4</td>
+            <td>13</td>
+            <td>86734547.0</td>
+            <td>45035037.0</td>
+            <td>105283</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemoryStress_Relay-4</td>
+            <td>13</td>
+            <td>86601036.0</td>
+            <td>45036920.0</td>
+            <td>105233</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemoryStress_Relay-4</td>
+            <td>12</td>
+            <td>86973049.0</td>
+            <td>45034580.0</td>
+            <td>105234</td>
+        </tr>
+<tr>
+            <td>BenchmarkSmallPayload_Parallel_Relay-4</td>
+            <td>56,565</td>
+            <td>20988.0</td>
+            <td>9000.0</td>
+            <td>115</td>
+        </tr>
+<tr>
+            <td>BenchmarkSmallPayload_Parallel_Relay-4</td>
+            <td>56,220</td>
+            <td>21667.0</td>
+            <td>8997.0</td>
+            <td>115</td>
+        </tr>
+<tr>
+            <td>BenchmarkSmallPayload_Parallel_Relay-4</td>
+            <td>57,415</td>
+            <td>21444.0</td>
+            <td>9000.0</td>
+            <td>115</td>
+        </tr>
+<tr>
+            <td>BenchmarkLargeStream_Sequential_Relay-4</td>
+            <td>12</td>
+            <td>88550378.0</td>
+            <td>46238095.0</td>
+            <td>255249</td>
+        </tr>
+<tr>
+            <td>BenchmarkLargeStream_Sequential_Relay-4</td>
+            <td>12</td>
+            <td>87374184.0</td>
+            <td>46237952.0</td>
+            <td>255206</td>
+        </tr>
+<tr>
+            <td>BenchmarkLargeStream_Sequential_Relay-4</td>
+            <td>12</td>
+            <td>86462047.0</td>
+            <td>46236258.0</td>
+            <td>255224</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionReuse_Sequential_Relay-4</td>
+            <td>8</td>
+            <td>133560323.0</td>
+            <td>68392902.0</td>
+            <td>154253</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionReuse_Sequential_Relay-4</td>
+            <td>8</td>
+            <td>128846383.0</td>
+            <td>68394121.0</td>
+            <td>154254</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionReuse_Sequential_Relay-4</td>
+            <td>8</td>
+            <td>131077021.0</td>
+            <td>68391746.0</td>
+            <td>154249</td>
+        </tr>
+<tr>
+            <td>BenchmarkAllocationProfile_Standard-4</td>
+            <td>8</td>
+            <td>134187229.0</td>
+            <td>78352633.0</td>
+            <td>154298</td>
+        </tr>
+<tr>
+            <td>BenchmarkAllocationProfile_Standard-4</td>
+            <td>8</td>
+            <td>139338114.0</td>
+            <td>78354797.0</td>
+            <td>154311</td>
+        </tr>
+<tr>
+            <td>BenchmarkAllocationProfile_Standard-4</td>
+            <td>8</td>
+            <td>136569230.0</td>
+            <td>78353773.0</td>
+            <td>154299</td>
+        </tr>
+<tr>
+            <td>BenchmarkAllocationProfile_Relay-4</td>
+            <td>8</td>
+            <td>128809936.0</td>
+            <td>68393060.0</td>
+            <td>154252</td>
+        </tr>
+<tr>
+            <td>BenchmarkAllocationProfile_Relay-4</td>
+            <td>9</td>
+            <td>129173492.0</td>
+            <td>68390950.0</td>
+            <td>154247</td>
+        </tr>
+<tr>
+            <td>BenchmarkAllocationProfile_Relay-4</td>
+            <td>8</td>
+            <td>132333271.0</td>
+            <td>68393518.0</td>
+            <td>154250</td>
+        </tr>
+<tr>
+            <td>BenchmarkIdleConnections_Relay-4</td>
+            <td>44</td>
+            <td>29048998.0</td>
+            <td>10554249.0</td>
+            <td>30795</td>
+        </tr>
+<tr>
+            <td>BenchmarkIdleConnections_Relay-4</td>
+            <td>38</td>
+            <td>28880509.0</td>
+            <td>10555803.0</td>
+            <td>30799</td>
+        </tr>
+<tr>
+            <td>BenchmarkIdleConnections_Relay-4</td>
+            <td>42</td>
+            <td>28057175.0</td>
+            <td>10553919.0</td>
+            <td>30794</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_Simple-4</td>
+            <td>10,000</td>
+            <td>100299.0</td>
+            <td>9038.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_Simple-4</td>
+            <td>10,000</td>
+            <td>102075.0</td>
+            <td>9038.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_Simple-4</td>
+            <td>10,000</td>
+            <td>102722.0</td>
+            <td>9035.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_WithRetry-4</td>
+            <td>1,951</td>
+            <td>621648.0</td>
+            <td>152954.0</td>
+            <td>255</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_WithRetry-4</td>
+            <td>1,896</td>
+            <td>662516.0</td>
+            <td>152852.0</td>
+            <td>255</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_WithRetry-4</td>
+            <td>1,794</td>
+            <td>664668.0</td>
+            <td>153016.0</td>
+            <td>255</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_WithCache-4</td>
+            <td>167,582</td>
+            <td>6887.0</td>
+            <td>4357.0</td>
+            <td>64</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_WithCache-4</td>
+            <td>176,146</td>
+            <td>6909.0</td>
+            <td>4357.0</td>
+            <td>64</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_WithCache-4</td>
+            <td>168,710</td>
+            <td>6775.0</td>
+            <td>4357.0</td>
+            <td>64</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecuteBatch_100-4</td>
+            <td>507</td>
+            <td>2364075.0</td>
+            <td>906480.0</td>
+            <td>10572</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecuteBatch_100-4</td>
+            <td>477</td>
+            <td>2391630.0</td>
+            <td>909186.0</td>
+            <td>10572</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecuteBatch_100-4</td>
+            <td>482</td>
+            <td>2377449.0</td>
+            <td>908664.0</td>
+            <td>10572</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecuteAsync-4</td>
+            <td>3,387</td>
+            <td>306841.0</td>
+            <td>93073.0</td>
+            <td>1084</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecuteAsync-4</td>
+            <td>3,433</td>
+            <td>304952.0</td>
+            <td>93006.0</td>
+            <td>1084</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecuteAsync-4</td>
+            <td>3,556</td>
+            <td>300769.0</td>
+            <td>92854.0</td>
+            <td>1084</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_NoTiming-4</td>
+            <td>12,004</td>
+            <td>99861.0</td>
+            <td>8598.0</td>
+            <td>92</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_NoTiming-4</td>
+            <td>10,000</td>
+            <td>100686.0</td>
+            <td>8571.0</td>
+            <td>92</td>
+        </tr>
+<tr>
+            <td>BenchmarkExecute_NoTiming-4</td>
+            <td>12,022</td>
+            <td>100134.0</td>
+            <td>8597.0</td>
+            <td>92</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_ParallelRequests-4</td>
+            <td>59,037</td>
+            <td>19774.0</td>
+            <td>9153.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_ParallelRequests-4</td>
+            <td>57,951</td>
+            <td>19560.0</td>
+            <td>9160.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_ParallelRequests-4</td>
+            <td>58,681</td>
+            <td>19369.0</td>
+            <td>9155.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_SequentialBaseline-4</td>
+            <td>10,000</td>
+            <td>101894.0</td>
+            <td>9125.0</td>
+            <td>108</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_SequentialBaseline-4</td>
+            <td>10,000</td>
+            <td>101174.0</td>
+            <td>9127.0</td>
+            <td>108</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_SequentialBaseline-4</td>
+            <td>10,000</td>
+            <td>101014.0</td>
+            <td>9128.0</td>
+            <td>108</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_HighContention-4</td>
+            <td>30,218</td>
+            <td>39263.0</td>
+            <td>46882.0</td>
+            <td>125</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_HighContention-4</td>
+            <td>30,126</td>
+            <td>42343.0</td>
+            <td>47492.0</td>
+            <td>125</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_HighContention-4</td>
+            <td>30,420</td>
+            <td>38816.0</td>
+            <td>46924.0</td>
+            <td>125</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_RateLimitedLoad-4</td>
+            <td>10,000</td>
+            <td>100214.0</td>
+            <td>9213.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_RateLimitedLoad-4</td>
+            <td>10,000</td>
+            <td>100185.0</td>
+            <td>9213.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_RateLimitedLoad-4</td>
+            <td>10,000</td>
+            <td>100125.0</td>
+            <td>9209.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_MultipleClients-4</td>
+            <td>60,858</td>
+            <td>19763.0</td>
+            <td>9184.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_MultipleClients-4</td>
+            <td>58,894</td>
+            <td>19582.0</td>
+            <td>9106.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_MultipleClients-4</td>
+            <td>59,288</td>
+            <td>20035.0</td>
+            <td>9197.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_BurstTraffic-4</td>
+            <td>4,150</td>
+            <td>255464.0</td>
+            <td>65207.0</td>
+            <td>137</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_BurstTraffic-4</td>
+            <td>4,462</td>
+            <td>258795.0</td>
+            <td>72887.0</td>
+            <td>140</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_BurstTraffic-4</td>
+            <td>4,240</td>
+            <td>253490.0</td>
+            <td>65489.0</td>
+            <td>136</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_CircuitBreakerImpact-4</td>
+            <td>59,136</td>
+            <td>19451.0</td>
+            <td>9088.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_CircuitBreakerImpact-4</td>
+            <td>58,112</td>
+            <td>19643.0</td>
+            <td>9095.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConcurrency_CircuitBreakerImpact-4</td>
+            <td>58,669</td>
+            <td>19970.0</td>
+            <td>9092.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_DefaultPool-4</td>
+            <td>10,000</td>
+            <td>100638.0</td>
+            <td>9071.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_DefaultPool-4</td>
+            <td>10,000</td>
+            <td>101720.0</td>
+            <td>9059.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_DefaultPool-4</td>
+            <td>10,000</td>
+            <td>101625.0</td>
+            <td>9059.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_MinimalPool-4</td>
+            <td>12,508</td>
+            <td>100872.0</td>
+            <td>9072.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_MinimalPool-4</td>
+            <td>10,000</td>
+            <td>101648.0</td>
+            <td>9061.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_MinimalPool-4</td>
+            <td>10,000</td>
+            <td>101527.0</td>
+            <td>9064.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_OptimalPool-4</td>
+            <td>58,496</td>
+            <td>19398.0</td>
+            <td>9087.0</td>
+            <td>105</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_OptimalPool-4</td>
+            <td>57,002</td>
+            <td>19835.0</td>
+            <td>9102.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_OptimalPool-4</td>
+            <td>57,181</td>
+            <td>19481.0</td>
+            <td>9101.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_AggressivePool-4</td>
+            <td>58,098</td>
+            <td>19479.0</td>
+            <td>9103.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_AggressivePool-4</td>
+            <td>56,436</td>
+            <td>19675.0</td>
+            <td>9114.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_AggressivePool-4</td>
+            <td>55,446</td>
+            <td>20158.0</td>
+            <td>9120.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_ConnectionReuse-4</td>
+            <td>10,000</td>
+            <td>101862.0</td>
+            <td>9052.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_ConnectionReuse-4</td>
+            <td>10,000</td>
+            <td>102402.0</td>
+            <td>9054.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_ConnectionReuse-4</td>
+            <td>10,000</td>
+            <td>101705.0</td>
+            <td>9051.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_MultiHostRequests-4</td>
+            <td>58,971</td>
+            <td>20221.0</td>
+            <td>9118.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_MultiHostRequests-4</td>
+            <td>56,490</td>
+            <td>20162.0</td>
+            <td>9136.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_MultiHostRequests-4</td>
+            <td>58,801</td>
+            <td>20057.0</td>
+            <td>9119.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_IdleConnTimeout-4</td>
+            <td>10,000</td>
+            <td>101271.0</td>
+            <td>9051.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_IdleConnTimeout-4</td>
+            <td>10,000</td>
+            <td>101231.0</td>
+            <td>9053.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_IdleConnTimeout-4</td>
+            <td>10,000</td>
+            <td>101108.0</td>
+            <td>9055.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_KeepAliveDisabled-4</td>
+            <td>5,127</td>
+            <td>230528.0</td>
+            <td>21063.0</td>
+            <td>166</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_KeepAliveDisabled-4</td>
+            <td>5,302</td>
+            <td>232541.0</td>
+            <td>21043.0</td>
+            <td>166</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_KeepAliveDisabled-4</td>
+            <td>5,217</td>
+            <td>231117.0</td>
+            <td>21043.0</td>
+            <td>166</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_PoolExhaustion-4</td>
+            <td>45,412</td>
+            <td>24787.0</td>
+            <td>13340.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_PoolExhaustion-4</td>
+            <td>43,653</td>
+            <td>24412.0</td>
+            <td>13341.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkConnectionPooling_PoolExhaustion-4</td>
+            <td>46,245</td>
+            <td>24686.0</td>
+            <td>13327.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheKeyGeneration-4</td>
+            <td>149,593</td>
+            <td>7666.0</td>
+            <td>4894.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheKeyGeneration-4</td>
+            <td>145,590</td>
+            <td>7896.0</td>
+            <td>4899.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheKeyGeneration-4</td>
+            <td>143,564</td>
+            <td>7820.0</td>
+            <td>4903.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_ContextWithTimeout-4</td>
+            <td>1,389,602</td>
+            <td>778.0</td>
+            <td>962.0</td>
+            <td>6</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_ContextWithTimeout-4</td>
+            <td>1,568,456</td>
+            <td>753.2</td>
+            <td>989.0</td>
+            <td>5</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_ContextWithTimeout-4</td>
+            <td>1,547,430</td>
+            <td>782.5</td>
+            <td>992.0</td>
+            <td>5</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_ResponseBodyCopy-4</td>
+            <td>12,237</td>
+            <td>102464.0</td>
+            <td>9036.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_ResponseBodyCopy-4</td>
+            <td>10,000</td>
+            <td>101415.0</td>
+            <td>9023.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_ResponseBodyCopy-4</td>
+            <td>10,000</td>
+            <td>102628.0</td>
+            <td>9021.0</td>
+            <td>106</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_PathParamSubstitution-4</td>
+            <td>10,000</td>
+            <td>107629.0</td>
+            <td>9751.0</td>
+            <td>113</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_PathParamSubstitution-4</td>
+            <td>10,000</td>
+            <td>106590.0</td>
+            <td>9751.0</td>
+            <td>113</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_PathParamSubstitution-4</td>
+            <td>10,000</td>
+            <td>106426.0</td>
+            <td>9750.0</td>
+            <td>113</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_QueryParamEncoding-4</td>
+            <td>10,000</td>
+            <td>106999.0</td>
+            <td>10411.0</td>
+            <td>129</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_QueryParamEncoding-4</td>
+            <td>10,000</td>
+            <td>107454.0</td>
+            <td>10412.0</td>
+            <td>129</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_QueryParamEncoding-4</td>
+            <td>10,000</td>
+            <td>107664.0</td>
+            <td>10408.0</td>
+            <td>129</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_HeaderCloning-4</td>
+            <td>149,505</td>
+            <td>8145.0</td>
+            <td>5082.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_HeaderCloning-4</td>
+            <td>149,331</td>
+            <td>7935.0</td>
+            <td>5082.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_HeaderCloning-4</td>
+            <td>149,590</td>
+            <td>8132.0</td>
+            <td>5081.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheControlParsing-4</td>
+            <td>145,280</td>
+            <td>7848.0</td>
+            <td>4900.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheControlParsing-4</td>
+            <td>146,635</td>
+            <td>7640.0</td>
+            <td>4898.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheControlParsing-4</td>
+            <td>147,458</td>
+            <td>7829.0</td>
+            <td>4896.0</td>
+            <td>66</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_URLBuilding_WithBaseURL-4</td>
+            <td>10,000</td>
+            <td>100976.0</td>
+            <td>8891.0</td>
+            <td>103</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_URLBuilding_WithBaseURL-4</td>
+            <td>10,000</td>
+            <td>101384.0</td>
+            <td>8889.0</td>
+            <td>103</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_URLBuilding_WithBaseURL-4</td>
+            <td>10,000</td>
+            <td>101436.0</td>
+            <td>8891.0</td>
+            <td>103</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_EmptyResponseBody-4</td>
+            <td>12,267</td>
+            <td>97813.0</td>
+            <td>8644.0</td>
+            <td>97</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_EmptyResponseBody-4</td>
+            <td>12,229</td>
+            <td>97092.0</td>
+            <td>8645.0</td>
+            <td>97</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_EmptyResponseBody-4</td>
+            <td>12,253</td>
+            <td>97497.0</td>
+            <td>8644.0</td>
+            <td>97</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_URLValueEncoding-4</td>
+            <td>1,000,000</td>
+            <td>1012.0</td>
+            <td>504.0</td>
+            <td>14</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_URLValueEncoding-4</td>
+            <td>1,000,000</td>
+            <td>1011.0</td>
+            <td>504.0</td>
+            <td>14</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_URLValueEncoding-4</td>
+            <td>1,000,000</td>
+            <td>1013.0</td>
+            <td>504.0</td>
+            <td>14</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_StringConcatenation-4</td>
+            <td>29,442,901</td>
+            <td>40.6</td>
+            <td>64.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_StringConcatenation-4</td>
+            <td>28,706,008</td>
+            <td>41.0</td>
+            <td>64.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_StringConcatenation-4</td>
+            <td>27,975,018</td>
+            <td>40.9</td>
+            <td>64.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_FormattedURL-4</td>
+            <td>9,326,259</td>
+            <td>126.7</td>
+            <td>80.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_FormattedURL-4</td>
+            <td>9,411,999</td>
+            <td>126.2</td>
+            <td>80.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_FormattedURL-4</td>
+            <td>9,394,315</td>
+            <td>126.6</td>
+            <td>80.0</td>
+            <td>3</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_MultipleContextWrap-4</td>
+            <td>1,599,476</td>
+            <td>732.4</td>
+            <td>983.0</td>
+            <td>6</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_MultipleContextWrap-4</td>
+            <td>1,593,180</td>
+            <td>723.2</td>
+            <td>984.0</td>
+            <td>5</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_MultipleContextWrap-4</td>
+            <td>1,553,095</td>
+            <td>736.8</td>
+            <td>991.0</td>
+            <td>6</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_PathBuilder_String5-4</td>
+            <td>14,949,270</td>
+            <td>79.0</td>
+            <td>32.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_PathBuilder_String5-4</td>
+            <td>14,939,372</td>
+            <td>79.0</td>
+            <td>32.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_PathBuilder_String5-4</td>
+            <td>15,008,754</td>
+            <td>79.0</td>
+            <td>32.0</td>
+            <td>1</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheHitReplay-4</td>
+            <td>167,943</td>
+            <td>6591.0</td>
+            <td>4342.0</td>
+            <td>64</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheHitReplay-4</td>
+            <td>179,379</td>
+            <td>6632.0</td>
+            <td>4342.0</td>
+            <td>64</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_CacheHitReplay-4</td>
+            <td>179,649</td>
+            <td>6576.0</td>
+            <td>4342.0</td>
+            <td>64</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_StreamOpen-4</td>
+            <td>4,291</td>
+            <td>269924.0</td>
+            <td>144071.0</td>
+            <td>149</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_StreamOpen-4</td>
+            <td>4,478</td>
+            <td>269724.0</td>
+            <td>144005.0</td>
+            <td>148</td>
+        </tr>
+<tr>
+            <td>BenchmarkHotspot_StreamOpen-4</td>
+            <td>4,110</td>
+            <td>273620.0</td>
+            <td>143980.0</td>
+            <td>149</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_SmallPayload_Allocation-4</td>
+            <td>10,000</td>
+            <td>100124.0</td>
+            <td>9113.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_SmallPayload_Allocation-4</td>
+            <td>10,000</td>
+            <td>100160.0</td>
+            <td>9108.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_SmallPayload_Allocation-4</td>
+            <td>10,000</td>
+            <td>101439.0</td>
+            <td>9106.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_MediumPayload_Allocation-4</td>
+            <td>10,000</td>
+            <td>106120.0</td>
+            <td>18323.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_MediumPayload_Allocation-4</td>
+            <td>10,000</td>
+            <td>101507.0</td>
+            <td>18322.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_MediumPayload_Allocation-4</td>
+            <td>10,000</td>
+            <td>104204.0</td>
+            <td>18317.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_LargePayload_Allocation-4</td>
+            <td>541</td>
+            <td>2005541.0</td>
+            <td>7217712.0</td>
+            <td>143</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_LargePayload_Allocation-4</td>
+            <td>518</td>
+            <td>2061390.0</td>
+            <td>7207876.0</td>
+            <td>144</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_LargePayload_Allocation-4</td>
+            <td>565</td>
+            <td>2135777.0</td>
+            <td>7219609.0</td>
+            <td>144</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_GCPressure_Forced-4</td>
+            <td>2,595</td>
+            <td>647849.0</td>
+            <td>17310.0</td>
+            <td>127</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_GCPressure_Forced-4</td>
+            <td>2,503</td>
+            <td>657990.0</td>
+            <td>17244.0</td>
+            <td>127</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_GCPressure_Forced-4</td>
+            <td>2,492</td>
+            <td>651706.0</td>
+            <td>17252.0</td>
+            <td>127</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_Concurrent_Allocation-4</td>
+            <td>58,984</td>
+            <td>19702.0</td>
+            <td>9218.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_Concurrent_Allocation-4</td>
+            <td>60,404</td>
+            <td>19391.0</td>
+            <td>9297.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_Concurrent_Allocation-4</td>
+            <td>58,950</td>
+            <td>19442.0</td>
+            <td>9218.0</td>
+            <td>107</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_ByteBuffer_Reuse-4</td>
+            <td>10,000</td>
+            <td>118486.0</td>
+            <td>21404.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_ByteBuffer_Reuse-4</td>
+            <td>9,705</td>
+            <td>119392.0</td>
+            <td>21413.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_ByteBuffer_Reuse-4</td>
+            <td>9,474</td>
+            <td>119719.0</td>
+            <td>21428.0</td>
+            <td>111</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_HeaderParsing_Overhead-4</td>
+            <td>10,000</td>
+            <td>104289.0</td>
+            <td>11120.0</td>
+            <td>137</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_HeaderParsing_Overhead-4</td>
+            <td>10,000</td>
+            <td>104730.0</td>
+            <td>11116.0</td>
+            <td>137</td>
+        </tr>
+<tr>
+            <td>BenchmarkMemory_HeaderParsing_Overhead-4</td>
+            <td>10,000</td>
+            <td>103744.0</td>
+            <td>11115.0</td>
+            <td>137</td>
+        </tr>
+
+</tbody>
+</table>
+</body>
+</html>
