@@ -895,6 +895,11 @@ func WithHARRecording(rec *HARRecorder) Option {
 	return func(c *Config) { c.HARRecorder = rec }
 }
 
+// WithHARRecorder is an alias for [WithHARRecording].
+func WithHARRecorder(rec *HARRecorder) Option {
+	return WithHARRecording(rec)
+}
+
 // WithAutoIdempotencyKey automatically injects an X-Idempotency-Key header
 // (UUID v4) into every request. The same key is reused across retry attempts,
 // preventing duplicate side effects on servers that support idempotency keys.

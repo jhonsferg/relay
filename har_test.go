@@ -248,3 +248,176 @@ func TestHAR_ExportAfterReset_EmptyEntries(t *testing.T) {
 	}
 	_ = time.Now() // satisfy import
 }
+
+func TestHARRecorder_RecordsEntry(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "hi"})
+
+	rec := NewHARRecorder("test-tool", "1.0")
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker(), WithHARRecorder(rec))
+
+	_, err := c.Execute(c.Get(srv.URL() + "/ping"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if rec.EntryCount() != 1 {
+		t.Errorf("expected EntryCount=1, got %d", rec.EntryCount())
+	}
+	entries := rec.Entries()
+	if entries[0].Request.Method != http.MethodGet {
+		t.Errorf("expected GET, got %q", entries[0].Request.Method)
+	}
+	if entries[0].Request.URL == "" {
+		t.Error("entry URL should not be empty")
+	}
+}
+
+func TestHARRecorder_ResponseBody(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "text/plain"},
+		Body:    "hello world",
+	})
+
+	rec := NewHARRecorder()
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker(), WithHARRecorder(rec))
+
+	_, err := c.Execute(c.Get(srv.URL() + "/body"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	entries := rec.Entries()
+	if len(entries) == 0 {
+		t.Fatal("no entries recorded")
+	}
+	if entries[0].Response.Content.Text != "hello world" {
+		t.Errorf("expected body 'hello world', got %q", entries[0].Response.Content.Text)
+	}
+}
+
+func TestHARRecorder_RequestHeaders(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	rec := NewHARRecorder()
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker(), WithHARRecorder(rec))
+
+	req := c.Get(srv.URL() + "/headers")
+	req = req.WithHeader("X-Custom-Header", "relay-test")
+	_, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	entries := rec.Entries()
+	if len(entries) == 0 {
+		t.Fatal("no entries recorded")
+	}
+	var found bool
+	for _, h := range entries[0].Request.Headers {
+		if h.Name == "X-Custom-Header" && h.Value == "relay-test" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("X-Custom-Header not found in recorded request headers")
+	}
+}
+
+func TestHARRecorder_ExportJSON(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "json-test"})
+
+	rec := NewHARRecorder()
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker(), WithHARRecorder(rec))
+
+	_, err := c.Execute(c.Get(srv.URL() + "/export"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	data, err := rec.ExportJSON()
+	if err != nil {
+		t.Fatalf("ExportJSON: %v", err)
+	}
+	var doc map[string]interface{}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	logMap, ok := doc["log"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing 'log' key")
+	}
+	if v, _ := logMap["version"].(string); v != "1.2" {
+		t.Errorf("expected version '1.2', got %q", v)
+	}
+}
+
+func TestHARRecorder_Reset(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	rec := NewHARRecorder()
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker(), WithHARRecorder(rec))
+
+	for i := 0; i < 2; i++ {
+		if _, err := c.Execute(c.Get(srv.URL() + "/")); err != nil {
+			t.Fatalf("Execute %d: %v", i, err)
+		}
+	}
+	if rec.EntryCount() != 2 {
+		t.Fatalf("expected 2 entries before Reset, got %d", rec.EntryCount())
+	}
+
+	rec.Reset()
+
+	if rec.EntryCount() != 0 {
+		t.Errorf("expected 0 entries after Reset, got %d", rec.EntryCount())
+	}
+}
+
+func TestHARRecorder_ConcurrentSafe(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	const n = 10
+	for i := 0; i < n; i++ {
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "concurrent"})
+	}
+
+	rec := NewHARRecorder()
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker(), WithHARRecorder(rec))
+
+	done := make(chan struct{}, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer func() { done <- struct{}{} }()
+			if _, err := c.Execute(c.Get(srv.URL() + "/")); err != nil {
+				t.Errorf("Execute error: %v", err)
+			}
+		}()
+	}
+	for i := 0; i < n; i++ {
+		<-done
+	}
+
+	if rec.EntryCount() != n {
+		t.Errorf("expected EntryCount=%d, got %d", n, rec.EntryCount())
+	}
+}
