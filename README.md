@@ -128,6 +128,73 @@ Each extension is a standalone Go module - add only what you use:
 
 ---
 
+## Unix Socket Transport
+
+Connect to services exposed via Unix domain sockets (Linux/macOS):
+
+```go
+client := relay.NewClient(
+    relay.WithBaseURL("http://localhost"),
+    relay.WithUnixSocket("/var/run/myapp.sock"),
+)
+// Requests are routed through the socket; the host header is taken from WithBaseURL.
+resp, err := client.Execute(ctx, relay.NewRequest().GET("/status"))
+```
+
+> **Note:** Unix socket transport is not supported on Windows.
+
+---
+
+## Request Authentication
+
+Relay provides a `RequestSigner` interface and several built-in implementations.
+
+**HMAC-SHA256 signing** — sets `X-Timestamp` and `X-Signature` headers automatically:
+
+```go
+client := relay.NewClient(
+    relay.WithRequestSigner(&relay.HMACRequestSigner{Key: []byte(secret)}),
+)
+```
+
+**Multiple signers** — chain signers in order with `NewMultiSigner`:
+
+```go
+client := relay.NewClient(
+    relay.WithRequestSigner(relay.NewMultiSigner(
+        &relay.HMACRequestSigner{Key: signingKey},
+        relay.RequestSignerFunc(func(r *http.Request) error {
+            r.Header.Set("X-Tenant", tenantID)
+            return nil
+        }),
+    )),
+)
+```
+
+**Custom signer** — implement `RequestSigner` directly:
+
+```go
+type APIKeySigner struct{ key string }
+func (s *APIKeySigner) Sign(r *http.Request) error {
+    r.Header.Set("Authorization", "Bearer "+s.key)
+    return nil
+}
+client := relay.NewClient(relay.WithRequestSigner(&APIKeySigner{key: secret}))
+```
+
+---
+
+## CI/CD
+
+Relay's CI pipeline runs across 6 OS/Go version combinations and includes:
+
+- **Unit & integration tests** — `ci.yml`
+- **Benchmark regression detection** — `benchstat.yml` compares PR benchmarks against the base branch using [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and fails the build if a statistically significant slowdown is detected
+- **CodeQL static analysis** — `codeql.yml`
+- **Vulnerability scanning** — Trivy (`trivy.yml`)
+
+---
+
 ## Testing
 
 ```go
