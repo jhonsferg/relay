@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `HARRecorder.All() iter.Seq[HAREntry]`: range-over-func iterator (Go 1.23+ `iter` package) providing a snapshot-based loop over recorded entries without allocating a full slice copy at the call site. Evaluated all Go 1.24/1.25 opt-in features; no other breaking changes identified.
-
+- `WithUnixSocket(path)` - routes all requests through a Unix domain socket while preserving the HTTP host header; enables Docker/containerd socket APIs without a TCP listener.
+- `MultiSigner` - chains multiple `RequestSigner` implementations applied in order per attempt; `NewMultiSigner(signers...)` filters nil entries.
+- `HMACRequestSigner` - signs requests with HMAC-SHA256 over `"METHOD URL UNIX-TIMESTAMP"` and injects `X-Signature` / `X-Timestamp` headers; safe for concurrent use.
+- `WithRequestSigner(s)` - alias for `WithSigner` added for naming consistency with the signer-related API surface.
+- `relay-gen` (`cmd/relay-gen`) - OpenAPI 3.x → type-safe Go client code generator; reads a JSON spec and emits a `relay`-based client with typed request/response structs and one method per operation.
+- `WithHTTP2PushHandler(fn)` - registers a `PushPromiseHandler` callback invoked for HTTP/2 server-pushed responses; handler receives the pushed URL and response (body must be closed by handler).
+- `HARRecorder.All() iter.Seq[HAREntry]` - range-over-func iterator (Go 1.23+ `iter` package) providing a snapshot-based loop over recorded entries without holding the lock.
+- WASM/js build support: core package now builds with `GOOS=js GOARCH=wasm`; Unix socket transport excluded via build tags.
 ## [0.2.1] - 2026-03-30 (ext/tracing, ext/metrics)
 
 ### Fixed
