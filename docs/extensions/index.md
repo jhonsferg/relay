@@ -26,6 +26,7 @@ Extensions integrate with relay through the standard `Option` pattern. Every ext
 | zerolog | `github.com/jhonsferg/relay/ext/zerolog` | Zerolog structured logging | `go get github.com/jhonsferg/relay/ext/zerolog` |
 | logrus | `github.com/jhonsferg/relay/ext/logrus` | Logrus logger integration | `go get github.com/jhonsferg/relay/ext/logrus` |
 | jitterbug | `github.com/jhonsferg/relay/ext/jitterbug` | Jitter timing utilities | `go get github.com/jhonsferg/relay/ext/jitterbug` |
+| compress | `github.com/jhonsferg/relay/ext/compress` | zstd compression (with dictionary support) | `go get github.com/jhonsferg/relay/ext/compress` |
 
 ## Quick Start: Using Multiple Extensions Together
 
@@ -294,3 +295,4 @@ Extensions are versioned independently. The table below shows the minimum relay 
 - [Sentry Extension](sentry.md) - Error and performance tracking guide
 - [HTTP/3 Extension](http3.md) - QUIC/HTTP3 transport guide
 - [WebSocket Extension](websocket.md) - WebSocket migration guide
+- [Compress Extension](compress.md) - zstd compression and dictionary guide
