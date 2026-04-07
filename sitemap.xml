@@ -2,226 +2,230 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://jhonsferg.github.io/relay/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/changelog/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/installation/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/quickstart/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
+         <loc>https://jhonsferg.github.io/relay/benchmarks/</loc>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/cache/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/chaos/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/graphql/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/grpc/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/http3/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/metrics/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/mock/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/oauth/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/oidc/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/openapi/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/otel/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/prometheus/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/sentry/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/sigv4/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/slog/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/tracing/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/vcr/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/extensions/websocket/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/adaptive-timeout/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/bulkhead/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/content-negotiation/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/deduplication/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/dns-cache/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/enhanced-sse/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/hedging/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/idempotency/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/load-balancer/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/long-polling/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/priority-queue/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/redirect-chain/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/retry-budget/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/tls/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/transport/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/zstd-compression/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/auth/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/basic-requests/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/circuit-breaker/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/error-handling/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/hooks/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/pagination/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/rate-limiting/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/retries/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/testing/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/websocket/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/client/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/config/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/errors/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/generics/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/request/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/response/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/reference/url-resolution/</loc>
-         <lastmod>2026-04-06</lastmod>
+         <lastmod>2026-04-07</lastmod>
     </url>
 </urlset>
