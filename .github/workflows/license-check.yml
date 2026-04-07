@@ -39,12 +39,16 @@ jobs:
         run: go env -w GOTOOLCHAIN=local
 
       - name: Download dependencies
+        env:
+          GOWORK: "off"
         run: |
           go mod download
           go mod verify
 
       - name: Generate dependency list
         id: deps
+        env:
+          GOWORK: "off"
         run: |
           go list -m all > /tmp/modules.txt
           cat /tmp/modules.txt
@@ -78,7 +82,7 @@ jobs:
           else
             # Fallback: simple grep for common license patterns
             echo "Using fallback license detection..."
-            MODS=$(go list -m all)
+            MODS=$(GOWORK=off go list -m all)
             VIRAL=false
             DETAILS=""
             
@@ -108,7 +112,7 @@ jobs:
           echo "" >> /tmp/license_report.md
           echo "### Core Module (go.mod)" >> /tmp/license_report.md
           echo "\`\`\`" >> /tmp/license_report.md
-          go list -m all >> /tmp/license_report.md
+          GOWORK=off go list -m all >> /tmp/license_report.md
           echo "\`\`\`" >> /tmp/license_report.md
           
           # Check extension modules
