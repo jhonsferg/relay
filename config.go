@@ -277,6 +277,10 @@ type Config struct {
 	// HARRecorder captures all request/response pairs when non-nil.
 	HARRecorder *HARRecorder
 
+	// HTTP2PushHandler is called for each HTTP/2 push-promised response.
+	// See [WithHTTP2PushHandler] for details and current limitations.
+	HTTP2PushHandler PushPromiseHandler
+
 	// AutoIdempotencyKey automatically injects an X-Idempotency-Key header on
 	// every request. The same key is reused across retry attempts.
 	AutoIdempotencyKey bool
