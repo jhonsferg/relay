@@ -1,3 +1,5 @@
+//go:build !js
+
 package relay
 
 // WithUnixSocket configures the relay client to connect via a Unix domain socket.

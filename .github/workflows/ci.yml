@@ -38,6 +38,11 @@ jobs:
       - name: Test core module
         run: go test -v -race -count=1 "-coverprofile=coverage.out" -covermode=atomic ./...
 
+      # -- WASM build check (core only) --------------------------------------
+      - name: Verify WASM build
+        if: matrix.os == 'ubuntu-latest'
+        run: GOOS=js GOARCH=wasm go build ./...
+
       # -- Extension modules (each has its own go.mod) ------------------------
       - name: Test extension modules
         shell: bash

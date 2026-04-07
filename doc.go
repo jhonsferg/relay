@@ -12,4 +12,12 @@
 //	resp, err := client.Execute(client.Get("/users/42"))
 //
 // See https://github.com/jhonsferg/relay for full documentation.
+//
+// # WASM / js target
+//
+// The core relay package compiles and runs under GOOS=js GOARCH=wasm using
+// Go's Fetch API backend. Features that rely on OS-level networking
+// (e.g. [WithUnixSocket]) are silently ignored on that target. Extension
+// modules under ext/ may have additional native dependencies and are not
+// guaranteed to be WASM-compatible.
 package relay
