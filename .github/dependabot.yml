@@ -116,19 +116,6 @@ updates:
       - dependency-type: "indirect"
     open-pull-requests-limit: 5
 
-  # Extension modules - logrus
-  - package-ecosystem: "gomod"
-    directory: "/ext/logrus"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
   # Extension modules - memcached
   - package-ecosystem: "gomod"
     directory: "/ext/memcached"
@@ -275,19 +262,6 @@ updates:
   # Extension modules - zap
   - package-ecosystem: "gomod"
     directory: "/ext/zap"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - zerolog
-  - package-ecosystem: "gomod"
-    directory: "/ext/zerolog"
     schedule:
       interval: "weekly"
     labels:
