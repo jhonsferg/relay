@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jhonsferg/relay"
 	"github.com/jhonsferg/relay/testutil"
@@ -15,7 +16,7 @@ func TestDeduplication_ConcurrentGETs(t *testing.T) {
 	defer srv.Close()
 
 	const responseBody = "hello deduplicated world"
-	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: responseBody})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: responseBody, Delay: 30 * time.Millisecond})
 
 	client := relay.New(
 		relay.WithBaseURL(srv.URL()),
@@ -203,7 +204,7 @@ func TestDeduplication_BodyCorrectness(t *testing.T) {
 	defer srv.Close()
 
 	const responseBody = "the-golden-response-body"
-	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: responseBody})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: responseBody, Delay: 30 * time.Millisecond})
 
 	client := relay.New(
 		relay.WithBaseURL(srv.URL()),
