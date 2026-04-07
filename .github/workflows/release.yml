@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'ext/**/v[0-9]*'   # only extension sub-module tags; core releases handled by autorelease.yml
 
 permissions:
   contents: read

@@ -1,0 +1,96 @@
+name: Auto Tag
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/dependabot.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  autotag:
+    name: Bump version and create tag
+    runs-on: ubuntu-latest
+    # Skip if the commit itself is a release-prep (prevents infinite loops)
+    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          # Get the latest core tag (vX.Y.Z — not ext/* tags)
+          LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -v '/' | sort -V | tail -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+
+          echo "Latest tag: $LATEST_TAG"
+
+          # Get commit messages since last tag
+          COMMITS=$(git log "${LATEST_TAG}..HEAD" --format="%s %b" 2>/dev/null || git log --format="%s %b")
+
+          echo "Commits since ${LATEST_TAG}:"
+          echo "$COMMITS"
+
+          # Determine bump type from conventional commits
+          BUMP="none"
+
+          # Breaking change → major
+          if echo "$COMMITS" | grep -qE '^[a-z]+(\([^)]*\))?!:|BREAKING.CHANGE'; then
+            BUMP="major"
+          # feat → minor
+          elif echo "$COMMITS" | grep -qE '^feat(\([^)]*\))?:'; then
+            BUMP="minor"
+          # fix, perf, refactor → patch
+          elif echo "$COMMITS" | grep -qE '^(fix|perf|refactor)(\([^)]*\))?:'; then
+            BUMP="patch"
+          fi
+
+          echo "Bump type: $BUMP"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Compute new version
+        id: version
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          LATEST="${{ steps.bump.outputs.latest_tag }}"
+
+          # Strip leading 'v'
+          VERSION="${LATEST#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New tag: $NEW_TAG"
+          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          NEW_TAG="${{ steps.version.outputs.new_tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+          git push origin "$NEW_TAG"
+          echo "✅ Tagged $NEW_TAG"
+
+      - name: Skip message
+        if: steps.bump.outputs.bump == 'none'
+        run: echo "No releasable commits found (only docs/chore/ci). Skipping tag."
