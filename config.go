@@ -343,6 +343,19 @@ type Config struct {
 	// Accept header is added.
 	DefaultAccept string
 
+	// UnixSocketPath is the filesystem path of a Unix domain socket to use for
+	// all outgoing connections. When set, the TCP dialler is replaced with a
+	// Unix socket dialler so that the client communicates with a local server
+	// (e.g. the Docker daemon at /var/run/docker.sock) instead of opening a
+	// TCP connection. The host in the request URL is still sent as the HTTP
+	// Host header; only the transport layer is changed.
+	//
+	// HTTP/2 is disabled for Unix socket connections because it is not
+	// typically negotiated over local sockets.
+	//
+	// Set via [WithUnixSocket].
+	UnixSocketPath string
+
 	// HedgeAfter is the delay before sending a duplicate (hedge) request.
 	// Zero disables hedging. When set, a second request is sent after this
 	// duration if the first has not completed. The first response wins.
