@@ -635,12 +635,12 @@ client, _ := relay.New(relay.WithBaseURL(rec.URL()))
 ## 14. Typography and Style
 
 - UK English throughout: `colour`, `behaviour`, `licence`, `initialise`, `optimise`.
-- **Never use the em-dash character `—` (U+2014) anywhere** - not in Go source comments,
+- **Never use the em-dash character ` - ` (U+2014) anywhere** - not in Go source comments,
   documentation, README files, commit messages, PR descriptions, YAML files, or any other
   project file. Use a plain hyphen surrounded by spaces (` - `) as a sentence-break separator
   instead. The em-dash is not typed by most keyboards and causes visual inconsistency across
   editors and terminals.
-  - Wrong: `// fast path — uses atomic`
+  - Wrong: `// fast path  -  uses atomic`
   - Right: `// fast path - uses atomic`
 - No trailing whitespace in any file.
 - Files end with a single newline character.

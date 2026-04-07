@@ -140,7 +140,7 @@ func (r *SRVResolver) pickTarget(targets []srvTarget) string {
 		// G404 is safe here: math/rand/v2 is used, not weak crypto/rand
 		//nolint:gosec
 		t = targets[rand.IntN(len(targets))]
-	default: // SRVPriority — list is already sorted ascending by priority
+	default: // SRVPriority  -  list is already sorted ascending by priority
 		t = targets[0]
 	}
 	return fmt.Sprintf("%s:%d", t.host, t.port)

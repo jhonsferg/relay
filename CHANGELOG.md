@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- `ext/logrus` — removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
-- `ext/zerolog` — removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
+- `ext/logrus`  -  removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
+- `ext/zerolog`  -  removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
 
 ### Added
 

@@ -23,7 +23,7 @@
 
 ## Overview
 
-Relay brings the ergonomics of Python's *requests* and the resilience of *Resilience4j* to Go. It provides a fluent, batteries-included API for building resilient HTTP clients: retries, circuit breaking, rate limiting, deduplication, adaptive timeouts, load balancing, and full observability — all composable via options.
+Relay brings the ergonomics of Python's *requests* and the resilience of *Resilience4j* to Go. It provides a fluent, batteries-included API for building resilient HTTP clients: retries, circuit breaking, rate limiting, deduplication, adaptive timeouts, load balancing, and full observability  -  all composable via options.
 
 The core module has **zero external dependencies**. Every integration (Redis, OTel, Prometheus, gRPC, slog, chaos, VCR, etc.) lives in its own optional extension module so you only pull in what you need.
 
@@ -110,9 +110,9 @@ func main() {
 
 | Feature | Description |
 |---------|-------------|
-| **Unix domain socket** | `WithUnixSocket` — connect to local services via socket path (Linux/macOS) |
-| **DNS SRV discovery** | `WithSRVDiscovery` — resolve service endpoints via DNS SRV records with TTL caching |
-| **HTTP/2 push promises** | `WithHTTP2PushHandler` — handle server push promises and cache pushed responses |
+| **Unix domain socket** | `WithUnixSocket`  -  connect to local services via socket path (Linux/macOS) |
+| **DNS SRV discovery** | `WithSRVDiscovery`  -  resolve service endpoints via DNS SRV records with TTL caching |
+| **HTTP/2 push promises** | `WithHTTP2PushHandler`  -  handle server push promises and cache pushed responses |
 | **WASM/js** | Builds on `js/wasm`; `WithUnixSocket` is a no-op on that target for portability |
 
 ### Compression
@@ -121,23 +121,23 @@ func main() {
 |---------|-------------|
 | **Gzip / Zstd** | `WithCompression(relay.Gzip)` or `WithCompression(relay.Zstd)` for response decompression |
 | **Request compression** | `WithRequestCompression` compresses outgoing request bodies |
-| **Dictionary Zstd** | `ext/compress` — `ZstdDictionaryCompressor` for pre-shared dictionary compression |
+| **Dictionary Zstd** | `ext/compress`  -  `ZstdDictionaryCompressor` for pre-shared dictionary compression |
 
 ### Observability
 
 | Feature | Description |
 |---------|-------------|
 | **HAR export** | `HARRecorder` captures all traffic in HAR format; `HARRecorder.All()` returns a Go 1.23 `iter.Seq[HAREntry]` iterator |
-| **OpenTelemetry** | `ext/otel` — unified tracing + metrics via `WithOtel(tracer, meter)` |
-| **Prometheus** | `ext/prometheus` — Prometheus metrics exporter |
+| **OpenTelemetry** | `ext/otel`  -  unified tracing + metrics via `WithOtel(tracer, meter)` |
+| **Prometheus** | `ext/prometheus`  -  Prometheus metrics exporter |
 
 ### Validation
 
 | Feature | Description |
 |---------|-------------|
-| **Response schema validation** | `WithSchemaValidator` — validate decoded responses against struct tags or a JSON Schema |
-| **Struct validator** | `NewStructValidator` — validates required fields and rules via struct tags |
-| **JSON Schema validator** | `NewJSONSchemaValidator` — validates against an inline JSON Schema definition |
+| **Response schema validation** | `WithSchemaValidator`  -  validate decoded responses against struct tags or a JSON Schema |
+| **Struct validator** | `NewStructValidator`  -  validates required fields and rules via struct tags |
+| **JSON Schema validator** | `NewJSONSchemaValidator`  -  validates against an inline JSON Schema definition |
 
 > Full feature documentation: **[jhonsferg.github.io/relay](https://jhonsferg.github.io/relay)**
 
@@ -145,7 +145,7 @@ func main() {
 
 ## Extensions
 
-Each extension is a standalone Go module — add only what you use:
+Each extension is a standalone Go module  -  add only what you use:
 
 | Module | Import path | Description |
 |--------|-------------|-------------|
@@ -183,7 +183,7 @@ Each extension is a standalone Go module — add only what you use:
 
 ## Tools
 
-### relay-gen — OpenAPI client generator
+### relay-gen  -  OpenAPI client generator
 
 `relay-gen` reads an OpenAPI 3.x spec and generates a type-safe Go client using relay:
 
@@ -195,14 +195,14 @@ relay-gen -spec openapi.json -pkg acme -out ./acme/client.go
 
 The generated client exposes one method per operation with strongly-typed request/response structs and full relay middleware support.
 
-### relay-probe — health check CLI
+### relay-probe  -  health check CLI
 
 ```bash
 go install github.com/jhonsferg/relay/cmd/relay-probe@latest
 relay-probe https://api.example.com/health
 ```
 
-### relay-bench — micro-benchmarking harness
+### relay-bench  -  micro-benchmarking harness
 
 ```bash
 go install github.com/jhonsferg/relay/cmd/relay-bench@latest
@@ -276,7 +276,7 @@ os.WriteFile("traffic.har", data, 0o644)
 
 ## Request Authentication
 
-**HMAC-SHA256 signing** — sets `X-Timestamp` and `X-Signature` headers automatically:
+**HMAC-SHA256 signing**  -  sets `X-Timestamp` and `X-Signature` headers automatically:
 
 ```go
 client := relay.New(
@@ -284,14 +284,14 @@ client := relay.New(
 )
 ```
 
-**Rotating token provider** — refreshes credentials before expiry:
+**Rotating token provider**  -  refreshes credentials before expiry:
 
 ```go
 provider := relay.NewRotatingTokenProvider(fetchTokenFunc, 5*time.Minute)
 client := relay.New(relay.WithCredentialProvider(provider))
 ```
 
-**Multiple signers** — chain signers in order with `NewMultiSigner`:
+**Multiple signers**  -  chain signers in order with `NewMultiSigner`:
 
 ```go
 client := relay.New(
@@ -327,10 +327,10 @@ client := relay.New(relay.WithSchemaValidator(validator))
 
 Relay's CI pipeline runs across 6 OS/Go version combinations and includes:
 
-- **Unit & integration tests** — `ci.yml`
-- **Benchmark regression detection** — `benchstat.yml` compares PR benchmarks against the base branch using [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and fails the build if a statistically significant slowdown is detected
-- **CodeQL static analysis** — `codeql.yml`
-- **Vulnerability scanning** — Trivy (`trivy.yml`)
+- **Unit & integration tests**  -  `ci.yml`
+- **Benchmark regression detection**  -  `benchstat.yml` compares PR benchmarks against the base branch using [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and fails the build if a statistically significant slowdown is detected
+- **CodeQL static analysis**  -  `codeql.yml`
+- **Vulnerability scanning**  -  Trivy (`trivy.yml`)
 
 ---
 

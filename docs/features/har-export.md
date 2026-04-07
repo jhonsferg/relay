@@ -152,5 +152,5 @@ Clears all recorded entries. Useful between test cases.
 ## Notes
 
 - `HARRecorder` is **safe for concurrent use**; all methods acquire an internal mutex.
-- Response bodies are fully buffered during recording so they can be captured — this adds memory overhead proportional to response size.
+- Response bodies are fully buffered during recording so they can be captured  -  this adds memory overhead proportional to response size.
 - `ExportJSON` / `ExportHAR` snapshot the entries at call time; entries added concurrently after the call are not included.

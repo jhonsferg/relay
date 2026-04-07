@@ -56,7 +56,7 @@ func TestWithTracing_SpanCreated(t *testing.T) {
 }
 
 func TestWithTracing_NilUsesGlobal(t *testing.T) {
-	// nil tracer should not panic — falls back to global noop provider.
+	// nil tracer should not panic  -  falls back to global noop provider.
 	srv := newTestServer(http.StatusOK)
 	defer srv.Close()
 

@@ -1,6 +1,6 @@
 # Unix Socket Transport
 
-`WithUnixSocket` routes all HTTP traffic through a Unix domain socket instead of a TCP connection. This is useful for communicating with local daemons that expose a Unix socket API — most notably the Docker daemon at `/var/run/docker.sock`.
+`WithUnixSocket` routes all HTTP traffic through a Unix domain socket instead of a TCP connection. This is useful for communicating with local daemons that expose a Unix socket API  -  most notably the Docker daemon at `/var/run/docker.sock`.
 
 ---
 
@@ -63,5 +63,5 @@ Configures the relay client to dial `socketPath` for every request, regardless o
 
 - **Not available on Windows or WASM.** The function is guarded by a `//go:build !js` tag. On Windows, Unix domain socket support requires Windows 10 Build 17063+ and is not yet exposed by this option.
 - The `baseURL` scheme and host are used as normal for the `Host` header and path construction; only the underlying TCP dial is replaced with a Unix socket dial.
-- Combine with other relay options such as retries, timeouts, and middleware — they all work transparently on top of the Unix transport.
+- Combine with other relay options such as retries, timeouts, and middleware  -  they all work transparently on top of the Unix transport.
 - Ensure the process has read/write permission on the socket file (e.g. add the user to the `docker` group for `/var/run/docker.sock`).
