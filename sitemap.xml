@@ -33,6 +33,10 @@
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
+         <loc>https://jhonsferg.github.io/relay/extensions/compress/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
          <loc>https://jhonsferg.github.io/relay/extensions/graphql/</loc>
          <lastmod>2026-04-07</lastmod>
     </url>
@@ -109,6 +113,10 @@
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
+         <loc>https://jhonsferg.github.io/relay/features/credential-rotation/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
          <loc>https://jhonsferg.github.io/relay/features/deduplication/</loc>
          <lastmod>2026-04-07</lastmod>
     </url>
@@ -121,7 +129,15 @@
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
+         <loc>https://jhonsferg.github.io/relay/features/har-export/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
          <loc>https://jhonsferg.github.io/relay/features/hedging/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
+         <loc>https://jhonsferg.github.io/relay/features/http2-push/</loc>
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
@@ -149,11 +165,27 @@
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
+         <loc>https://jhonsferg.github.io/relay/features/schema-validation/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
+         <loc>https://jhonsferg.github.io/relay/features/srv-discovery/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
          <loc>https://jhonsferg.github.io/relay/features/tls/</loc>
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/features/transport/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
+         <loc>https://jhonsferg.github.io/relay/features/unix-socket/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
+         <loc>https://jhonsferg.github.io/relay/features/wasm/</loc>
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
@@ -170,6 +202,10 @@
     </url>
     <url>
          <loc>https://jhonsferg.github.io/relay/guides/circuit-breaker/</loc>
+         <lastmod>2026-04-07</lastmod>
+    </url>
+    <url>
+         <loc>https://jhonsferg.github.io/relay/guides/codegen/</loc>
          <lastmod>2026-04-07</lastmod>
     </url>
     <url>
