@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deprecated
+
+- `ext/logrus` (`github.com/jhonsferg/relay/ext/logrus`) — deprecated in favour of
+  [`relay.SlogAdapter`](https://pkg.go.dev/github.com/jhonsferg/relay#SlogAdapter) and
+  `ext/slog`. All exported symbols (`NewAdapter`, `NewEntryAdapter`) carry `// Deprecated:`
+  godoc annotations. The package remains functional and will not be removed before relay v2.0.
+- `ext/zerolog` (`github.com/jhonsferg/relay/ext/zerolog`) — deprecated for the same reasons.
+  `NewAdapter` carries a `// Deprecated:` godoc annotation. The package remains functional
+  and will not be removed before relay v2.0.
+
+See [docs/migration/logrus-zerolog-to-slog.md](docs/migration/logrus-zerolog-to-slog.md) for
+step-by-step migration instructions.
+
 ## [0.2.1] - 2026-03-30 (ext/tracing, ext/metrics)
 
 ### Fixed

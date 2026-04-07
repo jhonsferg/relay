@@ -23,13 +23,23 @@
 // forwards them via zerolog's event.Fields(), which accepts a []interface{}
 // slice of alternating string keys and arbitrary values.
 //
-// # Deprecation notice
+// # Migration
 //
-// This package is deprecated. New applications should use the structured
-// logging adapter in [github.com/jhonsferg/relay/ext/slog], which uses the
-// standard library log/slog interface and avoids a third-party dependency.
-// Existing users may continue to use this package; it will not be removed
-// before relay v1.0.
+// Replace this package with [relay.SlogAdapter] from the core relay module,
+// which wraps any *log/slog.Logger and requires no third-party dependency:
+//
+//	import (
+//	    "log/slog"
+//	    "github.com/jhonsferg/relay"
+//	)
+//
+//	client := relay.New(
+//	    relay.WithLogger(relay.SlogAdapter(slog.Default())),
+//	)
+//
+// Deprecated: This package is deprecated and will be removed in relay v2.0.
+// Migrate to [relay.SlogAdapter] or [github.com/jhonsferg/relay/ext/slog],
+// which integrate with Go's standard log/slog package (Go 1.21+).
 package zerolog
 
 import (
@@ -46,6 +56,9 @@ type zerologAdapter struct {
 // NewAdapter wraps l so it can be passed to [relay.WithLogger].
 // The logger is copied by value; mutations to the original after this call do
 // not affect the adapter.
+//
+// Deprecated: Use [relay.SlogAdapter] with a *log/slog.Logger instead.
+// This function will be removed in relay v2.0.
 func NewAdapter(l zerolog.Logger) relay.Logger {
 	return &zerologAdapter{l: l}
 }
