@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-04-07
+
 ### Removed
 
 - `ext/logrus` — removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
