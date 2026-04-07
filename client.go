@@ -563,6 +563,17 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 		}
 	}
 
+	// Apply response schema validation on successful (2xx) responses.
+	if c.config.ResponseValidator != nil && resp.IsSuccess() {
+		var decoded interface{}
+		if jsonErr := json.Unmarshal(resp.Body(), &decoded); jsonErr != nil {
+			return nil, &ValidationError{Message: fmt.Sprintf("cannot decode response for validation: %s", jsonErr)}
+		}
+		if valErr := c.config.ResponseValidator.Validate(decoded); valErr != nil {
+			return nil, valErr
+		}
+	}
+
 	return resp, nil
 }
 

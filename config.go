@@ -240,6 +240,13 @@ type Config struct {
 	// Use [WithResponseDecoder] to set it.
 	ResponseDecoder func(contentType string, body []byte, v any) error
 
+	// ResponseValidator is applied after each successful (2xx) response body
+	// is read. The body is decoded into an interface{} and passed to Validate.
+	// If validation fails, Execute returns a [ValidationError].
+	//
+	// Use [WithResponseValidator] to set it.
+	ResponseValidator SchemaValidator
+
 	// Signer is called for each outgoing HTTP request, after all headers and
 	// the idempotency key have been applied, and before the request is sent.
 	// Use it to implement request authentication that must inspect and/or
@@ -839,6 +846,13 @@ func WithErrorDecoder(fn func(statusCode int, body []byte) error) Option {
 //	)
 func WithResponseDecoder(fn func(contentType string, body []byte, v any) error) Option {
 	return func(c *Config) { c.ResponseDecoder = fn }
+}
+
+// WithResponseValidator sets a [SchemaValidator] that is applied after each
+// successful (2xx) response is decoded. If validation fails, Execute returns
+// a [ValidationError] wrapping the validation failure details.
+func WithResponseValidator(v SchemaValidator) Option {
+	return func(c *Config) { c.ResponseValidator = v }
 }
 
 // WithLogger sets the structured logger used for internal relay events such as
