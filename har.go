@@ -68,16 +68,22 @@ type HARPostData struct {
 	Text     string `json:"text"`
 }
 
-// harLog is the top-level HAR 1.2 log object.
-type harLog struct {
+// HARCreator identifies the tool that created the HAR archive.
+type HARCreator struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// HARLog is the top-level HAR 1.2 log object.
+type HARLog struct {
 	Version string     `json:"version"`
-	Creator harCreator `json:"creator"`
+	Creator HARCreator `json:"creator"`
 	Entries []HAREntry `json:"entries"`
 }
 
-type harCreator struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+// HAR is the top-level HAR 1.2 document.
+type HAR struct {
+	Log HARLog `json:"log"`
 }
 
 // HARRecorder captures HTTP request/response pairs in HAR 1.2 format.
@@ -85,11 +91,21 @@ type harCreator struct {
 type HARRecorder struct {
 	mu      sync.Mutex
 	entries []HAREntry
+	creator HARCreator
 }
 
 // NewHARRecorder creates a new, empty HARRecorder.
-func NewHARRecorder() *HARRecorder {
-	return &HARRecorder{}
+// Optionally accepts creatorName and creatorVersion as the first two variadic
+// string arguments; both default to "relay" / "0.1.0" when omitted.
+func NewHARRecorder(args ...string) *HARRecorder {
+	c := HARCreator{Name: "relay", Version: "0.1.0"}
+	if len(args) >= 1 && args[0] != "" {
+		c.Name = args[0]
+	}
+	if len(args) >= 2 && args[1] != "" {
+		c.Version = args[1]
+	}
+	return &HARRecorder{creator: c}
 }
 
 // record adds a captured entry to the recorder.
@@ -110,19 +126,56 @@ func (r *HARRecorder) Entries() []HAREntry {
 
 // Export serialises all recorded entries as a HAR 1.2 JSON document.
 func (r *HARRecorder) Export() ([]byte, error) {
+	return r.ExportJSON()
+}
+
+// ExportJSON returns the HAR 1.2 archive as pretty-printed JSON bytes.
+// Thread-safe: can be called while recording is ongoing.
+func (r *HARRecorder) ExportJSON() ([]byte, error) {
 	r.mu.Lock()
 	entries := make([]HAREntry, len(r.entries))
 	copy(entries, r.entries)
+	creator := r.creator
 	r.mu.Unlock()
 
-	doc := map[string]any{
-		"log": harLog{
-			Version: "1.2",
-			Creator: harCreator{Name: "relay", Version: "0.1.0"},
-			Entries: entries,
-		},
-	}
+	doc := HAR{Log: HARLog{
+		Version: "1.2",
+		Creator: creator,
+		Entries: entries,
+	}}
 	return json.MarshalIndent(doc, "", "  ")
+}
+
+// ExportHAR returns the recorded transactions as a HAR 1.2 document struct.
+// Thread-safe: can be called while recording is ongoing.
+func (r *HARRecorder) ExportHAR() *HAR {
+	r.mu.Lock()
+	entries := make([]HAREntry, len(r.entries))
+	copy(entries, r.entries)
+	creator := r.creator
+	r.mu.Unlock()
+
+	return &HAR{Log: HARLog{
+		Version: "1.2",
+		Creator: creator,
+		Entries: entries,
+	}}
+}
+
+// EntryCount returns the number of recorded entries.
+func (r *HARRecorder) EntryCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.entries)
+}
+
+// Middleware returns a relay-compatible transport middleware
+// (func(http.RoundTripper) http.RoundTripper) that records each
+// request/response pair as a HAR entry.
+func (r *HARRecorder) Middleware() func(http.RoundTripper) http.RoundTripper {
+	return func(next http.RoundTripper) http.RoundTripper {
+		return newHARTransport(next, r)
+	}
 }
 
 // Reset clears all recorded entries.
