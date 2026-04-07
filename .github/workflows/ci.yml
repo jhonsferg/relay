@@ -34,6 +34,14 @@ jobs:
       - name: Pin toolchain to installed Go
         run: go env -w GOTOOLCHAIN=local
 
+      # -- Deprecated package usage warning ------------------------------------
+      - name: Warn on deprecated ext/logrus or ext/zerolog usage
+        shell: bash
+        run: |
+          if grep -r "ext/logrus\|ext/zerolog" go.mod 2>/dev/null; then
+            echo "::warning::The core go.mod references deprecated ext/logrus or ext/zerolog. Migrate to relay.SlogAdapter or ext/slog (see docs/migration/logrus-zerolog-to-slog.md)."
+          fi
+
       # -- Core module --------------------------------------------------------
       - name: Test core module
         run: go test -v -race -count=1 "-coverprofile=coverage.out" -covermode=atomic ./...

@@ -40,13 +40,23 @@
 // Both adapters convert these pairs to logrus.Fields automatically. Odd
 // trailing arguments (unpaired keys) are included under the key "EXTRA".
 //
-// # Deprecation notice
+// # Migration
 //
-// This package is deprecated. New applications should use the structured
-// logging adapter in [github.com/jhonsferg/relay/ext/slog], which uses the
-// standard library log/slog interface and avoids a third-party dependency.
-// Existing users may continue to use this package; it will not be removed
-// before relay v1.0.
+// Replace this package with [relay.SlogAdapter] from the core relay module,
+// which wraps any *log/slog.Logger and requires no third-party dependency:
+//
+//	import (
+//	    "log/slog"
+//	    "github.com/jhonsferg/relay"
+//	)
+//
+//	client := relay.New(
+//	    relay.WithLogger(relay.SlogAdapter(slog.Default())),
+//	)
+//
+// Deprecated: This package is deprecated and will be removed in relay v2.0.
+// Migrate to [relay.SlogAdapter] or [github.com/jhonsferg/relay/ext/slog],
+// which integrate with Go's standard log/slog package (Go 1.21+).
 package logrus
 
 import (
@@ -64,10 +74,16 @@ type logrusAdapter struct{ l *logrus.Logger }
 type logrusEntryAdapter struct{ e *logrus.Entry }
 
 // NewAdapter returns a [relay.Logger] backed by l.
+//
+// Deprecated: Use [relay.SlogAdapter] with a *log/slog.Logger instead.
+// This function will be removed in relay v2.0.
 func NewAdapter(l *logrus.Logger) relay.Logger { return &logrusAdapter{l: l} }
 
 // NewEntryAdapter returns a [relay.Logger] backed by e. All relay log lines
 // will carry the fields already set on e.
+//
+// Deprecated: Use [relay.SlogAdapter] with a *log/slog.Logger instead.
+// This function will be removed in relay v2.0.
 func NewEntryAdapter(e *logrus.Entry) relay.Logger { return &logrusEntryAdapter{e: e} }
 
 // -- logrusAdapter -------------------------------------------------------------
