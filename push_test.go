@@ -98,7 +98,7 @@ func TestPushHandler_HTTP2Server(t *testing.T) {
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
-			// Attempt to push /style.css — succeeds only when the client
+			// Attempt to push /style.css  -  succeeds only when the client
 			// hasn't disabled push (standard Go H2 client does disable it,
 			// so this may return an error; that's expected).
 			if pusher, ok := w.(http.Pusher); ok {

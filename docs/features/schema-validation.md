@@ -105,7 +105,7 @@ type SchemaValidator interface {
 }
 ```
 
-Implement this interface to provide custom validation. `v` is the result of `json.Unmarshal` into `interface{}` — an `map[string]interface{}` for JSON objects.
+Implement this interface to provide custom validation. `v` is the result of `json.Unmarshal` into `interface{}`  -  an `map[string]interface{}` for JSON objects.
 
 ### `WithSchemaValidator`
 

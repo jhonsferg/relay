@@ -95,7 +95,7 @@ The `ext/otel` options compose cleanly with other relay middleware:
 ```go
 client := relay.New(
     relay.WithBaseURL("https://api.example.com"),
-    relayotel.WithOtel(tracer, meter),     // OTel first — wraps outermost
+    relayotel.WithOtel(tracer, meter),     // OTel first  -  wraps outermost
     relay.WithRequestLogger(logger),        // Logger sees final status
 )
 ```

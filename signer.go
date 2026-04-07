@@ -111,8 +111,8 @@ func (m *MultiSigner) Sign(req *http.Request) error {
 
 // HMACRequestSigner signs requests with HMAC-SHA256 over a canonical string
 // composed of the request method, URL, and a UTC timestamp. It sets two headers:
-//   - X-Timestamp (RFC3339 UTC) — replay-protection timestamp.
-//   - X-Signature (hex-encoded HMAC-SHA256) — computed over "METHOD\nURL\nTIMESTAMP".
+//   - X-Timestamp (RFC3339 UTC)  -  replay-protection timestamp.
+//   - X-Signature (hex-encoded HMAC-SHA256)  -  computed over "METHOD\nURL\nTIMESTAMP".
 //
 // The signing key must be kept secret. HMACRequestSigner is safe for
 // concurrent use.

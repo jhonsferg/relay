@@ -57,7 +57,7 @@ func TestZstdDictCompressor_NilDict(t *testing.T) {
 func TestZstdDictCompressor_LargePayload(t *testing.T) {
 	t.Parallel()
 
-	// 10 KB of repetitive text — zstd should compress this well.
+	// 10 KB of repetitive text  -  zstd should compress this well.
 	original := strings.Repeat("the quick brown fox jumps over the lazy dog\n", 250)
 
 	c, err := compress.NewZstdDictionaryCompressor(nil)
@@ -70,7 +70,7 @@ func TestZstdDictCompressor_LargePayload(t *testing.T) {
 		t.Fatalf("Compress: %v", err)
 	}
 	if len(compressed) >= len(original) {
-		t.Logf("compressed (%d) >= original (%d) — unexpected for repetitive input", len(compressed), len(original))
+		t.Logf("compressed (%d) >= original (%d)  -  unexpected for repetitive input", len(compressed), len(original))
 	}
 
 	got, err := c.Decompress(compressed)

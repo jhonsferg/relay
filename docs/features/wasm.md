@@ -1,6 +1,6 @@
 # WASM / js Build Support
 
-relay's core HTTP client compiles to `GOOS=js GOARCH=wasm` and runs in any environment that provides the Go `syscall/js` package — WebAssembly runtimes, Wasm Edge, and browsers. The Go standard library's `net/http` package transparently delegates to the browser's [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) when running in a browser context.
+relay's core HTTP client compiles to `GOOS=js GOARCH=wasm` and runs in any environment that provides the Go `syscall/js` package  -  WebAssembly runtimes, Wasm Edge, and browsers. The Go standard library's `net/http` package transparently delegates to the browser's [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) when running in a browser context.
 
 ---
 
