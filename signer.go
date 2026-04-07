@@ -1,6 +1,13 @@
 package relay
 
-import "net/http"
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"net/http"
+	"time"
+)
 
 // RequestSigner signs outgoing HTTP requests. Implementations may add headers
 // (e.g. Authorization, X-Signature), compute HMAC digests, or perform any
@@ -66,4 +73,74 @@ func (f RequestSignerFunc) Sign(req *http.Request) error { return f(req) }
 //	client := relay.New(relay.WithSigner(&HMACSigner{secret: key}))
 func WithSigner(s RequestSigner) Option {
 	return func(c *Config) { c.Signer = s }
+}
+
+// WithRequestSigner is an alias for [WithSigner].
+func WithRequestSigner(s RequestSigner) Option { return WithSigner(s) }
+
+// MultiSigner chains multiple [RequestSigner] implementations, applying each
+// in order. The first error encountered stops the chain and is returned.
+// MultiSigner itself implements [RequestSigner] and is safe for concurrent use
+// if all constituent signers are safe for concurrent use.
+type MultiSigner struct {
+	signers []RequestSigner
+}
+
+// NewMultiSigner creates a [MultiSigner] that applies each signer in the order
+// provided. Nil entries are silently skipped.
+func NewMultiSigner(signers ...RequestSigner) *MultiSigner {
+	filtered := make([]RequestSigner, 0, len(signers))
+	for _, s := range signers {
+		if s != nil {
+			filtered = append(filtered, s)
+		}
+	}
+	return &MultiSigner{signers: filtered}
+}
+
+// Sign applies each signer in order. It stops and returns an error as soon as
+// any signer fails.
+func (m *MultiSigner) Sign(req *http.Request) error {
+	for _, s := range m.signers {
+		if err := s.Sign(req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// HMACRequestSigner signs requests with HMAC-SHA256 over a canonical string
+// composed of the request method, URL, and a UTC timestamp. It sets two headers:
+//   - X-Timestamp (RFC3339 UTC) — replay-protection timestamp.
+//   - X-Signature (hex-encoded HMAC-SHA256) — computed over "METHOD\nURL\nTIMESTAMP".
+//
+// The signing key must be kept secret. HMACRequestSigner is safe for
+// concurrent use.
+type HMACRequestSigner struct {
+	// Key is the HMAC-SHA256 signing key. Must not be empty.
+	Key []byte
+	// Header is the name of the signature header.
+	// Defaults to "X-Signature" when empty.
+	Header string
+}
+
+// Sign computes and sets the X-Timestamp and signature headers on req.
+func (h *HMACRequestSigner) Sign(req *http.Request) error {
+	if len(h.Key) == 0 {
+		return fmt.Errorf("relay: HMACRequestSigner: key must not be empty")
+	}
+	ts := time.Now().UTC().Format(time.RFC3339)
+	req.Header.Set("X-Timestamp", ts)
+
+	canonical := req.Method + "\n" + req.URL.String() + "\n" + ts
+	mac := hmac.New(sha256.New, h.Key)
+	_, _ = mac.Write([]byte(canonical))
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	header := h.Header
+	if header == "" {
+		header = "X-Signature"
+	}
+	req.Header.Set(header, sig)
+	return nil
 }
