@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `ext/logrus` — removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
+- `ext/zerolog` — removed after deprecation period; migrate to `ext/slog` (see `docs/migration/logrus-zerolog-to-slog.md`)
+
 ### Added
 
 - `WithUnixSocket(path)` - routes all requests through a Unix domain socket while preserving the HTTP host header; enables Docker/containerd socket APIs without a TCP listener.

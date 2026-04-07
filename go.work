@@ -12,7 +12,6 @@ use (
 	./ext/grpc
 	./ext/http3
 	./ext/jitterbug
-	./ext/logrus
 	./ext/memcached
 	./ext/metrics
 	./ext/mock
@@ -29,5 +28,4 @@ use (
 	./ext/vcr
 	./ext/websocket
 	./ext/zap
-	./ext/zerolog
 )
