@@ -251,6 +251,13 @@ type Config struct {
 	// Use [WithSigner] to set it.
 	Signer RequestSigner
 
+	// CredentialProvider is called before each outgoing request (including
+	// retries) to supply fresh credentials. It runs before [Signer], allowing
+	// dynamic tokens (e.g. OAuth, Vault) without rebuilding the client.
+	//
+	// Use [WithCredentialProvider] to set it.
+	CredentialProvider CredentialProvider
+
 	// Logger is used for internal structured logging (retries, circuit-breaker
 	// transitions, rate-limit events, shutdown). Defaults to NoopLogger.
 	Logger Logger
