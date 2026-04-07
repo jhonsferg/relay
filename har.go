@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"sync"
 	"time"
@@ -167,6 +168,24 @@ func (r *HARRecorder) EntryCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.entries)
+}
+
+// All returns an iterator over a snapshot of the recorded entries.
+// Callers may use it with range:
+//
+//	for entry := range recorder.All() { ... }
+func (r *HARRecorder) All() iter.Seq[HAREntry] {
+	return func(yield func(HAREntry) bool) {
+		r.mu.Lock()
+		snapshot := make([]HAREntry, len(r.entries))
+		copy(snapshot, r.entries)
+		r.mu.Unlock()
+		for _, e := range snapshot {
+			if !yield(e) {
+				return
+			}
+		}
+	}
 }
 
 // Middleware returns a relay-compatible transport middleware

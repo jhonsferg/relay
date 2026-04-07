@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `HARRecorder.All() iter.Seq[HAREntry]`: range-over-func iterator (Go 1.23+ `iter` package) providing a snapshot-based loop over recorded entries without allocating a full slice copy at the call site. Evaluated all Go 1.24/1.25 opt-in features; no other breaking changes identified.
+
 ## [0.2.1] - 2026-03-30 (ext/tracing, ext/metrics)
 
 ### Fixed
