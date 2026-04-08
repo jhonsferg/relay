@@ -237,22 +237,37 @@ func (r *Request) Tags() map[string]string {
 
 // WithHeader sets (or replaces) a single request header. Per-request headers
 // take precedence over [Config.DefaultHeaders].
+// CRLF characters (\r, \n) are stripped from the value to prevent header injection.
 func (r *Request) WithHeader(key, value string) *Request {
 	r.initHeaders()
-	r.headers[key] = value
+	r.headers[key] = sanitizeHeaderValue(value)
 	return r
 }
 
 // WithHeaders merges the given map into the request headers. Later keys in the
 // map override earlier ones; per-request headers always beat defaults.
+// CRLF characters (\r, \n) are stripped from values to prevent header injection.
 func (r *Request) WithHeaders(headers map[string]string) *Request {
 	if len(headers) > 0 {
 		r.initHeaders()
 	}
 	for k, v := range headers {
-		r.headers[k] = v
+		r.headers[k] = sanitizeHeaderValue(v)
 	}
 	return r
+}
+
+// sanitizeHeaderValue removes CR (\r) and LF (\n) characters from a header
+// value. net/http will reject headers containing these bytes at the transport
+// layer; stripping them early produces a clear, predictable result instead of
+// a cryptic transport-level error and prevents HTTP header injection attacks.
+func sanitizeHeaderValue(v string) string {
+	if !strings.ContainsAny(v, "\r\n") {
+		return v
+	}
+	v = strings.ReplaceAll(v, "\r", "")
+	v = strings.ReplaceAll(v, "\n", "")
+	return v
 }
 
 // initQuery lazily allocates the query map on first write.

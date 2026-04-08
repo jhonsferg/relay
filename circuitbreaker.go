@@ -170,9 +170,13 @@ func (cb *CircuitBreaker) Allow() bool {
 		return true
 	case StateOpen:
 		if time.Since(cb.lastFailureTime) > cb.config.ResetTimeout {
-			cb.transition(StateHalfOpen)
+			// Reset counters while the lock is held, before transition() releases
+			// it to run the OnStateChange callback. This prevents a race where
+			// a concurrent Allow() call in the callback window increments
+			// halfOpenRequests only to have it wiped out by these resets.
 			cb.halfOpenRequests = 0
 			cb.successes = 0
+			cb.transition(StateHalfOpen)
 			return true
 		}
 		return false
@@ -199,9 +203,9 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	case StateHalfOpen:
 		cb.successes++
 		if cb.successes >= cb.config.SuccessThreshold {
-			cb.transition(StateClosed)
 			cb.failures = 0
 			cb.successes = 0
+			cb.transition(StateClosed)
 		}
 	}
 }
@@ -221,9 +225,9 @@ func (cb *CircuitBreaker) RecordFailure() {
 			cb.transition(StateOpen)
 		}
 	case StateHalfOpen:
-		cb.transition(StateOpen)
 		cb.halfOpenRequests = 0
 		cb.successes = 0
+		cb.transition(StateOpen)
 	}
 }
 
@@ -238,8 +242,8 @@ func (cb *CircuitBreaker) State() CircuitBreakerState {
 func (cb *CircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	cb.transition(StateClosed)
 	cb.failures = 0
 	cb.successes = 0
 	cb.halfOpenRequests = 0
+	cb.transition(StateClosed)
 }
