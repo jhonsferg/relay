@@ -464,8 +464,9 @@ func (r *Request) WithDownloadProgress(fn ProgressFunc) *Request {
 
 // WithIdempotencyKey sets a custom X-Idempotency-Key header value. The key is
 // reused unchanged across all retry attempts for this request.
+// The value is sanitised to strip CR/LF characters.
 func (r *Request) WithIdempotencyKey(key string) *Request {
-	r.idempotencyKey = key
+	r.idempotencyKey = sanitizeHeaderValue(key)
 	return r
 }
 
