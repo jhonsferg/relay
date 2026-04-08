@@ -104,10 +104,7 @@ func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, prior
 func (pq *priorityQueue) removeItem(target *priorityItem) {
 	for i, item := range pq.items {
 		if item == target {
-			pq.items = append(pq.items[:i], pq.items[i+1:]...)
-			if i < len(pq.items) {
-				heap.Fix(pq, i)
-			}
+			heap.Remove(pq, i)
 			return
 		}
 	}

@@ -280,8 +280,10 @@ func buildHARRequest(req *http.Request) HARRequest {
 
 	// Capture the request body: read it, record it, and restore it so the
 	// actual transport still gets the full payload.
+	// Limit HAR recording to 10 MB to prevent memory exhaustion on large uploads.
+	const maxHARBodySize = 10 * 1024 * 1024
 	if req.Body != nil && req.Body != http.NoBody {
-		bodyBytes, err := io.ReadAll(req.Body)
+		bodyBytes, err := io.ReadAll(io.LimitReader(req.Body, maxHARBodySize))
 		_ = req.Body.Close() //nolint:errcheck
 		if err == nil && len(bodyBytes) > 0 {
 			req.Body = io.NopCloser(newBytesReader(bodyBytes))

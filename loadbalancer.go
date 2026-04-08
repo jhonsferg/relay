@@ -3,6 +3,7 @@ package relay
 import (
 	"fmt"
 	"math/rand/v2"
+	"net/url"
 	"sync/atomic"
 )
 
@@ -34,10 +35,14 @@ type loadBalancer struct {
 	backends          []string
 	strategy          LoadBalancerStrategy
 	roundRobinCounter atomic.Uint64
+	initErr           error // set at construction if any backend is invalid
 }
 
 // newLoadBalancer creates a load balancer from a config.
 // Returns nil if config is nil or backends are empty.
+// Validation errors (empty, malformed or non-http(s) backend URLs) are stored
+// internally and surfaced on the first selectBackend() call, so New() can
+// remain error-free while still detecting misconfiguration early.
 func newLoadBalancer(cfg *LoadBalancerConfig) *loadBalancer {
 	if cfg == nil || len(cfg.Backends) == 0 {
 		return nil
@@ -48,10 +53,28 @@ func newLoadBalancer(cfg *LoadBalancerConfig) *loadBalancer {
 		strategy = RoundRobin
 	}
 
-	return &loadBalancer{
+	lb := &loadBalancer{
 		backends: cfg.Backends,
 		strategy: strategy,
 	}
+
+	for i, backend := range cfg.Backends {
+		if backend == "" {
+			lb.initErr = fmt.Errorf("relay: load balancer backend[%d] is empty", i)
+			return lb
+		}
+		u, err := url.ParseRequestURI(backend)
+		if err != nil {
+			lb.initErr = fmt.Errorf("relay: load balancer backend[%d] %q is not a valid URL: %w", i, backend, err)
+			return lb
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			lb.initErr = fmt.Errorf("relay: load balancer backend[%d] %q must use http or https scheme", i, backend)
+			return lb
+		}
+	}
+
+	return lb
 }
 
 // selectBackend returns the backend URL for the next request.
@@ -61,6 +84,9 @@ func (lb *loadBalancer) selectBackend() (string, error) {
 		return "", fmt.Errorf("load balancer has no backends configured")
 	}
 
+	if lb.initErr != nil {
+		return "", lb.initErr
+	}
 	var idx int
 	lenBackends := len(lb.backends)
 	switch lb.strategy {

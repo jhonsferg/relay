@@ -29,12 +29,12 @@ type BasicAuthCreds struct {
 // applyTo applies the credentials to the given HTTP request.
 func (c Credentials) applyTo(r *http.Request) {
 	if c.BearerToken != "" {
-		r.Header.Set("Authorization", "Bearer "+c.BearerToken)
+		r.Header.Set("Authorization", "Bearer "+sanitizeHeaderValue(c.BearerToken))
 	} else if c.BasicAuth != nil {
 		r.SetBasicAuth(c.BasicAuth.Username, c.BasicAuth.Password)
 	}
 	for k, v := range c.Headers {
-		r.Header.Set(k, v)
+		r.Header.Set(k, sanitizeHeaderValue(v))
 	}
 }
 
