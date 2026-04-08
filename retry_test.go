@@ -310,3 +310,106 @@ func TestRetry_NetworkErrorIsRetried(t *testing.T) {
 		t.Errorf("expected 200 after retry, got %d", resp.StatusCode)
 	}
 }
+
+func TestRetry_NonIdempotentMethodNotRetried(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	// Two 500s then a success — but POST should NOT retry, so only 1 attempt.
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "ok"})
+
+	c := New(
+		WithDisableCircuitBreaker(),
+		WithRetry(&RetryConfig{
+			MaxAttempts:     3,
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     5 * time.Millisecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+			RetryableStatus: []int{http.StatusInternalServerError},
+		}),
+	)
+
+	resp, err := c.Execute(c.Post(srv.URL()+"/entities").WithJSON(map[string]string{"x": "y"}))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	// POST with 500 should NOT be retried — first (and only) attempt returns 500.
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("expected 500 (no retry on POST), got %d", resp.StatusCode)
+	}
+	if srv.RequestCount() != 1 {
+		t.Errorf("expected exactly 1 attempt for non-idempotent POST, got %d", srv.RequestCount())
+	}
+}
+
+func TestRetry_NonIdempotentMethodRetriedWithIdempotencyKey(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	// 500 then 200 — POST with idempotency key SHOULD retry.
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "created"})
+
+	c := New(
+		WithDisableCircuitBreaker(),
+		WithRetry(&RetryConfig{
+			MaxAttempts:     3,
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     5 * time.Millisecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+			RetryableStatus: []int{http.StatusInternalServerError},
+		}),
+	)
+
+	req := c.Post(srv.URL() + "/entities").
+		WithJSON(map[string]string{"x": "y"}).
+		WithIdempotencyKey("unique-op-id")
+
+	resp, err := c.Execute(req)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 after retry with idempotency key, got %d", resp.StatusCode)
+	}
+	if srv.RequestCount() != 2 {
+		t.Errorf("expected 2 attempts (initial + retry), got %d", srv.RequestCount())
+	}
+}
+
+func TestRetry_NonIdempotentMethodRetriedWithRetryIf(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	// 500 then 200 — PATCH with explicit RetryIf should retry.
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "updated"})
+
+	c := New(
+		WithDisableCircuitBreaker(),
+		WithRetry(&RetryConfig{
+			MaxAttempts:     3,
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     5 * time.Millisecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+			RetryableStatus: []int{http.StatusInternalServerError},
+			RetryIf:         func(resp *http.Response, _ error) bool { return true },
+		}),
+	)
+
+	resp, err := c.Execute(c.Patch(srv.URL() + "/entities/1").WithJSON(map[string]string{"x": "z"}))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 after retry with RetryIf override, got %d", resp.StatusCode)
+	}
+	if srv.RequestCount() != 2 {
+		t.Errorf("expected 2 attempts, got %d", srv.RequestCount())
+	}
+}

@@ -443,7 +443,7 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 		cfgCopy := *c.retrier.cfg
 		activeRetrier = &retrier{cfg: &cfgCopy, budget: c.retryBudgetTracker}
 	}
-	httpResp, err = activeRetrier.Do(ctx, func() (*http.Response, error) {
+	httpResp, err = activeRetrier.Do(ctx, req.method, req.idempotencyKey != "", func() (*http.Response, error) {
 		// Select load-balanced backend if configured; falls back to BaseURL.
 		baseURL := c.config.BaseURL
 		parsedBaseURL := c.config.parsedBaseURL
