@@ -620,7 +620,11 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 			// can be "/" even for host-only bases -- treat that identically.
 			isHostOnly := (parsedBaseURL.Path == "" || parsedBaseURL.Path == "/")
 			if isHostOnly && len(fullURL) > 0 && fullURL[0] == '/' && parsedBaseURL.User == nil {
-				fullURL = parsedBaseURL.Scheme + "://" + parsedBaseURL.Host + fullURL
+				// Normalise excess leading slashes (e.g. "//path" → "/path") to
+				// prevent double-slash URLs like "https://host//path" which some
+				// servers (SAP, nginx) reject with 401/404 instead of redirecting.
+				normPath := "/" + strings.TrimLeft(fullURL, "/")
+				fullURL = parsedBaseURL.Scheme + "://" + parsedBaseURL.Host + normPath
 			} else {
 				// Slow path: proper RFC 3986 resolution for complex base URLs.
 				// Split any query string out of fullURL before building the
