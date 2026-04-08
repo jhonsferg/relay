@@ -332,7 +332,7 @@ func TestRetry_NonIdempotentMethodNotRetried(t *testing.T) {
 		}),
 	)
 
-	resp, err := c.Execute(c.Post(srv.URL()+"/entities").WithJSON(map[string]string{"x": "y"}))
+	resp, err := c.Execute(c.Post(srv.URL() + "/entities").WithJSON(map[string]string{"x": "y"}))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
