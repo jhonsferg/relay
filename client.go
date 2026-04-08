@@ -680,3 +680,8 @@ func (c *Client) ResetCircuitBreaker() {
 // CloseIdleConnections closes any idle connections currently held in the
 // transport's connection pool without interrupting active requests.
 func (c *Client) CloseIdleConnections() { c.httpClient.CloseIdleConnections() }
+
+// BaseURL returns the base URL configured for this client, or an empty string
+// if no base URL was set. Useful when composing relay clients with other
+// libraries that need to inherit the URL (e.g. traverse).
+func (c *Client) BaseURL() string { return c.config.BaseURL }
