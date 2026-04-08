@@ -499,6 +499,29 @@ func TestSmartURLNormalisation_APIBaseDetection(t *testing.T) {
 			t.Errorf("Both trailing/leading slashes: expected /v1/users, got %q", rec.Path)
 		}
 	}
+
+	// Test 8: Host-only base URL + double-slash path must NOT produce //path.
+	// Regression: When the entity-set name has a leading slash (e.g. "/Products")
+	// traverse prepends another slash in buildURL, yielding "//Products". The
+	// RFC3986 fast path must normalise that to "/Products" so servers that
+	// treat "//path" differently (SAP, nginx) do not return 401/404.
+	{
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+		c := New(
+			WithBaseURL(srv.URL()),
+			WithDisableRetry(),
+			WithDisableCircuitBreaker(),
+		)
+		_, _ = c.Execute(c.Get("//Products"))
+
+		rec, _ := srv.TakeRequest(time.Second)
+		if rec.Path != "/Products" {
+			t.Errorf("double-slash path normalisation: expected /Products, got %q", rec.Path)
+		}
+	}
 }
 
 // TestSmartURLNormalisation_ConsistencyAcrossRetries ensures that URL caching
