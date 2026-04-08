@@ -49,7 +49,12 @@ type HTTPError struct {
 }
 
 func (e *HTTPError) Error() string {
-	return fmt.Sprintf("http error: status=%d body=%s", e.StatusCode, string(e.Body))
+	body := e.Body
+	const maxBodyInMsg = 512
+	if len(body) > maxBodyInMsg {
+		body = body[:maxBodyInMsg]
+	}
+	return fmt.Sprintf("http error: status=%d body=%s", e.StatusCode, string(body))
 }
 
 // IsHTTPError reports whether err (or any error in its chain) is an *HTTPError

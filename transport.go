@@ -80,7 +80,15 @@ func buildTransport(cfg *Config) http.RoundTripper {
 
 	proxyFunc := http.ProxyFromEnvironment
 	if cfg.ProxyURL != "" {
-		if proxyURL, err := url.Parse(cfg.ProxyURL); err == nil {
+		proxyURL, err := url.Parse(cfg.ProxyURL)
+		if err != nil || proxyURL.Host == "" {
+			// Malformed proxy URL: disable proxy entirely rather than silently
+			// falling back to the environment proxy. An explicitly-set but
+			// invalid ProxyURL is almost certainly a configuration mistake;
+			// routing traffic through an unexpected environment proxy could
+			// lead to unintended data exposure.
+			proxyFunc = func(*http.Request) (*url.URL, error) { return nil, nil }
+		} else {
 			proxyFunc = http.ProxyURL(proxyURL)
 		}
 	}
