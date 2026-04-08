@@ -624,3 +624,19 @@ func TestExecute_ErrorDecoder_RunsAfterOnAfterResponseHooks(t *testing.T) {
 		t.Errorf("expected [hook decoder], got %v", order)
 	}
 }
+
+func TestBaseURL_ReturnsConfiguredURL(t *testing.T) {
+	// WithBaseURL normalises the URL (may add trailing slash for API roots).
+	c := New(WithBaseURL("https://api.example.com/v1"))
+	got := c.BaseURL()
+	if got != "https://api.example.com/v1/" && got != "https://api.example.com/v1" {
+		t.Errorf("BaseURL() = %q, want a normalised form of https://api.example.com/v1", got)
+	}
+}
+
+func TestBaseURL_EmptyWhenNotSet(t *testing.T) {
+	c := New()
+	if got := c.BaseURL(); got != "" {
+		t.Errorf("BaseURL() = %q, want empty string", got)
+	}
+}
