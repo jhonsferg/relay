@@ -754,7 +754,7 @@ func WithLoadBalancer(cfg LoadBalancerConfig) Option {
 
 // WithDefaultHeaders merges the given headers into every outgoing request.
 // Per-request headers always take precedence over these defaults.
-// Header values are sanitized to strip CR/LF characters.
+// Header values are sanitised to strip CR/LF characters.
 func WithDefaultHeaders(headers map[string]string) Option {
 	return func(c *Config) {
 		for k, v := range headers {
