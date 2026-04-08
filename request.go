@@ -597,13 +597,26 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 		}
 
 		if useRFC3986 {
-			// Fast path: host-only base URL + absolute path - avoid 4 allocs from
-			// ResolveReference (&url.URL, internal copy, String(), plus escaping).
-			if parsedBaseURL.Path == "" && len(fullURL) > 0 && fullURL[0] == '/' && parsedBaseURL.User == nil {
+			// Fast path: host-only base URL (with or without trailing slash) +
+			// absolute request path. Avoids 4 allocs from ResolveReference
+			// (&url.URL, internal copy, String(), plus escaping).
+			// AutoNormaliseBaseURL adds a trailing slash so parsedBaseURL.Path
+			// can be "/" even for host-only bases -- treat that identically.
+			isHostOnly := (parsedBaseURL.Path == "" || parsedBaseURL.Path == "/")
+			if isHostOnly && len(fullURL) > 0 && fullURL[0] == '/' && parsedBaseURL.User == nil {
 				fullURL = parsedBaseURL.Scheme + "://" + parsedBaseURL.Host + fullURL
 			} else {
 				// Slow path: proper RFC 3986 resolution for complex base URLs.
-				resolved := parsedBaseURL.ResolveReference(&url.URL{Path: fullURL})
+				// Split any query string out of fullURL before building the
+				// url.URL reference; placing '?' in the Path field causes
+				// url.URL.String() to percent-encode it as %3F.
+				pathPart := fullURL
+				rawQuery := ""
+				if idx := strings.IndexByte(fullURL, '?'); idx >= 0 {
+					pathPart = fullURL[:idx]
+					rawQuery = fullURL[idx+1:]
+				}
+				resolved := parsedBaseURL.ResolveReference(&url.URL{Path: pathPart, RawQuery: rawQuery})
 				fullURL = resolved.String()
 			}
 		} else {
