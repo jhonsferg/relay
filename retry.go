@@ -148,10 +148,31 @@ func (r *retrier) retryAfterDelay(resp *http.Response) time.Duration {
 	return 0
 }
 
+// isIdempotentMethod reports whether the HTTP method is idempotent per RFC 7231.
+// Idempotent methods can be safely retried without risk of duplicate side effects.
+// POST and PATCH are not idempotent and are excluded from automatic retries by default.
+func isIdempotentMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPut,
+		http.MethodDelete, http.MethodOptions, http.MethodTrace:
+		return true
+	}
+	return false
+}
+
 // Do executes fn up to MaxAttempts times. Between attempts it sleeps for the
 // computed backoff duration (or the Retry-After header value for HTTP 429).
 // Returns the first successful response or the last error encountered.
-func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*http.Response, error) {
+//
+// method is the HTTP verb of the request (used to guard against retrying
+// non-idempotent operations). hasIdempotencyKey must be true when the caller
+// has set an X-Idempotency-Key header, which signals that the server handles
+// deduplication and makes even POST/PATCH safe to retry.
+//
+// Non-idempotent methods (POST, PATCH) without an idempotency key are not
+// retried by default. Set RetryIf to explicitly allow retries for them.
+func (r *retrier) Do(ctx context.Context, method string, hasIdempotencyKey bool, fn func() (*http.Response, error)) (*http.Response, error) {
+	safeToRetry := isIdempotentMethod(method) || hasIdempotencyKey
 	var (
 		lastErr     error
 		pendingWait time.Duration
@@ -194,6 +215,11 @@ func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*h
 			if !r.isRetryableErr(err) {
 				return nil, err
 			}
+			// Non-idempotent methods without an idempotency key are not retried
+			// on transport errors unless the caller explicitly opts in via RetryIf.
+			if !safeToRetry && r.cfg.RetryIf == nil {
+				return nil, err
+			}
 			if r.cfg.RetryIf != nil && !r.cfg.RetryIf(nil, err) {
 				return nil, err
 			}
@@ -205,6 +231,13 @@ func (r *retrier) Do(ctx context.Context, fn func() (*http.Response, error)) (*h
 		}
 
 		if !r.isRetryableStatus(resp.StatusCode) {
+			return resp, nil
+		}
+
+		// Non-idempotent methods without an idempotency key are not retried by
+		// default to prevent duplicate side effects. Callers can override this
+		// by setting RetryIf or by attaching an idempotency key to the request.
+		if !safeToRetry && r.cfg.RetryIf == nil {
 			return resp, nil
 		}
 
