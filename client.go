@@ -272,7 +272,7 @@ func (c *Client) acquireBulkhead(ctx context.Context, req *Request) (func(), err
 	// new goroutine could steal it via the non-blocking select, leaving the
 	// woken waiter without a slot it was promised.
 	pqRelease := func() {
-		if req, _ := c.priorityQueue.DequeueNext(); req == nil {
+		if waiter, _ := c.priorityQueue.DequeueNext(); waiter == nil {
 			// No waiter present; return the slot to the pool.
 			<-c.bulkhead
 		}
@@ -284,7 +284,7 @@ func (c *Client) acquireBulkhead(ctx context.Context, req *Request) (func(), err
 	// to this waiter but ctx fired in the same scheduler turn. We must recycle
 	// the slot rather than leak it.
 	onSlotAbandoned := func() {
-		if req, _ := c.priorityQueue.DequeueNext(); req == nil {
+		if waiter, _ := c.priorityQueue.DequeueNext(); waiter == nil {
 			<-c.bulkhead
 		}
 	}
