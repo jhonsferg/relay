@@ -3,6 +3,7 @@ package relay
 import (
 	"crypto/tls"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -16,6 +17,7 @@ type CertWatcher struct {
 	keyFile  string
 	interval time.Duration
 	cert     atomic.Pointer[tls.Certificate]
+	stopOnce sync.Once
 	stopCh   chan struct{}
 }
 
@@ -59,14 +61,12 @@ func (w *CertWatcher) run() {
 	}
 }
 
-// Stop halts the background reload goroutine. It is safe to call more than once.
+// Stop halts the background reload goroutine. It is safe to call more than once
+// and from multiple goroutines concurrently; only the first call has any effect.
 func (w *CertWatcher) Stop() {
-	select {
-	case <-w.stopCh:
-		// already stopped
-	default:
+	w.stopOnce.Do(func() {
 		close(w.stopCh)
-	}
+	})
 }
 
 // getClientCertificate implements tls.Config.GetClientCertificate. It returns
