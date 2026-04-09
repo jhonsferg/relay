@@ -36,6 +36,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"time"
 
 	gorilla "github.com/gorilla/websocket"
 	"github.com/jhonsferg/relay"
@@ -184,14 +185,30 @@ func (c *Conn) Close() error {
 }
 
 // CloseGracefully sends a close control message with the given code and
-// reason, then waits for the peer to acknowledge before closing.
-// Use gorilla/websocket close codes (e.g. 1000 for normal closure).
+// reason, then waits up to 5 seconds for the peer to echo a close frame
+// before closing the underlying connection (RFC 6455 §7.1.2).
+//
+// Use gorilla/websocket close codes (e.g. 1000 for normal closure,
+// 1001 for going away).
 func (c *Conn) CloseGracefully(code int, reason string) error {
+	const closeWait = 5 * time.Second
+
 	msg := gorilla.FormatCloseMessage(code, reason)
 	if err := c.ws.WriteMessage(gorilla.CloseMessage, msg); err != nil {
 		_ = c.ws.Close()
 		return fmt.Errorf("websocket: write close: %w", err)
 	}
+
+	// Drain messages until the peer echoes the close frame or the deadline
+	// expires. Per RFC 6455 §7.1.2 the closing handshake is complete only
+	// after both sides have sent and received a close frame.
+	_ = c.ws.SetReadDeadline(time.Now().Add(closeWait))
+	for {
+		if _, _, err := c.ws.NextReader(); err != nil {
+			break
+		}
+	}
+
 	return c.ws.Close()
 }
 
