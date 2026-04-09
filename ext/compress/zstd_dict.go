@@ -17,6 +17,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -165,32 +167,42 @@ func (t *zstdDictTransport) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 // zstdReadCloser decompresses a zstd-encoded response body on the fly.
+// init is used to decompress exactly once even when Read is called from
+// multiple goroutines (e.g. concurrent reads during context cancellation).
+// closed is an atomic flag so that Close is idempotent and safe to call
+// concurrently with the last Read.
 type zstdReadCloser struct {
 	comp   *ZstdDictCompressor
 	src    io.ReadCloser
 	buf    *bytes.Reader
-	closed bool
+	once   sync.Once
+	initErr error
+	closed  atomic.Bool
 }
 
 func (z *zstdReadCloser) Read(p []byte) (int, error) {
-	if z.buf == nil {
+	z.once.Do(func() {
 		raw, err := io.ReadAll(z.src)
 		if err != nil {
-			return 0, err
+			z.initErr = err
+			return
 		}
 		dec, err := z.comp.Decompress(raw)
 		if err != nil {
-			return 0, err
+			z.initErr = err
+			return
 		}
 		z.buf = bytes.NewReader(dec)
+	})
+	if z.initErr != nil {
+		return 0, z.initErr
 	}
 	return z.buf.Read(p)
 }
 
 func (z *zstdReadCloser) Close() error {
-	if z.closed {
+	if z.closed.Swap(true) {
 		return nil
 	}
-	z.closed = true
 	return z.src.Close()
 }
