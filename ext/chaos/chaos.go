@@ -5,6 +5,7 @@ package chaos
 
 import (
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"time"
@@ -64,6 +65,7 @@ func (t *chaosTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		statusCode := t.cfg.Faults[rand.IntN(len(t.cfg.Faults))] //nolint:gosec
 		return &http.Response{
 			StatusCode: statusCode,
+			Status:     fmt.Sprintf("%d %s", statusCode, http.StatusText(statusCode)),
 			Header:     make(http.Header),
 			Body:       http.NoBody,
 			Request:    req,

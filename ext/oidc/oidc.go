@@ -87,13 +87,23 @@ func (a *oauthAdapter) Token(_ context.Context) (string, error) {
 // RefreshingTokenSource returns a [TokenSource] that uses the OAuth 2.0 client
 // credentials grant to fetch and auto-refresh access tokens. Tokens are cached
 // until they expire; refresh happens transparently on the next call.
+//
+// Deprecated: Use [RefreshingTokenSourceContext] to pass a context so that
+// token refresh requests can be cancelled or time-bounded.
 func RefreshingTokenSource(clientID, clientSecret, tokenURL string) TokenSource {
+	return RefreshingTokenSourceContext(context.Background(), clientID, clientSecret, tokenURL)
+}
+
+// RefreshingTokenSourceContext is like [RefreshingTokenSource] but accepts a
+// context that governs the lifetime of token refresh HTTP requests. Pass the
+// application's root context (or a context with a deadline) so that refresh
+// operations honour cancellation and shutdown signals.
+func RefreshingTokenSourceContext(ctx context.Context, clientID, clientSecret, tokenURL string) TokenSource {
 	cfg := &clientcredentials.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		TokenURL:     tokenURL,
 	}
-	// TokenSource returns an auto-refreshing oauth2.TokenSource.
-	ts := cfg.TokenSource(context.Background())
+	ts := cfg.TokenSource(ctx)
 	return OAuthTokenSource(ts)
 }
