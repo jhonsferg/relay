@@ -177,7 +177,7 @@ func (t *vcrTransport) recordRoundTrip(req *http.Request) (*http.Response, error
 
 	// Read response body
 	respBodyBytes, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -205,9 +205,11 @@ func (t *vcrTransport) recordRoundTrip(req *http.Request) (*http.Response, error
 
 	t.vcr.cassette.Interactions = append(t.vcr.cassette.Interactions, interaction)
 
-	// Save cassette immediately (using unlocked version since we hold the lock)
+	// Save cassette immediately (using unlocked version since we hold the lock).
+	// Return resp even on save failure: the network round-trip succeeded and the
+	// caller should not be penalised with a nil response for a disk write error.
 	if err := t.vcr.saveUnlocked(); err != nil {
-		return nil, err
+		return resp, fmt.Errorf("vcr: cassette save failed (response still returned): %w", err)
 	}
 
 	return resp, nil
