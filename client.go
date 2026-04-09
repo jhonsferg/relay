@@ -266,36 +266,47 @@ func (c *Client) acquireBulkhead(ctx context.Context, req *Request) (func(), err
 		}
 	}
 
-	// pqRelease releases the bulkhead slot and wakes the highest-priority
-	// waiter in the priority queue (if any) so it can acquire the freed slot.
+	// pqRelease transfers the bulkhead slot directly to the highest-priority
+	// waiting request rather than freeing it first. This eliminates the
+	// slot-stealing race: if we released the slot before waking the waiter, a
+	// new goroutine could steal it via the non-blocking select, leaving the
+	// woken waiter without a slot it was promised.
 	pqRelease := func() {
-		<-c.bulkhead
-		c.priorityQueue.DequeueNext()
+		if req, _ := c.priorityQueue.DequeueNext(); req == nil {
+			// No waiter present; return the slot to the pool.
+			<-c.bulkhead
+		}
+		// else: slot ownership is transferred to the notified goroutine; it
+		// does not need to re-acquire from the bulkhead channel.
 	}
 
-	// Priority queue enabled: try to acquire immediately, otherwise queue
+	// onSlotAbandoned is invoked by EnqueueAndWait if a slot was transferred
+	// to this waiter but ctx fired in the same scheduler turn. We must recycle
+	// the slot rather than leak it.
+	onSlotAbandoned := func() {
+		if req, _ := c.priorityQueue.DequeueNext(); req == nil {
+			<-c.bulkhead
+		}
+	}
+
+	// Priority queue enabled: try to acquire immediately, otherwise queue.
 	select {
 	case c.bulkhead <- struct{}{}:
-		// Got slot immediately - use priority-aware release so waiting
-		// requests are woken in priority order when this slot frees up.
+		// Got slot immediately; use priority-aware release so waiting
+		// requests are served in priority order when this slot frees up.
 		return pqRelease, nil
 	default:
-		// Bulkhead full, queue the request with priority and wait
+		// Bulkhead full — queue the request and wait for a slot transfer.
 		priority := req.priority
 		if priority == 0 {
 			priority = PriorityNormal
 		}
-		if err := c.priorityQueue.EnqueueAndWait(ctx, req, priority); err != nil {
+		if err := c.priorityQueue.EnqueueAndWait(ctx, req, priority, onSlotAbandoned); err != nil {
 			return nil, err
 		}
-		// After being dequeued (woken by a pqRelease call), acquire the
-		// bulkhead slot that was just freed.
-		select {
-		case c.bulkhead <- struct{}{}:
-			return pqRelease, nil
-		case <-ctx.Done():
-			return nil, fmt.Errorf("%w: %w", ErrBulkheadFull, ctx.Err())
-		}
+		// pqRelease transferred the slot directly to us; no re-acquisition
+		// from the channel is needed.
+		return pqRelease, nil
 	}
 }
 
