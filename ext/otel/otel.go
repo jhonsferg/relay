@@ -40,6 +40,7 @@ package otel
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -116,7 +117,9 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.HTTPRequestMethodKey.String(req.Method),
-			attribute.String("http.url", req.URL.String()),
+			// semconv v1.26: url.full is the stable key for the full request URL.
+			// Per spec, credentials (userinfo) MUST be redacted.
+			semconv.URLFullKey.String(redactURL(req.URL)),
 		),
 	)
 	defer span.End()
@@ -186,23 +189,36 @@ func (t *metricsTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	resp, err := t.base.RoundTrip(req)
 	elapsed := float64(time.Since(start).Milliseconds())
 
-	statusCode := "error"
-	if err == nil && resp != nil {
-		statusCode = strconv.Itoa(resp.StatusCode)
-	}
-
-	attrs := []attribute.KeyValue{
+	methodAttrs := []attribute.KeyValue{
 		semconv.HTTPRequestMethodKey.String(req.Method),
 	}
 
 	if t.inst.duration != nil {
-		t.inst.duration.Record(req.Context(), elapsed, metric.WithAttributes(attrs...))
+		t.inst.duration.Record(req.Context(), elapsed, metric.WithAttributes(methodAttrs...))
 	}
 
 	if t.inst.total != nil {
-		totalAttrs := append(attrs, attribute.String("http.response.status_code", statusCode)) //nolint:gocritic
+		totalAttrs := methodAttrs
+		// Per OTel semconv: http.response.status_code is an int attribute and
+		// MUST only be set when the request completes with a valid HTTP response.
+		// On transport-level errors (err != nil) the attribute is omitted.
+		if err == nil && resp != nil {
+			totalAttrs = append(totalAttrs, semconv.HTTPResponseStatusCodeKey.Int(resp.StatusCode)) //nolint:gocritic
+		}
 		t.inst.total.Add(req.Context(), 1, metric.WithAttributes(totalAttrs...))
 	}
 
 	return resp, err
+}
+
+// redactURL returns the URL string with the userinfo component removed.
+// Per OTel semconv v1.26, url.full MUST NOT contain credentials
+// (https://opentelemetry.io/schemas/1.26.0).
+func redactURL(u *url.URL) string {
+	if u.User == nil {
+		return u.String()
+	}
+	redacted := *u
+	redacted.User = nil
+	return redacted.String()
 }
