@@ -118,7 +118,7 @@ func (f *SSEFanOut) Start(ctx context.Context) error {
 		// underlying HTTP transport tears down the connection on cancellation,
 		// allowing the blocking scanner to return rather than waiting forever.
 		attempt := *f.req
-		attempt.WithContext(ctx)
+		attempt = *attempt.WithContext(ctx)
 		events, errs := f.client.ExecuteSSEStream(ctx, &attempt)
 
 		var streamErr error

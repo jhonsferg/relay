@@ -191,14 +191,17 @@ func (c *Client) ExecuteSSEWithReconnect(req *Request, cfg SSEClientConfig, hand
 				return true
 			}
 			lastID = ev.ID
-			return handler(ev)
+			if !handler(ev) {
+				shouldStop = true
+				return false
+			}
+			return true
 		})
 
 		if err != nil {
 			return err
 		}
 
-		shouldStop = true
 		if shouldStop {
 			break
 		}
