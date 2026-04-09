@@ -164,6 +164,9 @@ func (r *Rule) respond(req *http.Request) (*http.Response, error) {
 	defer r.mu.Unlock()
 
 	if r.useSequence {
+		if len(r.sequence) == 0 {
+			return nil, errors.New("mock: RespondSequence called with no entries")
+		}
 		idx := r.seqIdx
 		if idx >= len(r.sequence) {
 			idx = len(r.sequence) - 1 // repeat last entry
