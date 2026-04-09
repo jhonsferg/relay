@@ -66,8 +66,12 @@ func WithClientCredentials(cfg Config) relay.Option {
 	}
 	return relay.WithTransportMiddleware(func(next http.RoundTripper) http.RoundTripper {
 		src := &tokenSource{
-			cfg:        cfg,
-			httpClient: &http.Client{Transport: &http.Transport{}},
+			cfg: cfg,
+			// Use http.DefaultTransport so token requests respect the same
+			// proxy and TLS environment variables (HTTP_PROXY, HTTPS_PROXY,
+			// NO_PROXY) as the rest of the process. A bare &http.Transport{}
+			// would bypass those settings.
+			httpClient: &http.Client{Transport: http.DefaultTransport},
 		}
 		return &roundTripper{base: next, source: src}
 	})
