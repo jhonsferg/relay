@@ -78,10 +78,14 @@ func BenchmarkHeavy_Parallel_Standard(b *testing.B) {
 			}
 
 			var data HeavyResponse
-			body, _ := io.ReadAll(res.Body)
-			_ = json.Unmarshal(body, &data)
-
+			body, readErr := io.ReadAll(res.Body)
 			_ = res.Body.Close() //nolint:errcheck
+			if readErr != nil {
+				continue
+			}
+			if err := json.Unmarshal(body, &data); err != nil {
+				continue
+			}
 
 			if data.Total != RecordsPerRequest {
 				b.Errorf("data mismatch: expected %d, got %d", RecordsPerRequest, data.Total)
