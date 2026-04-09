@@ -123,7 +123,9 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		attribute.String("net.peer.name", req.URL.Hostname()),
 	}
 	if port := req.URL.Port(); port != "" {
-		startAttrs = append(startAttrs, attribute.String("net.peer.port", port))
+		if portInt, err := strconv.Atoi(port); err == nil {
+			startAttrs = append(startAttrs, attribute.Int("net.peer.port", portInt))
+		}
 	}
 
 	ctx, span := t.tracer.Start(
