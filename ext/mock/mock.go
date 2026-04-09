@@ -173,13 +173,13 @@ func (r *Rule) respond(req *http.Request) (*http.Response, error) {
 		if entry.err != nil {
 			return nil, entry.err
 		}
-		return buildResponse(entry.statusCode, entry.body, entry.headers), nil
+		return buildResponse(req, entry.statusCode, entry.body, entry.headers), nil
 	}
 
 	if r.staticErr != nil {
 		return nil, r.staticErr
 	}
-	return buildResponse(r.staticStatus, r.staticBody, r.staticHeaders), nil
+	return buildResponse(req, r.staticStatus, r.staticBody, r.staticHeaders), nil
 }
 
 // Respond configures the rule to return an HTTP response with the given status
@@ -380,7 +380,7 @@ func WithMock(mt *MockTransport) relay.Option {
 
 // -- helpers -------------------------------------------------------------------
 
-func buildResponse(statusCode int, body []byte, headers map[string]string) *http.Response {
+func buildResponse(req *http.Request, statusCode int, body []byte, headers map[string]string) *http.Response {
 	if statusCode == 0 {
 		statusCode = http.StatusOK
 	}
@@ -391,6 +391,7 @@ func buildResponse(statusCode int, body []byte, headers map[string]string) *http
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
+		Request:    req,
 	}
 	for k, v := range headers {
 		resp.Header.Set(k, v)
