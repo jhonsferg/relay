@@ -82,14 +82,18 @@ func NewSRVResolver(service, proto, name, scheme string, opts ...SRVOption) *SRV
 // Resolve performs a DNS SRV lookup and returns the selected target as "host:port".
 // Uses cached results if within TTL.
 func (r *SRVResolver) Resolve(ctx context.Context) (string, error) {
+	// Fast path: serve from cache without blocking on DNS.
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	now := time.Now()
 	if r.ttl > 0 && len(r.cached) > 0 && now.Before(r.cacheExp) {
-		return r.pickTarget(r.cached), nil
+		result := r.pickTarget(r.cached)
+		r.mu.Unlock()
+		return result, nil
 	}
+	r.mu.Unlock()
 
+	// Slow path: cache miss — perform DNS lookup without holding the lock so
+	// that concurrent callers are not blocked during network I/O.
 	_, addrs, err := r.lookupSRV(ctx, r.service, r.proto, r.name)
 	if err != nil {
 		return "", fmt.Errorf("srv lookup %s.%s.%s: %w", r.service, r.proto, r.name, err)
@@ -118,12 +122,16 @@ func (r *SRVResolver) Resolve(ctx context.Context) (string, error) {
 		}
 	}
 
+	// Re-acquire the lock only to update the cache.
+	r.mu.Lock()
 	if r.ttl > 0 {
 		r.cached = targets
-		r.cacheExp = now.Add(r.ttl)
+		r.cacheExp = time.Now().Add(r.ttl)
 	}
+	result := r.pickTarget(targets)
+	r.mu.Unlock()
 
-	return r.pickTarget(targets), nil
+	return result, nil
 }
 
 // pickTarget selects a target from the list using the configured balancer strategy.
