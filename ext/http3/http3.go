@@ -25,6 +25,7 @@ package http3ext
 
 import (
 	"crypto/tls"
+	"io"
 	"net/http"
 	"time"
 
@@ -73,6 +74,11 @@ func Transport() http.RoundTripper {
 // WithHTTP3 returns a relay [relay.Option] that replaces the default transport
 // with an HTTP/3 QUIC transport built from default settings. Use
 // [WithHTTP3Config] for custom TLS or connection pool parameters.
+//
+// The underlying QUIC transport holds a UDP socket that is never released when
+// WithHTTP3 is used because the transport is not exposed to the caller.
+// For long-lived programs that need to release the socket, use
+// [NewManagedTransport] instead.
 func WithHTTP3() relay.Option {
 	return relay.WithTransportMiddleware(func(_ http.RoundTripper) http.RoundTripper {
 		return Transport()
@@ -81,8 +87,55 @@ func WithHTTP3() relay.Option {
 
 // WithHTTP3Config returns a relay [relay.Option] that replaces the default
 // transport with an HTTP/3 QUIC transport built from cfg.
+//
+// The underlying QUIC transport holds a UDP socket that is never released when
+// WithHTTP3Config is used because the transport is not exposed to the caller.
+// For long-lived programs that need to release the socket, use
+// [NewManagedTransport] instead.
 func WithHTTP3Config(cfg *Config) relay.Option {
 	return relay.WithTransportMiddleware(func(_ http.RoundTripper) http.RoundTripper {
 		return cfg.Transport()
 	})
 }
+
+// ManagedTransport is an HTTP/3 QUIC transport whose lifecycle is controlled
+// by the caller. Use [NewManagedTransport] to construct it, pass [Option] to
+// [relay.New], and call [Close] when the relay client is no longer needed.
+type ManagedTransport struct {
+	t *quichttp3.Transport
+}
+
+// NewManagedTransport creates a new HTTP/3 QUIC transport that the caller is
+// responsible for closing. Use the returned [ManagedTransport.Option] method
+// when constructing the relay client and call [ManagedTransport.Close] to
+// release the underlying UDP socket:
+//
+//	mt := http3ext.NewManagedTransport(nil)
+//	client := relay.New(
+//	    relay.WithBaseURL("https://api.example.com"),
+//	    mt.Option(),
+//	)
+//	defer mt.Close()
+func NewManagedTransport(cfg *Config) *ManagedTransport {
+	if cfg == nil {
+		cfg = &Config{}
+	}
+	return &ManagedTransport{t: cfg.Transport().(*quichttp3.Transport)}
+}
+
+// Option returns a [relay.Option] that wires this managed transport into a
+// relay client. Call this once per relay.New invocation.
+func (m *ManagedTransport) Option() relay.Option {
+	return relay.WithTransportMiddleware(func(_ http.RoundTripper) http.RoundTripper {
+		return m.t
+	})
+}
+
+// Close releases the underlying UDP socket used by the QUIC transport.
+// It implements [io.Closer].
+func (m *ManagedTransport) Close() error {
+	return m.t.Close()
+}
+
+// Ensure ManagedTransport satisfies io.Closer at compile time.
+var _ io.Closer = (*ManagedTransport)(nil)
