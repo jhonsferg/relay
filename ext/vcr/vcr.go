@@ -177,6 +177,7 @@ func (t *vcrTransport) recordRoundTrip(req *http.Request) (*http.Response, error
 
 	// Read response body
 	respBodyBytes, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
