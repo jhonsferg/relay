@@ -402,17 +402,23 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	for _, f := range fields {
-		if f.FileName != "" {
+		// Sanitize field and file names before embedding them in MIME headers.
+		// CR and LF characters would allow header injection; embedded quotes
+		// would break the Content-Disposition quoted-string parameter.
+		fieldName := sanitizeMIMEParam(f.FieldName)
+		fileName := sanitizeMIMEParam(f.FileName)
+
+		if fileName != "" {
 			var part io.Writer
 			if f.ContentType != "" {
 				h := make(textproto.MIMEHeader)
 				h.Set("Content-Disposition", fmt.Sprintf(
-					`form-data; name="%s"; filename="%s"`, f.FieldName, f.FileName,
+					`form-data; name="%s"; filename="%s"`, fieldName, fileName,
 				))
 				h.Set("Content-Type", f.ContentType)
 				part, _ = w.CreatePart(h)
 			} else {
-				part, _ = w.CreateFormFile(f.FieldName, f.FileName)
+				part, _ = w.CreateFormFile(fieldName, fileName)
 			}
 			if f.Reader != nil {
 				_, _ = io.Copy(part, f.Reader)
@@ -420,7 +426,7 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 				_, _ = part.Write(f.Content)
 			}
 		} else {
-			_ = w.WriteField(f.FieldName, string(f.Content))
+			_ = w.WriteField(fieldName, string(f.Content))
 		}
 	}
 	_ = w.Close()
@@ -428,6 +434,16 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 	r.initHeaders()
 	r.headers["Content-Type"] = w.FormDataContentType()
 	return r
+}
+
+// sanitizeMIMEParam strips CR and LF characters (which would enable MIME
+// header injection) and escapes double-quote characters so the value is safe
+// to embed in a quoted Content-Disposition parameter.
+func sanitizeMIMEParam(s string) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
 }
 
 // WithBearerToken sets the Authorization header to "Bearer <token>".
