@@ -29,7 +29,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"time"
 
@@ -202,6 +202,8 @@ func (t *baseTransport) doRetryLoop(
 			t.cfg.OnRetry(attempt+1, resp, err)
 		}
 		if resp != nil {
+			// Drain up to 4 KiB so the underlying TCP connection can be reused.
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 			_ = resp.Body.Close()
 		}
 		lastErr = err
@@ -252,7 +254,7 @@ func (t *decorrelatedTransport) RoundTrip(req *http.Request) (*http.Response, er
 		if hi <= lo {
 			hi = lo + 1
 		}
-		d := time.Duration(lo + rand.Int63n(hi-lo))
+		d := time.Duration(lo + rand.Int64N(hi-lo))
 		prevSleep = d
 		return d
 	})
@@ -367,7 +369,7 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if hi <= lo {
 				hi = lo + 1
 			}
-			d := time.Duration(lo + rand.Int63n(hi-lo)) //nolint:gosec
+			d := time.Duration(lo + rand.Int64N(hi-lo)) //nolint:nolintlint
 			prevSleep = d
 
 			remaining := t.totalBudget - time.Since(start)
@@ -404,6 +406,8 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			t.cfg.OnRetry(attempt+1, resp, err)
 		}
 		if resp != nil {
+			// Drain up to 4 KiB so the underlying TCP connection can be reused.
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 			_ = resp.Body.Close()
 		}
 		lastErr = err
