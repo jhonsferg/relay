@@ -149,16 +149,28 @@ func (s *tokenSource) fetch(ctx context.Context) (*token, error) {
 		return nil, fmt.Errorf("relay/oauth: read token response: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("relay/oauth: token endpoint returned %d: %s", resp.StatusCode, body)
-	}
-
 	var tokenResp struct {
 		AccessToken string  `json:"access_token"`
 		ExpiresIn   float64 `json:"expires_in"`
 		Error       string  `json:"error"`
 		ErrorDesc   string  `json:"error_description"`
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		// Attempt to extract a structured RFC 6749 error from the body so we
+		// can surface a meaningful message without echoing the raw response
+		// (which may contain sensitive diagnostic data or partial secrets).
+		if jsonErr := json.Unmarshal(body, &tokenResp); jsonErr == nil && tokenResp.Error != "" {
+			if tokenResp.ErrorDesc != "" {
+				return nil, fmt.Errorf("relay/oauth: token endpoint returned %d: %s: %s",
+					resp.StatusCode, tokenResp.Error, tokenResp.ErrorDesc)
+			}
+			return nil, fmt.Errorf("relay/oauth: token endpoint returned %d: %s",
+				resp.StatusCode, tokenResp.Error)
+		}
+		return nil, fmt.Errorf("relay/oauth: token endpoint returned %d", resp.StatusCode)
+	}
+
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, fmt.Errorf("relay/oauth: parse token response: %w", err)
 	}

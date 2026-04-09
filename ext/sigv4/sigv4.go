@@ -45,7 +45,6 @@ package sigv4
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -114,9 +113,6 @@ func (t *sigv4Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 
 	ctx := req.Context()
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	creds, err := t.provider.Retrieve(ctx)
 	if err != nil {
