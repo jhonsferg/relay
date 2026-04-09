@@ -47,6 +47,7 @@
 package memcached
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -101,14 +102,19 @@ type cachedEntry struct {
 // encodeKey converts a relay cache key to a memcached-safe key:
 //   - Prepend the configured prefix.
 //   - Base64-encode (URL-safe, no padding) to eliminate spaces and control chars.
-//   - Truncate to 250 bytes (memcached limit).
+//   - When the encoded form exceeds 250 bytes (memcached limit), replace it with
+//     the base64 encoding of the SHA-256 digest of the full key. The hash is always
+//     43 bytes and is collision-free, unlike naive truncation which maps distinct
+//     long URLs to identical prefixes.
 func (s *CacheStore) encodeKey(key string) string {
 	raw := s.prefix + key
 	enc := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(raw))
-	if len(enc) > 250 {
-		enc = enc[:250]
+	if len(enc) <= 250 {
+		return enc
 	}
-	return enc
+	// Key too long: hash to avoid collisions from truncation.
+	h := sha256.Sum256([]byte(raw))
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(h[:]) // 43 bytes
 }
 
 func marshalEntry(r *relay.CachedResponse) ([]byte, error) {
