@@ -80,11 +80,24 @@ func (t *retryBudgetTracker) CanRetry() bool {
 }
 
 // evict removes entries older than the sliding window. Must be called with mu held.
+// When a significant portion of capacity is wasted by the slice header advance,
+// the live entries are copied to a fresh slice to release the backing array.
 func (t *retryBudgetTracker) evict() {
 	cutoff := time.Now().Add(-t.budget.Window)
 	i := 0
 	for i < len(t.entries) && t.entries[i].ts.Before(cutoff) {
 		i++
 	}
-	t.entries = t.entries[i:]
+	if i == 0 {
+		return
+	}
+	remaining := t.entries[i:]
+	// If more than half the backing array is dead space, compact to avoid leaking memory.
+	if i > len(remaining) {
+		fresh := make([]budgetEntry, len(remaining))
+		copy(fresh, remaining)
+		t.entries = fresh
+	} else {
+		t.entries = remaining
+	}
 }

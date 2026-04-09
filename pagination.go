@@ -14,6 +14,10 @@ type PageFunc func(resp *Response) (more bool, err error)
 // Return an empty string to signal the last page.
 type NextPageFunc func(resp *Response) string
 
+// linkNextRe matches a Link header entry with rel="next".
+// Compiled once at package init to avoid repeated regexp compilation.
+var linkNextRe = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
+
 // linkHeaderNextPage extracts the next page URL from a Link response header
 // per RFC 5988: Link: <https://api.example.com/items?page=2>; rel="next"
 func linkHeaderNextPage(resp *Response) string {
@@ -21,8 +25,7 @@ func linkHeaderNextPage(resp *Response) string {
 	if link == "" {
 		return ""
 	}
-	re := regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
-	m := re.FindStringSubmatch(link)
+	m := linkNextRe.FindStringSubmatch(link)
 	if len(m) < 2 {
 		return ""
 	}

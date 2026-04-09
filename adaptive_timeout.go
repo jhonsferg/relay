@@ -49,6 +49,9 @@ type adaptiveTimeoutTracker struct {
 	cfg          *AdaptiveTimeoutConfig
 	observations []time.Duration // circular buffer (slice with capacity > len)
 	count        int             // total number of observations ever recorded
+	// sortBufPool stores reusable []time.Duration for computeTimeout, avoiding
+	// a heap allocation on every pre-request timeout calculation.
+	sortBufPool sync.Pool
 }
 
 // newAdaptiveTimeoutTracker creates a new tracker with the given config.
@@ -56,9 +59,16 @@ func newAdaptiveTimeoutTracker(cfg *AdaptiveTimeoutConfig) *adaptiveTimeoutTrack
 	if cfg == nil {
 		cfg = defaultAdaptiveTimeoutConfig()
 	}
+	windowSize := cfg.WindowSize
 	return &adaptiveTimeoutTracker{
 		cfg:          cfg,
 		observations: make([]time.Duration, 0, cfg.WindowSize),
+		sortBufPool: sync.Pool{
+			New: func() any {
+				s := make([]time.Duration, windowSize)
+				return &s
+			},
+		},
 	}
 }
 
@@ -81,30 +91,36 @@ func (t *adaptiveTimeoutTracker) record(latency time.Duration) {
 // Falls back to InitialTimeout if fewer than 5 observations have been recorded.
 func (t *adaptiveTimeoutTracker) computeTimeout() time.Duration {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	// Require a minimum number of observations before using adaptive timeout.
-	if len(t.observations) < 5 {
+	n := len(t.observations)
+	if n < 5 {
+		t.mu.RUnlock()
 		return t.cfg.InitialTimeout
 	}
 
-	// Sort a copy of the observations to find the percentile.
-	sorted := make([]time.Duration, len(t.observations))
+	// Get a reusable sort buffer from the pool to avoid a heap allocation.
+	bufPtr := t.sortBufPool.Get().(*[]time.Duration)
+	sorted := (*bufPtr)[:n]
 	copy(sorted, t.observations)
+	t.mu.RUnlock()
+
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i] < sorted[j]
 	})
 
 	// Calculate percentile index.
-	idx := int(float64(len(sorted)-1) * t.cfg.Percentile)
-	if idx >= len(sorted) {
-		idx = len(sorted) - 1
+	idx := int(float64(n-1) * t.cfg.Percentile)
+	if idx >= n {
+		idx = n - 1
 	}
 	if idx < 0 {
 		idx = 0
 	}
 
 	percentileLatency := sorted[idx]
+
+	// Return buffer to pool before computing final value.
+	*bufPtr = (*bufPtr)[:cap(*bufPtr)]
+	t.sortBufPool.Put(bufPtr)
 
 	// Apply multiplier.
 	timeout := time.Duration(float64(percentileLatency) * t.cfg.Multiplier)
