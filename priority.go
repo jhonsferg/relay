@@ -66,9 +66,15 @@ func (pq *priorityQueue) enqueueDirect(req *Request, priority Priority) {
 	pq.mu.Unlock()
 }
 
-// it is dequeued, respecting the context deadline. Returns an error if
-// the context is cancelled or the queue is closed.
-func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, priority Priority) error {
+// EnqueueAndWait adds a request to the priority queue and blocks until it is
+// dequeued, respecting the context deadline. Returns an error if the context
+// is cancelled or the queue is closed.
+//
+// onSlotAbandoned (optional) is called when the item was already dequeued
+// (a bulkhead slot was transferred to this waiter) but ctx fired in the race
+// window between notify-close and the select pick. The callback must
+// re-transfer or free the slot to avoid leaking bulkhead capacity.
+func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, priority Priority, onSlotAbandoned ...func()) error {
 	notify := make(chan struct{})
 	item := &priorityItem{
 		req:      req,
@@ -87,27 +93,35 @@ func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, prior
 	heap.Push(pq, item)
 	pq.mu.Unlock()
 
-	// Wait for either dequeue notification or context cancellation
+	// Wait for either dequeue notification or context cancellation.
 	select {
 	case <-notify:
 		return nil
 	case <-ctx.Done():
-		// Remove from queue if still there
 		pq.mu.Lock()
-		pq.removeItem(item)
+		removed := pq.removeItem(item)
 		pq.mu.Unlock()
+		if !removed && len(onSlotAbandoned) > 0 && onSlotAbandoned[0] != nil {
+			// The item was already dequeued (notify was closed) but the Go
+			// runtime picked ctx.Done() in the race. A bulkhead slot was
+			// transferred to us — call the callback so it can be recycled.
+			onSlotAbandoned[0]()
+		}
 		return ctx.Err()
 	}
 }
 
-// removeItem removes a specific item from the queue. Must be called under lock.
-func (pq *priorityQueue) removeItem(target *priorityItem) {
+// removeItem removes a specific item from the queue. Returns true if the item
+// was found and removed, false if it was not present (already dequeued).
+// Must be called under lock.
+func (pq *priorityQueue) removeItem(target *priorityItem) bool {
 	for i, item := range pq.items {
 		if item == target {
 			heap.Remove(pq, i)
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // DequeueNext dequeues and returns the highest-priority request from the queue.
