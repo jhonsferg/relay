@@ -70,27 +70,19 @@ func NewZstdDictionaryCompressor(dict []byte) (*ZstdDictCompressor, error) {
 }
 
 // Compress compresses data using the pre-trained dictionary (if any).
+// Safe for concurrent use — delegates to EncodeAll which is documented as
+// concurrent-safe by klauspost/compress.
 func (z *ZstdDictCompressor) Compress(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	z.encoder.Reset(&buf)
-	if _, err := z.encoder.Write(data); err != nil {
-		return nil, fmt.Errorf("zstd: compress write: %w", err)
-	}
-	if err := z.encoder.Close(); err != nil {
-		return nil, fmt.Errorf("zstd: compress close: %w", err)
-	}
-	return buf.Bytes(), nil
+	return z.encoder.EncodeAll(data, nil), nil
 }
 
 // Decompress decompresses data that was compressed with the matching
-// dictionary.
+// dictionary. Safe for concurrent use — delegates to DecodeAll which is
+// documented as concurrent-safe by klauspost/compress.
 func (z *ZstdDictCompressor) Decompress(data []byte) ([]byte, error) {
-	if err := z.decoder.Reset(bytes.NewReader(data)); err != nil {
-		return nil, fmt.Errorf("zstd: decompress reset: %w", err)
-	}
-	out, err := io.ReadAll(z.decoder)
+	out, err := z.decoder.DecodeAll(data, nil)
 	if err != nil {
-		return nil, fmt.Errorf("zstd: decompress read: %w", err)
+		return nil, fmt.Errorf("zstd: decompress: %w", err)
 	}
 	return out, nil
 }
