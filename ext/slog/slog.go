@@ -53,21 +53,21 @@ func WithRequestResponseLogging(logger *slog.Logger) relay.Option {
 
 	return func(cfg *relay.Config) {
 		cfg.OnAfterResponse = append(cfg.OnAfterResponse, func(ctx context.Context, resp *relay.Response) error {
-			logResponse(logger, resp)
+			logResponse(ctx, logger, resp)
 			return nil
 		})
 
 		cfg.BeforeRetryHooks = append(cfg.BeforeRetryHooks, func(ctx context.Context, attempt int, req *relay.Request, httpResp *http.Response, err error) {
-			logRetry(logger, attempt, req, httpResp, err)
+			logRetry(ctx, logger, attempt, req, httpResp, err)
 		})
 
 		cfg.OnErrorHooks = append(cfg.OnErrorHooks, func(ctx context.Context, req *relay.Request, err error) {
-			logError(logger, req, err)
+			logError(ctx, logger, req, err)
 		})
 	}
 }
 
-func logResponse(logger *slog.Logger, resp *relay.Response) {
+func logResponse(ctx context.Context, logger *slog.Logger, resp *relay.Response) {
 	duration := resp.Timing.Total.Milliseconds()
 
 	level := slog.LevelInfo
@@ -84,7 +84,7 @@ func logResponse(logger *slog.Logger, resp *relay.Response) {
 		url = raw.Request.URL.String()
 	}
 
-	logger.Log(context.Background(), level, "http_response",
+	logger.Log(ctx, level, "http_response",
 		"method", method,
 		"url", url,
 		"status_code", resp.StatusCode,
@@ -92,18 +92,23 @@ func logResponse(logger *slog.Logger, resp *relay.Response) {
 	)
 }
 
-func logRetry(logger *slog.Logger, attempt int, req *relay.Request, httpResp *http.Response, err error) {
+func logRetry(ctx context.Context, logger *slog.Logger, attempt int, req *relay.Request, httpResp *http.Response, err error) {
 	var statusCode int
-	url := ""
-	method := ""
+	url := req.URL()
+	method := req.Method()
 
 	if httpResp != nil {
 		statusCode = httpResp.StatusCode
-		url = httpResp.Request.URL.String()
-		method = httpResp.Request.Method
+		// Prefer the actual outgoing request URL/method if the response carries them.
+		if httpResp.Request != nil {
+			url = httpResp.Request.URL.String()
+			method = httpResp.Request.Method
+		}
 	} else if err != nil {
-		logger.Log(context.Background(), slog.LevelError, "http_retry",
+		logger.Log(ctx, slog.LevelError, "http_retry",
 			"attempt", attempt,
+			"method", method,
+			"url", url,
 			"error", err.Error(),
 		)
 		return
@@ -114,7 +119,7 @@ func logRetry(logger *slog.Logger, attempt int, req *relay.Request, httpResp *ht
 		level = slog.LevelError
 	}
 
-	logger.Log(context.Background(), level, "http_retry",
+	logger.Log(ctx, level, "http_retry",
 		"attempt", attempt,
 		"method", method,
 		"url", url,
@@ -122,12 +127,12 @@ func logRetry(logger *slog.Logger, attempt int, req *relay.Request, httpResp *ht
 	)
 }
 
-func logError(logger *slog.Logger, req *relay.Request, err error) {
+func logError(ctx context.Context, logger *slog.Logger, req *relay.Request, err error) {
 	if err == nil {
 		return
 	}
 
-	logger.Log(context.Background(), slog.LevelError, "http_error",
+	logger.Log(ctx, slog.LevelError, "http_error",
 		"method", req.Method(),
 		"url", req.URL(),
 		"error", err.Error(),
