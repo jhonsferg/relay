@@ -25,6 +25,7 @@ package prometheus
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -193,13 +194,15 @@ func newMetrics(registry prometheus.Registerer, namespace string, cfg Prometheus
 
 	// Register metrics, ignoring already-registered errors for hot-reload
 	// scenarios (e.g. tests that re-create the client multiple times).
+	// Any other registration failure is a programming error and must not be
+	// silently swallowed.
 	for _, col := range []prometheus.Collector{
 		m.requestsTotal, m.requestDuration, m.activeRequests,
 		m.reqDurationHist, m.reqBodyHist, m.respBodyHist, m.inFlightGauge,
 	} {
 		if err := registry.Register(col); err != nil {
 			if !errors.As(err, new(prometheus.AlreadyRegisteredError)) {
-				continue
+				panic(fmt.Sprintf("relay prometheus: failed to register metric: %v", err))
 			}
 		}
 	}

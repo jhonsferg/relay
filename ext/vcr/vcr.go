@@ -224,7 +224,7 @@ func (t *vcrTransport) playbackRoundTrip(req *http.Request) (*http.Response, err
 
 			// Create response from recorded data
 			return &http.Response{
-				Status:     fmt.Sprintf("%d OK", interaction.Response.Status),
+				Status:     fmt.Sprintf("%d %s", interaction.Response.Status, http.StatusText(interaction.Response.Status)),
 				StatusCode: interaction.Response.Status,
 				Proto:      "HTTP/1.1",
 				ProtoMajor: 1,
