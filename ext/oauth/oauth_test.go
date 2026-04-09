@@ -197,6 +197,50 @@ func TestOAuth2_ErrorFromTokenEndpoint(t *testing.T) {
 	if !strings.Contains(err.Error(), "500") {
 		t.Errorf("error should mention status 500, got %q", err.Error())
 	}
+	// Raw body must not appear in the error to avoid leaking diagnostic data.
+	if strings.Contains(err.Error(), "internal error") {
+		t.Errorf("error must not echo raw response body, got %q", err.Error())
+	}
+}
+
+func TestOAuth2_RFC6749ErrorFromTokenEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tokenSrv := testutil.NewMockServer()
+	defer tokenSrv.Close()
+
+	apiSrv := testutil.NewMockServer()
+	defer apiSrv.Close()
+
+	tokenSrv.Enqueue(testutil.MockResponse{
+		Status: http.StatusUnauthorized,
+		Body:   `{"error":"invalid_client","error_description":"Client authentication failed."}`,
+		Headers: map[string]string{"Content-Type": "application/json"},
+	})
+
+	c := relay.New(
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relayoauth.WithClientCredentials(relayoauth.Config{
+			TokenURL:     tokenSrv.URL() + "/token",
+			ClientID:     "bad",
+			ClientSecret: "credentials",
+		}),
+	)
+
+	_, err := c.Execute(c.Get(apiSrv.URL() + "/api"))
+	if err == nil {
+		t.Fatal("expected error when token endpoint returns 401")
+	}
+	if !strings.Contains(err.Error(), "401") {
+		t.Errorf("error should mention status 401, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "invalid_client") {
+		t.Errorf("error should include RFC 6749 error code, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Client authentication failed") {
+		t.Errorf("error should include error_description, got %q", err.Error())
+	}
 }
 
 func TestOAuth2_TokenRequestIncludesScopes(t *testing.T) {
