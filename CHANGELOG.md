@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI: benchmarks removed from the automated `Test` pipeline matrix; benchmarks now run on-demand via the separate `Benchmark` workflow. This reduces pipeline duration significantly and avoids false failures caused by infrastructure timing variance.
+
+## [0.3.24] - 2026-04-10
+
+### Fixed
+
+- `fix(hedging,har)`: return abandoned speculative responses to pool; cap HAR response body capture to 1 MB to prevent memory exhaustion on large downloads.
+- `fix(request)`: sanitise multipart `FieldName` and `FileName` against header injection attacks (v0.3.23).
+- `fix(srv)`: release mutex before DNS lookup in `SRVResolver.Resolve` to prevent deadlock under concurrent service discovery (v0.3.22).
+- `fix(sse)`: SSE reconnection never fired after connection drop; `SSEFanOut` discarded its derived context causing subscribers to receive no events after a restart (v0.3.21).
+- `fix(ext/vcr)`: return response on cassette save failure instead of swallowing it; fix unchecked `Close` that could mask body read errors (v0.3.20).
+- `fix(ext/otel)`: redact URL credentials in span attributes; migrate to semconv v1.26 stable attribute keys; correct HTTP status code attribute type from string to int (v0.3.19).
+- `fix(ext/compress)`: replace streaming codec API with `EncodeAll`/`DecodeAll` to eliminate data race during concurrent compression (v0.3.18).
+- `fix(ext/websocket)`: implement full RFC 6455 close handshake in `CloseGracefully`; previous version sent a close frame but did not wait for the peer's close frame (v0.3.17).
+- `fix(ext/vcr)`: close response body before returning `ReadAll` error in VCR playback path (v0.3.16).
+- `fix(ext/oauth,ext/sigv4)`: credential value leaked into error message text; remove dead `ctx != nil` check that was always true (v0.3.15).
+- `fix(ext/chaos,ext/mock,ext/oidc)`: three correctness bugs — chaos middleware applied wrong fault type, mock recorder double-counted headers, OIDC token cache eviction skipped expired entries (v0.3.14).
+- `fix(ext/otel)`: bump OTel SDK from v1.34.0 to v1.40.0; resolves CVE GHSA-hfvc-g4fc-pqhx in `go.opentelemetry.io/otel/sdk` (v0.3.13).
+- `fix(ext/memcached)`: SHA-256 key hashing for URLs longer than 250 bytes to comply with Memcached key length limit; fix flaky benchmark caused by goroutine scheduling variation (v0.3.12).
+
+## [0.3.11] - 2026-04-09
+
+### Fixed
+
+- `fix(core)`: four correctness bugs — nil pointer panic in `ExecuteBatch` on empty slice, memory leak in `WithRequestCoalescing` cache map, invalid regexp in URL sanitiser, zero-alloc regression in header builder.
+- `fix(bulkhead)`: eliminate slot-stealing race in priority queue release path; high-priority waiters could acquire a slot intended for an already-released goroutine (v0.3.10).
+- `fix(tracing,http3)`: correct OTel span attribute type for HTTP status code; add managed transport teardown for `ext/http3` to prevent goroutine leak on client shutdown (v0.3.9).
+- `fix(slog,jitterbug)`: `ext/slog` lost the request context during log emission; `ext/jitterbug` did not reuse keep-alive connections due to a missing `DisableKeepAlives: false` reset (v0.3.8).
+- `fix(compress,oauth)`: `ext/compress` had an unprotected map write under concurrent requests; `ext/oauth` token store had a lost-update window during refresh (v0.3.7).
+- `fix(ext/prometheus,ext/vcr)`: `ext/prometheus` panicked on duplicate metric registration; `ext/vcr` playback returned incorrect status text on redirect responses (v0.3.6).
+- `fix(retry)`: skip retry for non-idempotent methods (`POST`, `PATCH`) by default; opt-in via `RetryConfig.RetryOnNonIdempotent = true` (v0.3.5).
+- `fix(request)`: normalise double leading slashes in RFC 3986 host-only base URL paths (v0.3.4 / v0.3.3).
+
+## [0.3.0] - 2026-04-08
+
+### Added
+
+- `feat(client)`: `Client.BaseURL()` accessor returns the configured base URL string, useful inside `OnBeforeRequest` hooks for routing decisions (v0.3.0).
+
+### Fixed
+
+- `fix(security)`: sanitise credential and default headers to prevent injection via `WithDefaultHeader`; fix heap corruption when reusing request buffers with large bodies; validate load-balancer backend URLs on construction; cap HAR body capture (v0.3.2).
+- `fix(security)`: harden proxy URL handling against SSRF; reject header values containing CRLF; restrict `HTTPError.Body` size to prevent unbounded buffer growth; fix circuit breaker state machine race on concurrent half-open probes (v0.3.1).
+- `fix(url)`: handle trailing-slash base URLs correctly in `ResolveReference`; fix `%3F` double-encoding when query strings are appended (v0.2.3).
+
+## [0.2.0] - 2026-04-07
+
+### Added
+
+- `feat(cmd/relay-gen)`: OpenAPI 3.x → type-safe Go client code generator; reads a JSON or YAML OpenAPI specification and emits a `relay`-based client with typed request/response structs and one method per operation.
+- `feat(core)`: HTTP/2 server push promise handler via `WithHTTP2PushHandler(fn)`.
+- `feat(core)`: WASM/`js` build support — core package now compiles with `GOOS=js GOARCH=wasm`; Unix socket transport excluded via build tags.
+- `feat(core)`: HAR 1.2 export for request/response tracing via `WithHARRecording`; `HARRecorder.All()` range-over-func iterator.
+- `feat(core)`: Response schema validation middleware via `WithSchemaValidation`; validates response bodies against a provided JSON Schema before returning them to the caller.
+- `feat(core)`: DNS SRV service discovery via `WithSRVDiscovery(service, proto)`; resolves `_service._proto.domain` records and round-robins across returned backends.
+- `feat(credentials)`: credential rotation hooks — `WithCredentialRotation(provider, refreshInterval)` swaps credentials in the live client without restart.
+- `feat(compress)`: dictionary-based zstd compression in `ext/compress` via `WithZstdDict(dict)`; reduces payload size for repetitive API responses.
+- `feat(core)`: `MultiSigner` chains multiple `RequestSigner` implementations applied in order per attempt.
+- `feat(core)`: `HMACRequestSigner` signs requests with HMAC-SHA256 over `"METHOD URL UNIX-TIMESTAMP"`, injecting `X-Signature` / `X-Timestamp` headers.
+- `feat(core)`: `WithRequestSigner(s)` alias for `WithSigner` added for naming consistency.
+- `feat(transport)`: Unix domain socket transport via `WithUnixSocket(path)`; routes all requests through a socket while preserving the HTTP host header.
+- `feat(sse)`: `SSEFanOut` multiplexer broadcasts a single upstream SSE stream to multiple downstream subscribers with independent buffering.
+- `feat(ext/prometheus)`: request duration and size histograms.
+- `feat(ext/otel)`: native OpenTelemetry tracing and metrics extension (`ext/otel`) as a standalone module.
+- `feat(ext/oidc)`: OIDC/JWT bearer token provider extension.
+- CI: benchmark regression detection for PRs via `benchstat`; benchmark dashboard published to GitHub Pages.
+- CI: per-extension auto-tagging and auto-release workflows.
+
+### Changed
+
+- Go 1.25 opt-in improvements: adopted new standard library APIs where available while maintaining 1.24 minimum.
+- `chore(core)`: API stability review; added `doc.go` with stability guarantees.
+
+### Removed
+
+- `ext/logrus` — removed after deprecation period; migrate to `ext/slog`.
+- `ext/zerolog` — removed after deprecation period; migrate to `ext/slog`.
+
+### Fixed
+
+- `fix(test)`: added timing delay in concurrent deduplication tests to prevent race condition under Go 1.25 scheduler.
+- `fix(ci)`: merged autotag and autorelease into a single workflow.
+
 ## [0.1.11] - 2026-04-07
 
 ### Removed
