@@ -402,7 +402,7 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	for _, f := range fields {
-		// Sanitize field and file names before embedding them in MIME headers.
+		// Sanitise field and file names before embedding them in MIME headers.
 		// CR and LF characters would allow header injection; embedded quotes
 		// would break the Content-Disposition quoted-string parameter.
 		fieldName := sanitizeMIMEParam(f.FieldName)

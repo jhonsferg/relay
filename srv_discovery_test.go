@@ -162,38 +162,38 @@ func TestWithSRVDiscovery_RewritesHost(t *testing.T) {
 }
 
 func TestSRVResolver_ConcurrentResolveNoRace(t *testing.T) {
-// Simulate a slow DNS lookup to expose any data race on r.mu during the
-// lock-release-DNS-relock sequence introduced by the fix.
-var callCount atomic.Int64
-slowLookup := func(_ context.Context, _, _, _ string) (string, []*net.SRV, error) {
-callCount.Add(1)
-time.Sleep(5 * time.Millisecond) // simulate network latency
-return "", []*net.SRV{{Target: "host1.", Port: 8080}}, nil
-}
+	// Simulate a slow DNS lookup to expose any data race on r.mu during the
+	// lock-release-DNS-relock sequence introduced by the fix.
+	var callCount atomic.Int64
+	slowLookup := func(_ context.Context, _, _, _ string) (string, []*net.SRV, error) {
+		callCount.Add(1)
+		time.Sleep(5 * time.Millisecond) // simulate network latency
+		return "", []*net.SRV{{Target: "host1.", Port: 8080}}, nil
+	}
 
-r := NewSRVResolver("http", "tcp", "myservice.example.com", "http",
-WithSRVTTL(50*time.Millisecond),
-)
-r.lookupSRV = slowLookup
+	r := NewSRVResolver("http", "tcp", "myservice.example.com", "http",
+		WithSRVTTL(50*time.Millisecond),
+	)
+	r.lookupSRV = slowLookup
 
-const goroutines = 20
-var wg sync.WaitGroup
-errs := make(chan error, goroutines)
+	const goroutines = 20
+	var wg sync.WaitGroup
+	errs := make(chan error, goroutines)
 
-for i := 0; i < goroutines; i++ {
-wg.Add(1)
-go func() {
-defer wg.Done()
-_, err := r.Resolve(context.Background())
-if err != nil {
-errs <- err
-}
-}()
-}
-wg.Wait()
-close(errs)
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := r.Resolve(context.Background())
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
 
-for err := range errs {
-t.Errorf("Resolve error: %v", err)
-}
+	for err := range errs {
+		t.Errorf("Resolve error: %v", err)
+	}
 }
