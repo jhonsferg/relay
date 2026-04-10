@@ -227,8 +227,11 @@ func (t *harTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	// Read and restore response body for recording.
-	body, readErr := io.ReadAll(resp.Body)
+	// Read and restore response body for recording. Use the same size cap as
+	// the request body to prevent large (or infinite) response streams from
+	// exhausting memory while the recorder is active.
+	const maxHARRespBodySize = 10 * 1024 * 1024
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxHARRespBodySize))
 	_ = resp.Body.Close() //nolint:errcheck
 	if readErr != nil {
 		return nil, fmt.Errorf("relay: har recording: %w", readErr)
