@@ -328,9 +328,10 @@ client := relay.New(relay.WithSchemaValidator(validator))
 Relay's CI pipeline runs across 6 OS/Go version combinations and includes:
 
 - **Unit & integration tests**  -  `ci.yml`
-- **Benchmark regression detection**  -  `benchstat.yml` compares PR benchmarks against the base branch using [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) and fails the build if a statistically significant slowdown is detected
 - **CodeQL static analysis**  -  `codeql.yml`
 - **Vulnerability scanning**  -  Trivy (`trivy.yml`)
+- **Benchmark regression detection** _(on-demand)_  -  `benchstat.yml` compares benchmarks against master using [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat); run manually via `workflow_dispatch` when needed
+- **Benchmark dashboard** _(on-demand)_  -  `benchmark-dashboard.yml` regenerates the 📊 [live dashboard](https://jhonsferg.github.io/relay/benchmarks/); triggered manually via `workflow_dispatch`
 
 ---
 
