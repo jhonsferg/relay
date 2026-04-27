@@ -408,6 +408,7 @@ type Config struct {
 // defaultConfig returns a Config populated with all production-ready defaults.
 // Every With* option is applied on top of this baseline.
 func defaultConfig() *Config {
+	jar, _ := cookiejar.New(nil)
 	return &Config{
 		Timeout:              defaultTimeout,
 		MaxIdleConns:         defaultMaxIdleConns,
@@ -419,6 +420,7 @@ func defaultConfig() *Config {
 		DialTimeout:          defaultDialTimeout,
 		DialKeepAlive:        defaultDialKeepAlive,
 		MaxResponseBodyBytes: defaultMaxResponseBodyBytes,
+		CookieJar:            jar,
 		DefaultHeaders:       make(map[string]string),
 		RetryConfig:          defaultRetryConfig(),
 		CircuitBreakerConfig: defaultCircuitBreakerConfig(),
