@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI: benchmarks removed from the automated `Test` pipeline matrix; benchmarks now run on-demand via the separate `Benchmark` workflow. This reduces pipeline duration significantly and avoids false failures caused by infrastructure timing variance.
 
+## [0.4.0] - 2026-04-27
+
+### Added
+
+- `feat(client,config)`: automatic `http.CookieJar` support for stateful session management. All relay clients now initialize with a default cookie jar via `cookiejar.New(nil)` in `defaultConfig()`, enabling transparent cookie persistence across requests. This fixes a critical issue where CSRF token + cookie pairs (required by SAP and other backends) were being silently discarded, breaking stateful security protocols. Fully backward compatible—users can still provide custom `CookieJar` implementations via `WithCookieJar()` option.
+
+### Fixed
+
+- `fix(csrf)`: SAP OData services require CSRF tokens to be paired atomically with session cookies—separating them breaks token validation. With BUG-001 fixed, http.Client now automatically:
+  - Captures `Set-Cookie` headers from token fetch responses
+  - Includes captured cookies in subsequent POST/PUT/PATCH requests
+  - Manages cookie storage and expiration transparently
+  This eliminates manual cookie management and fixes the root cause of `403 CSRF token validation failed` errors in traverse integration tests.
+
 ## [0.3.24] - 2026-04-10
 
 ### Fixed

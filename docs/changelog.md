@@ -7,6 +7,28 @@ relay uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.4.0] - 2026-04-27
+
+### Added
+
+- **Automatic Session Management** (`config.go`) - All relay clients now initialize with a default `http.CookieJar` via `cookiejar.New(nil)` in `defaultConfig()`. This enables transparent cookie persistence across requests, fixing a critical issue where CSRF token + cookie pairs required by SAP and other enterprise backends were being silently discarded.
+
+### Changed
+
+- **CSRF Token Reliability** - The automatic `CookieJar` support fixes the root cause of `403 CSRF token validation failed` errors in enterprise integrations. SAP OData services require CSRF tokens to be paired atomically with session cookies—separating them breaks token validation. With BUG-001 fixed, `http.Client` now automatically:
+  - Captures `Set-Cookie` headers from token fetch responses
+  - Includes captured cookies in subsequent POST/PUT/PATCH requests
+  - Manages cookie storage and expiration transparently
+  - Eliminates the need for manual cookie management in application code
+
+### Notes for Upgrade
+
+- **100% backward compatible** - Existing code requires no changes
+- **Custom CookieJar** - Users can still provide custom `CookieJar` implementations via the `WithCookieJar()` option
+- **No new dependencies** - Uses Go's standard library `net/http/cookiejar`
+
+---
+
 ## [0.3.0] - Phase G: Protocol Extensions
 
 ### Added
