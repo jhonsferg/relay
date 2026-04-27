@@ -15,7 +15,8 @@ func TestCookieJarPersistenceAcrossRequests(t *testing.T) {
 	var postCookieValue string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
+		switch r.Method {
+		case "GET":
 			getRequestCount++
 			http.SetCookie(w, &http.Cookie{
 				Name:  "JSESSIONID",
@@ -24,8 +25,8 @@ func TestCookieJarPersistenceAcrossRequests(t *testing.T) {
 			})
 			w.Header().Set("X-CSRF-Token", "token-12345")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("metadata"))
-		} else if r.Method == "POST" {
+			_, _ = w.Write([]byte("metadata"))
+		case "POST":
 			postRequestCount++
 			cookie, err := r.Cookie("JSESSIONID")
 			if err == nil {
@@ -33,7 +34,7 @@ func TestCookieJarPersistenceAcrossRequests(t *testing.T) {
 				postCookieValue = cookie.Value
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"success": true}`))
+			_, _ = w.Write([]byte(`{"success": true}`))
 		}
 	}))
 	defer server.Close()
@@ -78,10 +79,10 @@ func TestCookieJarPersistenceAcrossRequests(t *testing.T) {
 }
 
 // TestDefaultConfigInitializesCookieJar verifies that defaultConfig()
-// initializes a CookieJar by default (BUG-001 fix).
+// initialises a CookieJar by default (BUG-001 fix).
 func TestDefaultConfigInitializesCookieJar(t *testing.T) {
 	cfg := defaultConfig()
 	if cfg.CookieJar == nil {
-		t.Error("Expected defaultConfig() to initialize CookieJar, but it was nil")
+		t.Error("Expected defaultConfig() to initialise CookieJar, but it was nil")
 	}
 }
