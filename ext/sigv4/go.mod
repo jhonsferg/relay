@@ -10,5 +10,5 @@ require (
 
 require (
 	github.com/aws/smithy-go v1.24.2 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 )
