@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/websocket
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/gorilla/websocket v1.5.3
@@ -8,6 +8,6 @@ require (
 )
 
 require (
-	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 )
