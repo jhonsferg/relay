@@ -96,6 +96,12 @@ func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, prior
 	// Wait for either dequeue notification or context cancellation.
 	select {
 	case <-notify:
+		pq.mu.Lock()
+		isClosed := pq.closed
+		pq.mu.Unlock()
+		if isClosed {
+			return ErrClientClosed
+		}
 		return nil
 	case <-ctx.Done():
 		pq.mu.Lock()
@@ -125,12 +131,13 @@ func (pq *priorityQueue) removeItem(target *priorityItem) bool {
 }
 
 // DequeueNext dequeues and returns the highest-priority request from the queue.
-// Notifies the waiting request so it can proceed.
+// Notifies the waiting request so it can proceed. Returns nil immediately
+// when the queue is closed or empty.
 func (pq *priorityQueue) DequeueNext() (*Request, Priority) {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
 
-	if len(pq.items) == 0 {
+	if pq.closed || len(pq.items) == 0 {
 		return nil, PriorityNormal
 	}
 
@@ -147,11 +154,17 @@ func (pq *priorityQueue) Size() int {
 	return len(pq.items)
 }
 
-// Close marks the queue as closed, causing new EnqueueAndWait calls to fail.
+// Close marks the queue as closed, causes new EnqueueAndWait calls to fail,
+// and notifies all blocked waiters so they can unblock and return
+// ErrClientClosed. This ensures Shutdown does not hang on queued requests.
 func (pq *priorityQueue) Close() {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
 	pq.closed = true
+	for _, item := range pq.items {
+		close(item.notify)
+	}
+	pq.items = nil
 }
 
 // Implement container/heap.Interface
