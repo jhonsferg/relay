@@ -47,7 +47,7 @@ type timingCollector struct {
 	tlsDone      atomic.Int64
 	firstByte    atomic.Int64
 	requestStart atomic.Int64
-	entry        *timingEntry // pool entry reference, set by injectTraceContext
+	entry        atomic.Pointer[timingEntry]
 }
 
 // reset clears all checkpoint fields so the collector can be reused.
@@ -125,7 +125,7 @@ func init() {
 func injectTraceContext(ctx context.Context) (context.Context, *timingCollector) {
 	entry := timingPool.Get().(*timingEntry)
 	entry.col.reset()
-	entry.col.entry = entry
+	entry.col.entry.Store(entry)
 	entry.col.requestStart.Store(nowNano())
 	return httptrace.WithClientTrace(ctx, entry.trace), entry.col
 }
@@ -133,9 +133,9 @@ func injectTraceContext(ctx context.Context) (context.Context, *timingCollector)
 // putTimingCollector returns a timing collector to the pool for reuse.
 // Must be called after buildTiming has consumed the timing values.
 func putTimingCollector(col *timingCollector) {
-	if col != nil && col.entry != nil {
-		timingPool.Put(col.entry)
-		col.entry = nil
+	if col != nil && col.entry.Load() != nil {
+		timingPool.Put(col.entry.Load())
+		col.entry.Store(nil)
 	}
 }
 
