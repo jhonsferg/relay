@@ -139,6 +139,9 @@ venv/
 env/
 .pip/
 
+# ─── Tooling scripts (local dev only) ─────────────────────────────────────────
+.tools/
+
 # ─── AI tooling (never commit AI model config or session data) ───────────────
 .claude/
 CLAUDE.md
