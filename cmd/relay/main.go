@@ -152,7 +152,7 @@ func main() {
 			os.Exit(1)
 		}
 		if !*silent {
-			writeResponse(resp, *include || *headOnly, *pretty, "", *showTiming, *dumpHdr)
+			writeResponse(resp, *include || *headOnly, *pretty, *showTiming, *dumpHdr)
 		}
 		exitForStatus(resp.StatusCode)
 		return
@@ -194,7 +194,7 @@ func main() {
 	}
 
 	if !*silent {
-		writeResponse(resp, *include || *headOnly, *pretty, "", *showTiming, *dumpHdr)
+		writeResponse(resp, *include || *headOnly, *pretty, *showTiming, *dumpHdr)
 	}
 
 	exitForStatus(resp.StatusCode)
@@ -392,7 +392,7 @@ func buildRequest(
 }
 
 // writeResponse writes the response to stdout and optional meta to stderr.
-func writeResponse(resp *relay.Response, includeHeaders, pretty bool, _ string, showTiming bool, dumpHdr string) {
+func writeResponse(resp *relay.Response, includeHeaders, pretty bool, showTiming bool, dumpHdr string) {
 	if dumpHdr != "" {
 		if err := writeHeadersFile(resp, dumpHdr); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not write headers file: %v\n", err)

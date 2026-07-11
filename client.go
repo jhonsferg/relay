@@ -130,10 +130,10 @@ func buildClient(cfg *Config) *Client {
 	// Apply TLS certificate pinning to the TLS config before building transport.
 	if len(cfg.TLSPins) > 0 {
 		pinnedTLS, err := buildTLSConfigWithPinning(cfg.TLSConfig, cfg.TLSPins)
-		if err == nil {
-			cfg.TLSConfig = pinnedTLS
-		} else {
+		if err != nil {
 			cfg.Logger.Warn("TLS certificate pinning disabled due to invalid pin configuration", "error", err)
+		} else {
+			cfg.TLSConfig = pinnedTLS
 		}
 	}
 

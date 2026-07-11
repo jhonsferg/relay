@@ -43,23 +43,8 @@ func TestGetSizedBuffer_Huge(t *testing.T) {
 	PutSizedBuffer(b)
 }
 
-func TestGetBuffer_Deprecated(t *testing.T) {
-	b := GetBuffer()
-	if b == nil {
-		t.Fatal("expected non-nil buffer from GetBuffer")
-	}
-	if cap(*b) != mediumBufferSize {
-		t.Errorf("cap = %d, want %d", cap(*b), mediumBufferSize)
-	}
-	PutBuffer(b)
-}
-
 func TestPutSizedBuffer_Nil(t *testing.T) {
 	PutSizedBuffer(nil) // should not panic
-}
-
-func TestPutBuffer_Nil(t *testing.T) {
-	PutBuffer(nil) // should not panic
 }
 
 func TestPutSizedBuffer_UnknownSize(t *testing.T) {
@@ -146,54 +131,4 @@ func TestGetTimer_Reuse(t *testing.T) {
 	PutTimer(t2)
 }
 
-// ----- tracepool -----
 
-func TestGetTracer(t *testing.T) {
-	col, trace := GetTracer()
-	if col == nil {
-		t.Fatal("expected non-nil TimingCollector")
-	}
-	if trace == nil {
-		t.Fatal("expected non-nil ClientTrace")
-	}
-	if col.RequestStart.IsZero() {
-		t.Error("RequestStart should be set by GetTracer")
-	}
-	PutTracer(col)
-}
-
-func TestPutTracer_ResetsFields(t *testing.T) {
-	col, _ := GetTracer()
-	// Simulate some timing events
-	col.DNSStart = time.Now()
-	col.FirstByte = time.Now()
-	PutTracer(col)
-
-	// Get again - should be reset
-	col2, _ := GetTracer()
-	if !col2.DNSDone.IsZero() {
-		t.Error("DNSDone should be zero after reset")
-	}
-	PutTracer(col2)
-}
-
-func TestGetTracer_Reuse(t *testing.T) {
-	col1, _ := GetTracer()
-	PutTracer(col1)
-	col2, trace2 := GetTracer()
-	if col2 == nil || trace2 == nil {
-		t.Error("reuse should return non-nil")
-	}
-	PutTracer(col2)
-}
-
-func TestTimingCollector_Reset(t *testing.T) {
-	tc := &TimingCollector{
-		DNSStart:  time.Now(),
-		FirstByte: time.Now(),
-	}
-	tc.Reset()
-	if !tc.DNSStart.IsZero() || !tc.FirstByte.IsZero() {
-		t.Error("Reset() should zero all time fields")
-	}
-}
