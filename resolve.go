@@ -108,4 +108,3 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 		IsAPI:     isAPIBase,
 	}
 }
-

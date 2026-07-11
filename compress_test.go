@@ -369,8 +369,8 @@ func TestDeflateResponseDecompression(t *testing.T) {
 
 	var buf bytes.Buffer
 	w, _ := flate.NewWriter(&buf, flate.DefaultCompression)
-	w.Write([]byte("deflate body"))
-	w.Close()
+	_, _ = w.Write([]byte("deflate body"))
+	_ = w.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(wr http.ResponseWriter, _ *http.Request) {
 		wr.Header().Set("Content-Encoding", "deflate")

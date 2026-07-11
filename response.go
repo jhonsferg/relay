@@ -18,15 +18,15 @@ import (
 type Response struct {
 	raw           *http.Response
 	body          []byte
-	poolBuf       *[]byte        // held when body is backed by a pooled buffer; returned in PutResponse
+	poolBuf       *[]byte // held when body is backed by a pooled buffer; returned in PutResponse
 	decode        func(contentType string, body []byte, v any) error
 	redirectChain []RedirectInfo
 	StatusCode    int
 	Status        string
 	Headers       http.Header
-	Truncated     bool           // true when body was cut at MaxResponseBodyBytes
-	RedirectCount int            // number of redirects followed to reach this response
-	Timing        RequestTiming  // per-phase timing breakdown (DNS, TCP, TLS, TTFB, ...)
+	Truncated     bool          // true when body was cut at MaxResponseBodyBytes
+	RedirectCount int           // number of redirects followed to reach this response
+	Timing        RequestTiming // per-phase timing breakdown (DNS, TCP, TLS, TTFB, ...)
 }
 
 // RedirectInfo records a single redirect hop followed during [Client.Execute].

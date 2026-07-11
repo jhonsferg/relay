@@ -130,5 +130,3 @@ func TestGetTimer_Reuse(t *testing.T) {
 	}
 	PutTimer(t2)
 }
-
-
