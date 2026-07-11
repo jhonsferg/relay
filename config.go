@@ -498,19 +498,24 @@ func isAPIBase(baseURL string) bool {
 	if baseURL == "" {
 		return false
 	}
-
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return false
 	}
+	return isAPIPath(parsed.Path)
+}
 
-	path := parsed.Path
+// isAPIBaseParsed is the zero-alloc equivalent of isAPIBase when the URL
+// has already been parsed. Used in the hot path of Request.build().
+func isAPIBaseParsed(u *url.URL) bool {
+	return u != nil && isAPIPath(u.Path)
+}
+
+// isAPIPath is the core check shared by isAPIBase and isAPIBaseParsed.
+func isAPIPath(path string) bool {
 	if path == "" || path == "/" {
 		return false
 	}
-
-	// Check common API path patterns (zero-alloc: direct string prefix checks)
-	// Common patterns: /api, /v1, /v2, /odata, /rest, /graphql, /sap, etc.
 	if strings.HasPrefix(path, "/api") ||
 		strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/v2") ||
 		strings.HasPrefix(path, "/v3") || strings.HasPrefix(path, "/v4") ||
@@ -521,9 +526,6 @@ func isAPIBase(baseURL string) bool {
 		strings.HasPrefix(path, "/services") {
 		return true
 	}
-
-	// Also return true if path has 2+ segments (e.g. /company/api, /service/v1)
-	// Count slashes to detect depth; more than one slash means multiple segments
 	slashCount := 0
 	for _, c := range path {
 		if c == '/' {

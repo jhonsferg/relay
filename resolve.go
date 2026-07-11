@@ -50,7 +50,7 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 	}
 
 	// Determine if this is an API base URL
-	isAPIBase := isAPIBase(baseURL)
+	isAPIBase := parsedBaseURL != nil && isAPIBaseParsed(parsedBaseURL)
 
 	// Determine the strategy that would be used
 	var strategyUsed string

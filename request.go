@@ -648,7 +648,7 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 		switch normalisationMode {
 		case NormalisationAuto:
 			// Intelligent detection: RFC 3986 for host-only, safe for APIs
-			useRFC3986 = parsedBaseURL != nil && !isAPIBase(baseURL)
+			useRFC3986 = parsedBaseURL != nil && !isAPIBaseParsed(parsedBaseURL)
 		case NormalisationRFC3986:
 			// Force RFC 3986 (requires parsed URL)
 			useRFC3986 = parsedBaseURL != nil
