@@ -132,6 +132,8 @@ func buildClient(cfg *Config) *Client {
 		pinnedTLS, err := buildTLSConfigWithPinning(cfg.TLSConfig, cfg.TLSPins)
 		if err == nil {
 			cfg.TLSConfig = pinnedTLS
+		} else {
+			cfg.Logger.Warn("TLS certificate pinning disabled due to invalid pin configuration", "error", err)
 		}
 	}
 
