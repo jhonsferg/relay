@@ -105,6 +105,41 @@ func TestClassifyError_RateLimitExceeded(t *testing.T) {
 	}
 }
 
+func TestClassifyError_RetryBudgetExhausted(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyError(ErrRetryBudgetExhausted, nil); got != ErrorClassTransient {
+		t.Errorf("expected Transient for ErrRetryBudgetExhausted, got %v", got)
+	}
+}
+
+func TestClassifyError_BulkheadFull(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyError(ErrBulkheadFull, nil); got != ErrorClassTransient {
+		t.Errorf("expected Transient for ErrBulkheadFull, got %v", got)
+	}
+}
+
+func TestClassifyError_ClientClosed(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyError(ErrClientClosed, nil); got != ErrorClassPermanent {
+		t.Errorf("expected Permanent for ErrClientClosed, got %v", got)
+	}
+}
+
+func TestClassifyError_CertificatePinMismatch(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyError(ErrCertificatePinMismatch, nil); got != ErrorClassPermanent {
+		t.Errorf("expected Permanent for ErrCertificatePinMismatch, got %v", got)
+	}
+}
+
+func TestClassifyError_NilRequest(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyError(ErrNilRequest, nil); got != ErrorClassPermanent {
+		t.Errorf("expected Permanent for ErrNilRequest, got %v", got)
+	}
+}
+
 func TestClassifyError_NetworkError(t *testing.T) {
 	t.Parallel()
 	netErr := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}

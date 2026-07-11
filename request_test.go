@@ -302,6 +302,51 @@ func TestRequest_WithMultipart_WithReader(t *testing.T) {
 	}
 }
 
+func TestRequest_WithMultipart_SanitizesCRLF(t *testing.T) {
+	t.Parallel()
+	// A FieldName or FileName containing CR or LF would allow injection of
+	// arbitrary MIME headers into the multipart body. Verify they are stripped.
+	req := New().Post("http://example.com/upload").WithMultipart([]MultipartField{
+		{
+			FieldName:   "evil\r\nX-Injected: hdr",
+			FileName:    "file\r\nX-Injected2: hdr",
+			ContentType: "text/plain",
+			Content:     []byte("payload"),
+		},
+	})
+	body := string(req.bodyBytes)
+	// After stripping CRLF, "X-Injected: hdr" must NOT appear on its own line.
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "X-Injected") {
+			t.Errorf("CRLF injection not stripped; injected header found in body: %q", trimmed)
+		}
+	}
+}
+
+func TestRequest_WithMultipart_SanitizesQuotes(t *testing.T) {
+	t.Parallel()
+	// An embedded double-quote in FieldName or FileName must be escaped so it
+	// does not break the Content-Disposition quoted-string.
+	req := New().Post("http://example.com/upload").WithMultipart([]MultipartField{
+		{
+			FieldName:   `na"me`,
+			FileName:    `fi"le.txt`,
+			ContentType: "text/plain",
+			Content:     []byte("payload"),
+		},
+	})
+	body := string(req.bodyBytes)
+	// Must NOT contain unescaped quote breaking the parameter: name="na"me"
+	if strings.Contains(body, `name="na"me"`) {
+		t.Errorf("unescaped double-quote in FieldName; body:\n%s", body)
+	}
+	// Must contain the properly escaped form: name="na\"me"
+	if !strings.Contains(body, `name="na\"me"`) {
+		t.Errorf("expected escaped double-quote in Content-Disposition; body:\n%s", body)
+	}
+}
+
 func TestRequest_WithBearerToken(t *testing.T) {
 	t.Parallel()
 	srv := testutil.NewMockServer()

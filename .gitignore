@@ -17,6 +17,8 @@ coverage.out
 coverage.html
 coverage.xml
 coverage.json
+coverage
+tmpcover
 
 # Go profiling output
 *.prof
@@ -136,6 +138,9 @@ __pycache__/
 venv/
 env/
 .pip/
+
+# ─── Tooling scripts (local dev only) ─────────────────────────────────────────
+.tools/
 
 # ─── AI tooling (never commit AI model config or session data) ───────────────
 .claude/

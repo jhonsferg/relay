@@ -130,7 +130,9 @@ func buildClient(cfg *Config) *Client {
 	// Apply TLS certificate pinning to the TLS config before building transport.
 	if len(cfg.TLSPins) > 0 {
 		pinnedTLS, err := buildTLSConfigWithPinning(cfg.TLSConfig, cfg.TLSPins)
-		if err == nil {
+		if err != nil {
+			cfg.Logger.Warn("TLS certificate pinning disabled due to invalid pin configuration", "error", err)
+		} else {
 			cfg.TLSConfig = pinnedTLS
 		}
 	}
@@ -413,6 +415,7 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 	var timingCol *timingCollector
 	if !c.config.DisableTiming {
 		ctx, timingCol = injectTraceContext(ctx)
+		defer putTimingCollector(timingCol)
 	}
 
 	// Update the cloned request's stored context in-place (zero allocation)

@@ -358,3 +358,64 @@ func TestSSEFanOut_DefaultBufferSize(t *testing.T) {
 		t.Fatalf("expected default buffer size 64, got %d", cap(ch))
 	}
 }
+
+func TestSSEFanOut_ConcurrentUnsubscribeAndDispatch(t *testing.T) {
+	// This test verifies there is no double-close race between dispatch
+	// and Unsubscribe. One subscriber with a small buffer is flooded with
+	// events while Unsubscribe is called concurrently from another goroutine.
+	events := make([]string, 50)
+	for i := range events {
+		events[i] = fmt.Sprintf("ev%d", i)
+	}
+
+	srv := streamingSSEServer(events, 0)
+	defer srv.Close()
+
+	client := relay.New()
+	// Small buffer so dispatch will mark the subscriber as slow immediately.
+	fo := relay.NewSSEFanOut(client, client.Get(srv.URL), 1)
+
+	slow := fo.Subscribe()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+
+	// Start the fan-out.
+	startDone := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(startDone)
+		_ = fo.Start(ctx)
+	}()
+
+	// Give Start time to connect.
+	time.Sleep(50 * time.Millisecond)
+
+	// Concurrently unsubscribe while events are being dispatched.
+	unsubDone := make(chan struct{})
+	go func() {
+		// Small delay to let some events be dispatched first.
+		time.Sleep(10 * time.Millisecond)
+		fo.Unsubscribe(slow)
+		close(unsubDone)
+	}()
+
+	select {
+	case <-unsubDone:
+	case <-time.After(3 * time.Second):
+	}
+
+	// Drain slow channel (it should be closed by either dispatch or Unsubscribe).
+	for range slow {
+	}
+
+	cancel()
+	select {
+	case <-startDone:
+	case <-time.After(3 * time.Second):
+		t.Error("fan-out did not stop within timeout")
+	}
+}

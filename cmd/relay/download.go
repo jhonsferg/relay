@@ -340,12 +340,14 @@ func (j *fileCookieJar) load() error {
 			continue
 		}
 		domain, path, secure, name, value := fields[0], fields[2], fields[3], fields[5], fields[6]
-		c := &http.Cookie{
-			Domain: domain,
-			Path:   path,
-			Secure: strings.EqualFold(secure, "TRUE"),
-			Name:   name,
-			Value:  value,
+		c := &http.Cookie{ //nolint:gosec // Secure reflects the source cookie file truthfully
+			Domain:   domain,
+			Path:     path,
+			Secure:   strings.EqualFold(secure, "TRUE"),
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Name:     name,
+			Value:    value,
 		}
 		if ts, err := strconv.ParseInt(fields[4], 10, 64); err == nil && ts > 0 {
 			c.Expires = time.Unix(ts, 0)

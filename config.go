@@ -408,6 +408,7 @@ type Config struct {
 // defaultConfig returns a Config populated with all production-ready defaults.
 // Every With* option is applied on top of this baseline.
 func defaultConfig() *Config {
+	jar, _ := cookiejar.New(nil)
 	return &Config{
 		Timeout:              defaultTimeout,
 		MaxIdleConns:         defaultMaxIdleConns,
@@ -419,6 +420,7 @@ func defaultConfig() *Config {
 		DialTimeout:          defaultDialTimeout,
 		DialKeepAlive:        defaultDialKeepAlive,
 		MaxResponseBodyBytes: defaultMaxResponseBodyBytes,
+		CookieJar:            jar,
 		DefaultHeaders:       make(map[string]string),
 		RetryConfig:          defaultRetryConfig(),
 		CircuitBreakerConfig: defaultCircuitBreakerConfig(),
@@ -496,19 +498,24 @@ func isAPIBase(baseURL string) bool {
 	if baseURL == "" {
 		return false
 	}
-
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return false
 	}
+	return isAPIPath(parsed.Path)
+}
 
-	path := parsed.Path
+// isAPIBaseParsed is the zero-alloc equivalent of isAPIBase when the URL
+// has already been parsed. Used in the hot path of Request.build().
+func isAPIBaseParsed(u *url.URL) bool {
+	return u != nil && isAPIPath(u.Path)
+}
+
+// isAPIPath is the core check shared by isAPIBase and isAPIBaseParsed.
+func isAPIPath(path string) bool {
 	if path == "" || path == "/" {
 		return false
 	}
-
-	// Check common API path patterns (zero-alloc: direct string prefix checks)
-	// Common patterns: /api, /v1, /v2, /odata, /rest, /graphql, /sap, etc.
 	if strings.HasPrefix(path, "/api") ||
 		strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/v2") ||
 		strings.HasPrefix(path, "/v3") || strings.HasPrefix(path, "/v4") ||
@@ -519,9 +526,6 @@ func isAPIBase(baseURL string) bool {
 		strings.HasPrefix(path, "/services") {
 		return true
 	}
-
-	// Also return true if path has 2+ segments (e.g. /company/api, /service/v1)
-	// Count slashes to detect depth; more than one slash means multiple segments
 	slashCount := 0
 	for _, c := range path {
 		if c == '/' {
@@ -715,7 +719,23 @@ func WithOnRetry(fn func(attempt int, resp *http.Response, err error)) Option {
 
 // WithCircuitBreaker replaces the circuit breaker configuration.
 func WithCircuitBreaker(cbc *CircuitBreakerConfig) Option {
-	return func(c *Config) { c.CircuitBreakerConfig = cbc }
+	return func(c *Config) {
+		if cbc != nil {
+			if cbc.MaxFailures <= 0 {
+				cbc.MaxFailures = 5
+			}
+			if cbc.ResetTimeout <= 0 {
+				cbc.ResetTimeout = 30 * time.Second
+			}
+			if cbc.HalfOpenRequests <= 0 {
+				cbc.HalfOpenRequests = 1
+			}
+			if cbc.SuccessThreshold <= 0 {
+				cbc.SuccessThreshold = 1
+			}
+		}
+		c.CircuitBreakerConfig = cbc
+	}
 }
 
 // WithDisableCircuitBreaker removes the circuit breaker entirely so all
@@ -920,6 +940,12 @@ func WithAutoIdempotencyKey() Option { return func(c *Config) { c.AutoIdempotenc
 // WithHealthCheck has no effect when the circuit breaker is disabled.
 func WithHealthCheck(url string, interval, timeout time.Duration, expectedStatus int) Option {
 	return func(c *Config) {
+		if interval <= 0 {
+			interval = time.Minute
+		}
+		if timeout <= 0 {
+			timeout = 10 * time.Second
+		}
 		c.HealthCheck = &HealthCheckConfig{
 			URL:            url,
 			Interval:       interval,

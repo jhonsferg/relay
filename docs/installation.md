@@ -4,7 +4,7 @@ This page covers everything you need to get relay up and running in your Go proj
 
 ## Requirements
 
-relay requires **Go 1.24 or later**. It uses generics (introduced in Go 1.18) and takes advantage of the improved `net/http` toolchain stabilised in Go 1.24. No C dependencies are needed - relay is pure Go.
+relay requires **Go 1.25 or later**. It uses generics (introduced in Go 1.18) and takes advantage of the improved `net/http` toolchain stabilised in Go 1.24. No C dependencies are needed - relay is pure Go.
 
 To check your Go version:
 
@@ -15,7 +15,7 @@ go version
 You should see output similar to:
 
 ```
-go version go1.24.0 linux/amd64
+go version go1.25.0 linux/amd64
 ```
 
 If your version is older, download the latest Go toolchain from [https://go.dev/dl](https://go.dev/dl).
@@ -54,7 +54,7 @@ After running `go get`, your `go.mod` will look similar to this:
 ```
 module github.com/your-org/your-app
 
-go 1.24
+go 1.25
 
 require (
     github.com/jhonsferg/relay v1.0.0

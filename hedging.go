@@ -41,11 +41,18 @@ func (c *Client) executeHedged(ctx context.Context, req *Request, after time.Dur
 				timer.Stop()
 				// A result arrived while waiting; use it.
 				cancel()
+				// Wait for remaining goroutines, then close and drain results.
+				// Return any pooled responses that nobody will consume.
+				wg.Wait()
+				close(results)
+				for leftover := range results {
+					if leftover.resp != nil && leftover.err == nil {
+						PutResponse(leftover.resp)
+					}
+				}
 				if r.err == nil {
 					return r.resp, nil
 				}
-				// Drain remaining results.
-				wg.Wait()
 				return r.resp, r.err
 			}
 		}
@@ -57,9 +64,13 @@ func (c *Client) executeHedged(ctx context.Context, req *Request, after time.Dur
 			cloned := req.Clone()
 			cloned = cloned.WithContext(ctx)
 			resp, err := c.executeOnce(ctx, cloned, false)
+			// Return abandoned responses to the pool rather than leaking them.
 			select {
 			case results <- hedgeResult{resp, err}:
 			case <-ctx.Done():
+				if resp != nil && err == nil {
+					PutResponse(resp)
+				}
 			}
 		}()
 	}
@@ -76,6 +87,16 @@ collect:
 	for r := range results {
 		if r.err == nil {
 			cancel() // Cancel remaining goroutines.
+			// Drain remaining buffered results; return them to the pool since
+			// we already have a winner and nobody else will consume them.
+			// The goroutine above will close the channel once goroutines exit.
+			go func() {
+				for leftover := range results {
+					if leftover.resp != nil && leftover.err == nil {
+						PutResponse(leftover.resp)
+					}
+				}
+			}()
 			return r.resp, nil
 		}
 		lastErr = r.err

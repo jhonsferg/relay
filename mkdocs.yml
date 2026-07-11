@@ -73,6 +73,7 @@ nav:
   - Guides:
     - Basic Requests: guides/basic-requests.md
     - Authentication: guides/auth.md
+    - Session & Cookies: guides/session-cookies.md
     - Retries & Backoff: guides/retries.md
     - Circuit Breaker: guides/circuit-breaker.md
     - Rate Limiting: guides/rate-limiting.md
