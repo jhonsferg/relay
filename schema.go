@@ -62,7 +62,7 @@ func (s *StructValidator) Validate(v interface{}) error {
 	}
 
 	t := reflect.TypeOf(s.prototype)
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {

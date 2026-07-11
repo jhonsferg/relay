@@ -19,9 +19,12 @@ func TestCookieJarPersistenceAcrossRequests(t *testing.T) {
 		case "GET":
 			getRequestCount++
 			http.SetCookie(w, &http.Cookie{
-				Name:  "JSESSIONID",
-				Value: "abc123xyz789",
-				Path:  "/",
+				Name:     "JSESSIONID",
+				Value:    "abc123xyz789",
+				Path:     "/",
+				Secure:   true,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
 			})
 			w.Header().Set("X-CSRF-Token", "token-12345")
 			w.WriteHeader(http.StatusOK)
