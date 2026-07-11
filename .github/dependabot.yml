@@ -15,7 +15,7 @@ updates:
       - "dependencies"
       - "go"
     # Restrict to minor and patch updates only (no major version bumps)
-    # This ensures compatibility with Go 1.24.0+
+    # This ensures compatibility with Go 1.25.0+
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"

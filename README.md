@@ -4,7 +4,7 @@
 
 **A production-grade, declarative HTTP client for Go.**
 
-[![Go Version](https://img.shields.io/badge/Go-1.24%2B-00ADD8?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
+[![Go Version](https://img.shields.io/badge/Go-1.25%2B-00ADD8?style=for-the-badge&logo=go)](https://pkg.go.dev/github.com/jhonsferg/relay)
 [![CI](https://img.shields.io/github/actions/workflow/status/jhonsferg/relay/ci.yml?style=for-the-badge&logo=github&label=CI)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-6%20OS%2FGo%20combos-0099ff?style=for-the-badge&logo=github)](https://github.com/jhonsferg/relay/actions/workflows/ci.yml)
 [![Codecov](https://img.shields.io/badge/coverage-tracked-41B883?style=for-the-badge&logo=codecov)](https://codecov.io/gh/jhonsferg/relay)
@@ -31,7 +31,7 @@ The core module has **zero external dependencies**. Every integration (Redis, OT
 go get github.com/jhonsferg/relay
 ```
 
-Requires Go 1.24 or later. WASM (`js/wasm`) targets are supported.
+Requires Go 1.25 or later. WASM (`js/wasm`) targets are supported.
 
 ---
 
