@@ -1,10 +1,10 @@
 module github.com/jhonsferg/relay
 
-go 1.24.0
+go 1.25.0
 
 require (
-	github.com/andybalholm/brotli v1.2.1
-	github.com/klauspost/compress v1.18.5
-	golang.org/x/net v0.50.0
-	golang.org/x/sync v0.19.0
+	github.com/andybalholm/brotli v1.2.2
+	github.com/klauspost/compress v1.19.0
+	golang.org/x/net v0.57.0
+	golang.org/x/sync v0.22.0
 )
