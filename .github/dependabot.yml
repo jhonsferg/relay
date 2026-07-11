@@ -272,6 +272,126 @@ updates:
       - dependency-type: "indirect"
     open-pull-requests-limit: 5
 
+  # Extension modules - http3
+  # Added retroactively: this module (and the 8 below) existed since April 2026
+  # but was never wired into Dependabot, so its golang.org/x/crypto CVEs went
+  # unmonitored for months. See dependabot alerts for the backlog this exposed.
+  - package-ecosystem: "gomod"
+    directory: "/ext/http3"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - otel
+  - package-ecosystem: "gomod"
+    directory: "/ext/otel"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - vcr
+  - package-ecosystem: "gomod"
+    directory: "/ext/vcr"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - websocket
+  - package-ecosystem: "gomod"
+    directory: "/ext/websocket"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - chaos
+  - package-ecosystem: "gomod"
+    directory: "/ext/chaos"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - compress
+  - package-ecosystem: "gomod"
+    directory: "/ext/compress"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - graphql
+  - package-ecosystem: "gomod"
+    directory: "/ext/graphql"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - oidc
+  - package-ecosystem: "gomod"
+    directory: "/ext/oidc"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
+  # Extension modules - slog
+  - package-ecosystem: "gomod"
+    directory: "/ext/slog"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ext"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    open-pull-requests-limit: 5
+
   # Examples
   - package-ecosystem: "gomod"
     directory: "/examples"
