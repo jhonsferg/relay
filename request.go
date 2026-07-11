@@ -582,19 +582,31 @@ func (r *Request) withCtx(ctx context.Context) *Request {
 }
 
 // applyPathParams substitutes every {key} placeholder in rawURL with its
-// corresponding percent-encoded value from pathParams.
+// corresponding percent-encoded value from pathParams in a single pass.
 func (r *Request) applyPathParams(rawURL string) string {
 	if len(r.pathParams) == 0 {
 		return rawURL
 	}
 
-	// Build placeholders map to avoid allocating "{key}" string in each iteration.
-	result := rawURL
-	for k, v := range r.pathParams {
-		placeholder := "{" + k + "}"
-		result = strings.ReplaceAll(result, placeholder, url.PathEscape(v))
+	var b strings.Builder
+	b.Grow(len(rawURL))
+	i := 0
+	for i < len(rawURL) {
+		if rawURL[i] == '{' {
+			end := strings.IndexByte(rawURL[i+1:], '}')
+			if end >= 0 {
+				key := rawURL[i+1 : i+1+end]
+				if val, ok := r.pathParams[key]; ok {
+					b.WriteString(url.PathEscape(val))
+					i += 2 + end // skip past '{key}'
+					continue
+				}
+			}
+		}
+		b.WriteByte(rawURL[i])
+		i++
 	}
-	return result
+	return b.String()
 }
 
 // build constructs the stdlib *http.Request from this builder's state.
