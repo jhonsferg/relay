@@ -251,6 +251,9 @@ func (t *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		if hasCached {
 			return replayResponse(req, cached), nil
 		}
+		// No cached entry to replay; restore a readable empty body so the
+		// caller does not receive a response with a closed/drained body.
+		resp.Body = io.NopCloser(bytes.NewReader(nil))
 	}
 
 	// Store only 200 GET responses that are not marked private or no-store.
