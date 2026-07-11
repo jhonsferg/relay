@@ -71,11 +71,13 @@ type compressionTransport struct {
 }
 
 // RoundTrip injects Accept-Encoding and decompresses the response body.
+// The request is modified in-place because each call to RoundTrip receives
+// a fresh request built by executeOnce. This avoids an expensive full clone
+// (headers, URL, body) on every request.
 func (t *compressionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	r := req.Clone(req.Context())
-	r.Header.Set("Accept-Encoding", t.algo.acceptEncoding())
+	req.Header.Set("Accept-Encoding", t.algo.acceptEncoding())
 
-	resp, err := t.base.RoundTrip(r)
+	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +166,12 @@ func (t *requestCompressionTransport) RoundTrip(req *http.Request) (*http.Respon
 		return nil, fmt.Errorf("relay: reading request body for compression: %w", err)
 	}
 
+	// Mutate request in-place. Each RoundTrip call receives a fresh request
+	// built by executeOnce, so modification is safe and avoids an expensive clone.
 	if len(body) < t.minBytes {
-		r := req.Clone(req.Context())
-		r.Body = io.NopCloser(bytes.NewReader(body))
-		r.ContentLength = int64(len(body))
-		return t.base.RoundTrip(r)
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+		return t.base.RoundTrip(req)
 	}
 
 	compressed, enc, compErr := compressBytes(t.algo, body)
@@ -176,11 +179,10 @@ func (t *requestCompressionTransport) RoundTrip(req *http.Request) (*http.Respon
 		return nil, fmt.Errorf("relay: compressing request body: %w", compErr)
 	}
 
-	r := req.Clone(req.Context())
-	r.Body = io.NopCloser(bytes.NewReader(compressed))
-	r.ContentLength = int64(len(compressed))
-	r.Header.Set("Content-Encoding", enc)
-	return t.base.RoundTrip(r)
+	req.Body = io.NopCloser(bytes.NewReader(compressed))
+	req.ContentLength = int64(len(compressed))
+	req.Header.Set("Content-Encoding", enc)
+	return t.base.RoundTrip(req)
 }
 
 // compressBytes compresses body with the specified algorithm and returns the
