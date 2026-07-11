@@ -1,14 +1,19 @@
 module github.com/jhonsferg/relay/ext/zap
 
-go 1.24.0
+go 1.25.0
 
 require (
-	github.com/jhonsferg/relay v0.1.1
-	go.uber.org/zap v1.27.1
+	github.com/jhonsferg/relay v0.4.3
+	go.uber.org/zap v1.28.0
 )
 
 require (
+	github.com/andybalholm/brotli v1.2.2 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 )
