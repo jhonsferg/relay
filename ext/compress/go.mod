@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/jhonsferg/relay v0.4.3
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.19.0
 )
 
 require (
