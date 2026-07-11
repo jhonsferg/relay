@@ -18,11 +18,10 @@ func TestCookieJarPersistenceAcrossRequests(t *testing.T) {
 		switch r.Method {
 		case "GET":
 			getRequestCount++
-			http.SetCookie(w, &http.Cookie{
+			http.SetCookie(w, &http.Cookie{ //nolint:gosec // test server uses HTTP, not HTTPS
 				Name:     "JSESSIONID",
 				Value:    "abc123xyz789",
 				Path:     "/",
-				Secure:   true,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 			})
