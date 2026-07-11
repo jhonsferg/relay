@@ -18,14 +18,15 @@ import (
 type Response struct {
 	raw           *http.Response
 	body          []byte
+	poolBuf       *[]byte        // held when body is backed by a pooled buffer; returned in PutResponse
 	decode        func(contentType string, body []byte, v any) error
 	redirectChain []RedirectInfo
 	StatusCode    int
 	Status        string
 	Headers       http.Header
-	Truncated     bool          // true when body was cut at MaxResponseBodyBytes
-	RedirectCount int           // number of redirects followed to reach this response
-	Timing        RequestTiming // per-phase timing breakdown (DNS, TCP, TLS, TTFB, ...)
+	Truncated     bool           // true when body was cut at MaxResponseBodyBytes
+	RedirectCount int            // number of redirects followed to reach this response
+	Timing        RequestTiming  // per-phase timing breakdown (DNS, TCP, TLS, TTFB, ...)
 }
 
 // RedirectInfo records a single redirect hop followed during [Client.Execute].
@@ -54,6 +55,10 @@ func getResponse() *Response {
 func (r *Response) reset() {
 	r.raw = nil
 	r.body = r.body[:0]
+	if r.poolBuf != nil {
+		pool.PutSizedBuffer(r.poolBuf)
+		r.poolBuf = nil
+	}
 	r.decode = nil
 	r.redirectChain = r.redirectChain[:0]
 	r.StatusCode = 0
@@ -69,6 +74,10 @@ func (r *Response) reset() {
 // with the response and not retaining it.
 func PutResponse(r *Response) {
 	if r != nil {
+		if r.poolBuf != nil {
+			pool.PutSizedBuffer(r.poolBuf)
+			r.poolBuf = nil
+		}
 		responsePool.Put(r)
 	}
 }
@@ -95,25 +104,30 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int, chain [
 
 	body := buf.Bytes()
 	truncated := false
+
+	// When the body fits inside the pooled buffer's capacity, keep the buffer
+	// attached to the Response to avoid a copy+alloc. PutResponse returns it.
+	usesPool := cap(*poolBuf) >= cap(body)
+
 	if maxBytes > 0 && int64(len(body)) > maxBytes {
-		// Trim to the limit and copy to a right-sized slice.
 		body = append([]byte(nil), body[:maxBytes]...)
 		truncated = true
-	} else if len(body) > 0 {
-		// Copy to a right-sized slice so the large buffer can be GC'd.
-		body = append([]byte(nil), body...)
-	} else {
-		// Empty body: no allocation needed
+		usesPool = false
+	} else if len(body) == 0 {
 		body = nil
+		usesPool = false
 	}
 
-	// Return the pool buffer now that body is safely copied.
-	pool.PutSizedBuffer(poolBuf)
+	if !usesPool {
+		pool.PutSizedBuffer(poolBuf)
+		poolBuf = nil
+	}
 
 	// Get pooled response struct.
 	r := getResponse()
 	r.raw = resp
 	r.body = body
+	r.poolBuf = poolBuf
 	r.StatusCode = resp.StatusCode
 	r.Status = resp.Status
 	r.Headers = resp.Header
