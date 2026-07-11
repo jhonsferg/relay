@@ -17,6 +17,8 @@ coverage.out
 coverage.html
 coverage.xml
 coverage.json
+coverage
+tmpcover
 
 # Go profiling output
 *.prof
