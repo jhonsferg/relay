@@ -719,7 +719,23 @@ func WithOnRetry(fn func(attempt int, resp *http.Response, err error)) Option {
 
 // WithCircuitBreaker replaces the circuit breaker configuration.
 func WithCircuitBreaker(cbc *CircuitBreakerConfig) Option {
-	return func(c *Config) { c.CircuitBreakerConfig = cbc }
+	return func(c *Config) {
+		if cbc != nil {
+			if cbc.MaxFailures <= 0 {
+				cbc.MaxFailures = 5
+			}
+			if cbc.ResetTimeout <= 0 {
+				cbc.ResetTimeout = 30 * time.Second
+			}
+			if cbc.HalfOpenRequests <= 0 {
+				cbc.HalfOpenRequests = 1
+			}
+			if cbc.SuccessThreshold <= 0 {
+				cbc.SuccessThreshold = 1
+			}
+		}
+		c.CircuitBreakerConfig = cbc
+	}
 }
 
 // WithDisableCircuitBreaker removes the circuit breaker entirely so all
@@ -924,6 +940,12 @@ func WithAutoIdempotencyKey() Option { return func(c *Config) { c.AutoIdempotenc
 // WithHealthCheck has no effect when the circuit breaker is disabled.
 func WithHealthCheck(url string, interval, timeout time.Duration, expectedStatus int) Option {
 	return func(c *Config) {
+		if interval <= 0 {
+			interval = time.Minute
+		}
+		if timeout <= 0 {
+			timeout = 10 * time.Second
+		}
 		c.HealthCheck = &HealthCheckConfig{
 			URL:            url,
 			Interval:       interval,
