@@ -2,6 +2,7 @@ package relay_test
 
 import (
 	"bytes"
+	"compress/flate"
 	"compress/gzip"
 	"io"
 	"net/http"
@@ -363,6 +364,31 @@ func TestAutoDecompressZstd(t *testing.T) {
 }
 
 // TestRequestCompressionDefaultThreshold verifies the default 1024-byte threshold.
+func TestDeflateResponseDecompression(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	w, _ := flate.NewWriter(&buf, flate.DefaultCompression)
+	w.Write([]byte("deflate body"))
+	w.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(wr http.ResponseWriter, _ *http.Request) {
+		wr.Header().Set("Content-Encoding", "deflate")
+		wr.WriteHeader(http.StatusOK)
+		wr.Write(buf.Bytes()) //nolint:errcheck
+	}))
+	t.Cleanup(srv.Close)
+
+	c := newTestClient(t, srv, relay.WithCompression(relay.CompressionAuto))
+	resp, err := c.Execute(c.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if got := resp.String(); got != "deflate body" {
+		t.Errorf("body = %q, want %q", got, "deflate body")
+	}
+}
+
 func TestRequestCompressionDefaultThreshold(t *testing.T) {
 	t.Parallel()
 
