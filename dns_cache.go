@@ -7,6 +7,43 @@ import (
 	"time"
 )
 
+// call represents an in-flight or completed DNS resolution.
+type call struct {
+	addresses []string
+	err       error
+	done      chan struct{}
+}
+
+// flightGroup coalesces concurrent lookups for the same key so only one
+// goroutine performs the resolution; all others share the result.
+type flightGroup struct {
+	mu    sync.Mutex
+	calls map[string]*call
+}
+
+func (g *flightGroup) do(key string, fn func() ([]string, error)) ([]string, error) {
+	g.mu.Lock()
+	if g.calls == nil {
+		g.calls = make(map[string]*call)
+	}
+	if c, ok := g.calls[key]; ok {
+		g.mu.Unlock()
+		<-c.done
+		return c.addresses, c.err
+	}
+	c := &call{done: make(chan struct{})}
+	g.calls[key] = c
+	g.mu.Unlock()
+
+	c.addresses, c.err = fn()
+	close(c.done)
+
+	g.mu.Lock()
+	delete(g.calls, key)
+	g.mu.Unlock()
+	return c.addresses, c.err
+}
+
 // DNSCacheConfig controls client-side DNS result caching.
 type DNSCacheConfig struct {
 	// TTL is how long a resolved address set is considered valid.
@@ -31,6 +68,7 @@ type dnsCache struct {
 	entries  map[string]dnsCacheEntry
 	ttl      time.Duration
 	resolver *net.Resolver
+	flights  flightGroup // coalesces concurrent cache-miss resolutions
 }
 
 func newDNSCache(ttl time.Duration) *dnsCache {
@@ -56,24 +94,39 @@ func (c *dnsCache) lookup(ctx context.Context, host, port, cacheKey string) ([]s
 		return entry.addresses, nil
 	}
 
-	// Slow path: resolve and pre-join with port, then cache.
-	ips, err := c.resolver.LookupHost(ctx, host)
+	// Slow path: use singleflight to prevent thundering herd when
+	// multiple goroutines miss the cache simultaneously.
+	addresses, err := c.flights.do(cacheKey, func() ([]string, error) {
+		// Double-check cache after acquiring the flight slot.
+		c.mu.RLock()
+		entry, ok := c.entries[cacheKey]
+		c.mu.RUnlock()
+		if ok && time.Now().Before(entry.expiresAt) {
+			return entry.addresses, nil
+		}
+
+		ips, lookupErr := c.resolver.LookupHost(ctx, host)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+
+		addresses := make([]string, len(ips))
+		for i, ip := range ips {
+			addresses[i] = net.JoinHostPort(ip, port)
+		}
+
+		c.mu.Lock()
+		c.entries[cacheKey] = dnsCacheEntry{
+			addresses: addresses,
+			expiresAt: time.Now().Add(c.ttl),
+		}
+		c.mu.Unlock()
+
+		return addresses, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	addresses := make([]string, len(ips))
-	for i, ip := range ips {
-		addresses[i] = net.JoinHostPort(ip, port)
-	}
-
-	c.mu.Lock()
-	c.entries[cacheKey] = dnsCacheEntry{
-		addresses: addresses,
-		expiresAt: time.Now().Add(c.ttl),
-	}
-	c.mu.Unlock()
-
 	return addresses, nil
 }
 

@@ -54,12 +54,6 @@ func GetSizedBuffer(hint int64) *[]byte {
 	}
 }
 
-// GetBuffer returns a pooled byte slice of at least mediumBufferSize (backward compat).
-// Deprecated: Use GetSizedBuffer for better performance.
-func GetBuffer() *[]byte {
-	return mediumPool.Get().(*[]byte)
-}
-
 // PutSizedBuffer returns a buffer to the correct pool based on its capacity.
 // Do not use the slice after calling this function.
 func PutSizedBuffer(b *[]byte) {
@@ -77,14 +71,5 @@ func PutSizedBuffer(b *[]byte) {
 		largePool.Put(b)
 	case hugeBufferSize:
 		hugePool.Put(b)
-	}
-}
-
-// PutBuffer returns a buffer to the pool (assumes mediumBufferSize).
-// Deprecated: Use PutSizedBuffer for better performance.
-func PutBuffer(b *[]byte) {
-	if b != nil {
-		*b = (*b)[:0]
-		mediumPool.Put(b)
 	}
 }

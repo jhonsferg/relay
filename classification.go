@@ -71,8 +71,17 @@ func ClassifyError(err error, resp *Response) ErrorClass {
 	if errors.Is(err, ErrCircuitOpen) ||
 		errors.Is(err, ErrMaxRetriesReached) ||
 		errors.Is(err, ErrTimeout) ||
-		errors.Is(err, ErrRateLimitExceeded) {
+		errors.Is(err, ErrRateLimitExceeded) ||
+		errors.Is(err, ErrBulkheadFull) ||
+		errors.Is(err, ErrRetryBudgetExhausted) {
 		return ErrorClassTransient
+	}
+
+	// Client-level permanent conditions: retrying will not help.
+	if errors.Is(err, ErrClientClosed) ||
+		errors.Is(err, ErrCertificatePinMismatch) ||
+		errors.Is(err, ErrNilRequest) {
+		return ErrorClassPermanent
 	}
 
 	// Network-level errors (connection refused, DNS failure, etc.) are transient.

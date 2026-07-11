@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"sync"
+	"sync/atomic"
 )
 
 // Priority represents the urgency level of a request. Higher values indicate
@@ -38,7 +39,7 @@ type priorityQueue struct {
 	items    []*priorityItem
 	sequence uint64
 	mu       sync.Mutex
-	closed   bool
+	closed   atomic.Bool
 }
 
 // newPriorityQueue creates a new empty priority queue.
@@ -82,8 +83,10 @@ func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, prior
 		notify:   notify,
 	}
 
+	// Fast check without lock for the common case (queue not closed).
+	// The mutex is still needed for the push below.
 	pq.mu.Lock()
-	if pq.closed {
+	if pq.closed.Load() {
 		pq.mu.Unlock()
 		return ErrClientClosed
 	}
@@ -96,6 +99,9 @@ func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, prior
 	// Wait for either dequeue notification or context cancellation.
 	select {
 	case <-notify:
+		if pq.closed.Load() {
+			return ErrClientClosed
+		}
 		return nil
 	case <-ctx.Done():
 		pq.mu.Lock()
@@ -125,12 +131,13 @@ func (pq *priorityQueue) removeItem(target *priorityItem) bool {
 }
 
 // DequeueNext dequeues and returns the highest-priority request from the queue.
-// Notifies the waiting request so it can proceed.
+// Notifies the waiting request so it can proceed. Returns nil immediately
+// when the queue is closed or empty.
 func (pq *priorityQueue) DequeueNext() (*Request, Priority) {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
 
-	if len(pq.items) == 0 {
+	if pq.closed.Load() || len(pq.items) == 0 {
 		return nil, PriorityNormal
 	}
 
@@ -147,11 +154,17 @@ func (pq *priorityQueue) Size() int {
 	return len(pq.items)
 }
 
-// Close marks the queue as closed, causing new EnqueueAndWait calls to fail.
+// Close marks the queue as closed, causes new EnqueueAndWait calls to fail,
+// and notifies all blocked waiters so they can unblock and return
+// ErrClientClosed. This ensures Shutdown does not hang on queued requests.
 func (pq *priorityQueue) Close() {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
-	pq.closed = true
+	pq.closed.Store(true)
+	for _, item := range pq.items {
+		close(item.notify)
+	}
+	pq.items = nil
 }
 
 // Implement container/heap.Interface

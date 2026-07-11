@@ -213,14 +213,11 @@ func TestDNSCache_DialContextIPLiteral(t *testing.T) {
 
 func TestDNSCache_DialContextCachedHostname(t *testing.T) {
 	t.Parallel()
-	// Make a real request to localhost, which forces the DialContext code path
-	// including the DNS lookup + caching + pre-joined address connection.
 	srv := testutil.NewMockServer()
 	t.Cleanup(srv.Close)
 	for i := 0; i < 3; i++ {
 		srv.Enqueue(testutil.MockResponse{Status: 200})
 	}
-	// WithDNSCache will route through cachedDialer.DialContext for hostname resolution.
 	c := New(WithDNSCache(30*time.Second), WithDisableRetry(), WithDisableCircuitBreaker())
 	for i := 0; i < 3; i++ {
 		resp, err := c.Execute(c.Get(srv.URL() + "/"))
@@ -230,5 +227,68 @@ func TestDNSCache_DialContextCachedHostname(t *testing.T) {
 		if resp.StatusCode != 200 {
 			t.Errorf("request %d: status = %d", i, resp.StatusCode)
 		}
+	}
+}
+
+// ── retry.go: newRetrier(nil) ────────────────────────────────────────────────
+
+func TestNewRetrier_NilConfig(t *testing.T) {
+	t.Parallel()
+	r := newRetrier(nil)
+	if r == nil {
+		t.Fatal("newRetrier(nil) should not return nil")
+	}
+	if r.cfg == nil {
+		t.Error("newRetrier(nil) should set default config")
+	}
+	if r.cfg.MaxAttempts != 3 {
+		t.Errorf("MaxAttempts = %d, want 3", r.cfg.MaxAttempts)
+	}
+}
+
+func TestNewRetrier_ZeroAttempts(t *testing.T) {
+	t.Parallel()
+	r := newRetrier(&RetryConfig{MaxAttempts: 0})
+	if r.cfg.MaxAttempts != 1 {
+		t.Errorf("MaxAttempts = %d, want 1 (clamped)", r.cfg.MaxAttempts)
+	}
+}
+
+// ── request.go: sanitizeHeaderValue dirty path ──────────────────────────────
+
+func TestSanitizeHeaderValue_WithCRLF(t *testing.T) {
+	t.Parallel()
+	got := sanitizeHeaderValue("hello\r\nworld")
+	if got != "helloworld" {
+		t.Errorf("sanitizeHeaderValue = %q, want %q", got, "helloworld")
+	}
+}
+
+func TestSanitizeHeaderValue_Clean(t *testing.T) {
+	t.Parallel()
+	got := sanitizeHeaderValue("hello world")
+	if got != "hello world" {
+		t.Errorf("sanitizeHeaderValue should return clean input unchanged, got %q", got)
+	}
+}
+
+func TestSanitizeHeaderValue_Mixed(t *testing.T) {
+	t.Parallel()
+	got := sanitizeHeaderValue("foo\r\nbar\nbaz\rqux")
+	if got != "foobarbazqux" {
+		t.Errorf("sanitizeHeaderValue = %q, want %q", got, "foobarbazqux")
+	}
+}
+
+// ── retry.go: isRetryableErr edge cases ─────────────────────────────────────
+
+func TestRetryIsRetryableErr_Canceled(t *testing.T) {
+	t.Parallel()
+	r := newRetrier(nil)
+	if r.isRetryableErr(context.Canceled) {
+		t.Error("Canceled should NOT be retryable")
+	}
+	if r.isRetryableErr(context.DeadlineExceeded) {
+		t.Error("DeadlineExceeded should NOT be retryable")
 	}
 }

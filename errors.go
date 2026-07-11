@@ -54,7 +54,7 @@ func (e *HTTPError) Error() string {
 	if len(body) > maxBodyInMsg {
 		body = body[:maxBodyInMsg]
 	}
-	return fmt.Sprintf("http error: status=%d body=%s", e.StatusCode, string(body))
+	return fmt.Sprintf("http error: status=%d body=%s", e.StatusCode, body)
 }
 
 // IsHTTPError reports whether err (or any error in its chain) is an *HTTPError

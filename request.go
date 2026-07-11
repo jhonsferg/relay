@@ -265,9 +265,14 @@ func sanitizeHeaderValue(v string) string {
 	if !strings.ContainsAny(v, "\r\n") {
 		return v
 	}
-	v = strings.ReplaceAll(v, "\r", "")
-	v = strings.ReplaceAll(v, "\n", "")
-	return v
+	var b strings.Builder
+	b.Grow(len(v))
+	for i := 0; i < len(v); i++ {
+		if v[i] != '\r' && v[i] != '\n' {
+			b.WriteByte(v[i])
+		}
+	}
+	return b.String()
 }
 
 // initQuery lazily allocates the query map on first write.
@@ -440,10 +445,22 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 // header injection) and escapes double-quote characters so the value is safe
 // to embed in a quoted Content-Disposition parameter.
 func sanitizeMIMEParam(s string) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.ReplaceAll(s, "\n", "")
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	return s
+	if !strings.ContainsAny(s, "\r\n\"") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\r', '\n':
+			// strip
+		case '"':
+			b.WriteString(`\"`)
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
 // WithBearerToken sets the Authorization header to "Bearer <token>".
@@ -565,19 +582,31 @@ func (r *Request) withCtx(ctx context.Context) *Request {
 }
 
 // applyPathParams substitutes every {key} placeholder in rawURL with its
-// corresponding percent-encoded value from pathParams.
+// corresponding percent-encoded value from pathParams in a single pass.
 func (r *Request) applyPathParams(rawURL string) string {
 	if len(r.pathParams) == 0 {
 		return rawURL
 	}
 
-	// Build placeholders map to avoid allocating "{key}" string in each iteration.
-	result := rawURL
-	for k, v := range r.pathParams {
-		placeholder := "{" + k + "}"
-		result = strings.ReplaceAll(result, placeholder, url.PathEscape(v))
+	var b strings.Builder
+	b.Grow(len(rawURL))
+	i := 0
+	for i < len(rawURL) {
+		if rawURL[i] == '{' {
+			end := strings.IndexByte(rawURL[i+1:], '}')
+			if end >= 0 {
+				key := rawURL[i+1 : i+1+end]
+				if val, ok := r.pathParams[key]; ok {
+					b.WriteString(url.PathEscape(val))
+					i += 2 + end // skip past '{key}'
+					continue
+				}
+			}
+		}
+		b.WriteByte(rawURL[i])
+		i++
 	}
-	return result
+	return b.String()
 }
 
 // build constructs the stdlib *http.Request from this builder's state.
@@ -619,7 +648,7 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 		switch normalisationMode {
 		case NormalisationAuto:
 			// Intelligent detection: RFC 3986 for host-only, safe for APIs
-			useRFC3986 = parsedBaseURL != nil && !isAPIBase(baseURL)
+			useRFC3986 = parsedBaseURL != nil && !isAPIBaseParsed(parsedBaseURL)
 		case NormalisationRFC3986:
 			// Force RFC 3986 (requires parsed URL)
 			useRFC3986 = parsedBaseURL != nil

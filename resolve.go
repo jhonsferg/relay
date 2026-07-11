@@ -50,7 +50,7 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 	}
 
 	// Determine if this is an API base URL
-	isAPIBase := isAPIBase(baseURL)
+	isAPIBase := parsedBaseURL != nil && isAPIBaseParsed(parsedBaseURL)
 
 	// Determine the strategy that would be used
 	var strategyUsed string
@@ -85,7 +85,7 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 	} else {
 		// Use safe string normalisation (preserves base path)
 		// Ensure base URL ends with / and relative path doesn't start with /
-		if !endsWith(baseURL, "/") {
+		if len(baseURL) == 0 || baseURL[len(baseURL)-1] != '/' {
 			baseURL += "/"
 		}
 		// Remove leading slash from relative path to avoid double slashes
@@ -107,10 +107,4 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 		Strategy:  strategyUsed,
 		IsAPI:     isAPIBase,
 	}
-}
-
-// Helper function to check if a string ends with a suffix
-// (avoids importing strings package if not already used elsewhere)
-func endsWith(s, suffix string) bool {
-	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
 }
