@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/compress
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/jhonsferg/relay v0.4.3
@@ -10,5 +10,5 @@ require (
 require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	golang.org/x/net v0.50.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 )
