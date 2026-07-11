@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/brotli
 go 1.25.0
 
 require (
-	github.com/andybalholm/brotli v1.2.1
+	github.com/andybalholm/brotli v1.2.2
 	github.com/jhonsferg/relay v0.1.1
 )
 
