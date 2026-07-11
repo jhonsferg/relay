@@ -415,6 +415,7 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 	var timingCol *timingCollector
 	if !c.config.DisableTiming {
 		ctx, timingCol = injectTraceContext(ctx)
+		defer putTimingCollector(timingCol)
 	}
 
 	// Update the cloned request's stored context in-place (zero allocation)
