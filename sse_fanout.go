@@ -8,6 +8,13 @@ import (
 
 const defaultFanOutBufferSize = 64
 
+// subscriber wraps a channel with a closed flag to prevent double-close
+// races between dispatch and Unsubscribe.
+type subscriber struct {
+	ch     chan SSEEvent
+	closed bool
+}
+
 // SSEFanOut connects to a single SSE stream and multiplexes events to
 // multiple concurrent subscribers. Only one upstream HTTP connection is
 // maintained regardless of how many subscribers are active.
@@ -37,7 +44,7 @@ type SSEFanOut struct {
 	bufferSize int
 
 	mu          sync.RWMutex
-	subscribers map[<-chan SSEEvent]chan SSEEvent
+	subscribers map[<-chan SSEEvent]*subscriber
 
 	stopOnce sync.Once
 	stopCh   chan struct{}
@@ -54,7 +61,7 @@ func NewSSEFanOut(client *Client, req *Request, bufferSize int) *SSEFanOut {
 		client:      client,
 		req:         req,
 		bufferSize:  bufferSize,
-		subscribers: make(map[<-chan SSEEvent]chan SSEEvent),
+		subscribers: make(map[<-chan SSEEvent]*subscriber),
 		stopCh:      make(chan struct{}),
 	}
 }
@@ -65,7 +72,7 @@ func NewSSEFanOut(client *Client, req *Request, bufferSize int) *SSEFanOut {
 func (f *SSEFanOut) Subscribe() <-chan SSEEvent {
 	ch := make(chan SSEEvent, f.bufferSize)
 	f.mu.Lock()
-	f.subscribers[ch] = ch
+	f.subscribers[ch] = &subscriber{ch: ch}
 	f.mu.Unlock()
 	return ch
 }
@@ -75,9 +82,10 @@ func (f *SSEFanOut) Subscribe() <-chan SSEEvent {
 func (f *SSEFanOut) Unsubscribe(ch <-chan SSEEvent) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if bidi, ok := f.subscribers[ch]; ok {
+	if sub, ok := f.subscribers[ch]; ok && !sub.closed {
+		sub.closed = true
 		delete(f.subscribers, ch)
-		close(bidi)
+		close(sub.ch)
 	}
 }
 
@@ -172,14 +180,14 @@ func (f *SSEFanOut) Stop() {
 // dispatch sends ev to every subscriber using a non-blocking send. Subscribers
 // whose buffer is full are collected and removed after the broadcast.
 func (f *SSEFanOut) dispatch(ev SSEEvent) {
-	var toDrop []chan SSEEvent
+	var toDrop []*subscriber
 
 	f.mu.RLock()
-	for _, ch := range f.subscribers {
+	for _, sub := range f.subscribers {
 		select {
-		case ch <- ev:
+		case sub.ch <- ev:
 		default:
-			toDrop = append(toDrop, ch)
+			toDrop = append(toDrop, sub)
 		}
 	}
 	f.mu.RUnlock()
@@ -189,10 +197,11 @@ func (f *SSEFanOut) dispatch(ev SSEEvent) {
 	}
 
 	f.mu.Lock()
-	for _, ch := range toDrop {
-		if _, ok := f.subscribers[ch]; ok {
-			delete(f.subscribers, ch)
-			close(ch)
+	for _, sub := range toDrop {
+		if !sub.closed {
+			sub.closed = true
+			delete(f.subscribers, sub.ch)
+			close(sub.ch)
 		}
 	}
 	f.mu.Unlock()
@@ -203,8 +212,11 @@ func (f *SSEFanOut) dispatch(ev SSEEvent) {
 func (f *SSEFanOut) closeAll() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for key, ch := range f.subscribers {
+	for key, sub := range f.subscribers {
+		if !sub.closed {
+			sub.closed = true
+			close(sub.ch)
+		}
 		delete(f.subscribers, key)
-		close(ch)
 	}
 }
