@@ -265,9 +265,14 @@ func sanitizeHeaderValue(v string) string {
 	if !strings.ContainsAny(v, "\r\n") {
 		return v
 	}
-	v = strings.ReplaceAll(v, "\r", "")
-	v = strings.ReplaceAll(v, "\n", "")
-	return v
+	var b strings.Builder
+	b.Grow(len(v))
+	for i := 0; i < len(v); i++ {
+		if v[i] != '\r' && v[i] != '\n' {
+			b.WriteByte(v[i])
+		}
+	}
+	return b.String()
 }
 
 // initQuery lazily allocates the query map on first write.
@@ -440,10 +445,22 @@ func (r *Request) WithMultipart(fields []MultipartField) *Request {
 // header injection) and escapes double-quote characters so the value is safe
 // to embed in a quoted Content-Disposition parameter.
 func sanitizeMIMEParam(s string) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	s = strings.ReplaceAll(s, "\n", "")
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	return s
+	if !strings.ContainsAny(s, "\r\n\"") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\r', '\n':
+			// strip
+		case '"':
+			b.WriteString(`\"`)
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
 // WithBearerToken sets the Authorization header to "Bearer <token>".
