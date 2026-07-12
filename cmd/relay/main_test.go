@@ -215,11 +215,11 @@ func TestWriteHeadersFile(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "headers.txt")
-	if err := writeHeadersFile(resp, path); err != nil {
-		t.Fatalf("writeHeadersFile: %v", err)
+	if writeErr := writeHeadersFile(resp, path); writeErr != nil {
+		t.Fatalf("writeHeadersFile: %v", writeErr)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is a test-controlled temp file
 	if err != nil {
 		t.Fatal(err)
 	}
