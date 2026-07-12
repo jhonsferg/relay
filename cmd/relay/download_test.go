@@ -97,7 +97,7 @@ func TestFileCookieJarSetAndCookies(t *testing.T) {
 	}
 
 	u, _ := url.Parse("https://example.com/")
-	cookies := []*http.Cookie{{Name: "session", Value: "abc123"}}
+	cookies := []*http.Cookie{{Name: "session", Value: "abc123", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode}}
 	jar.SetCookies(u, cookies)
 
 	got := jar.Cookies(u)
@@ -117,15 +117,15 @@ func TestFileCookieJarSaveAndLoad(t *testing.T) {
 
 	u, _ := url.Parse("https://example.com/")
 	jar.SetCookies(u, []*http.Cookie{
-		{Name: "session", Value: "abc123", Secure: true},
-		{Name: "plain", Value: "xyz", Domain: ".example.com"},
+		{Name: "session", Value: "abc123", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode},
+		{Name: "plain", Value: "xyz", Domain: ".example.com", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode},
 	})
 
-	if err := jar.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
+	if saveErr := jar.Save(); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is a test-controlled temp file
 	if err != nil {
 		t.Fatalf("reading saved cookie file: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestDownloadOne(t *testing.T) {
 		t.Fatalf("downloadOne: %v", err)
 	}
 
-	got, err := os.ReadFile(outPath)
+	got, err := os.ReadFile(outPath) // #nosec G304 -- outPath is a test-controlled temp file
 	if err != nil {
 		t.Fatalf("reading downloaded file: %v", err)
 	}
