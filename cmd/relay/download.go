@@ -62,9 +62,9 @@ func downloadAll(ctx context.Context, client *relay.Client, urls []string, cfg d
 	return nil
 }
 
-// downloadOne downloads a single URL and saves it to disk.
-func downloadOne(ctx context.Context, client *relay.Client, rawURL string, cfg downloadConfig) error {
-	// HEAD first to get Content-Disposition without downloading the body.
+// resolveDownloadPath determines the output path and Content-Disposition
+// (via an optional HEAD request) for a single download.
+func resolveDownloadPath(ctx context.Context, client *relay.Client, rawURL string, cfg downloadConfig) string {
 	var contentDisp string
 	if cfg.remoteNames {
 		headReq := client.Head(rawURL).WithContext(ctx).WithTimeout(10 * time.Second)
@@ -74,24 +74,46 @@ func downloadOne(ctx context.Context, client *relay.Client, rawURL string, cfg d
 		}
 	}
 
-	outPath := cfg.outPath
-	if cfg.remoteNames || (outPath == "" && len([]string{rawURL}) == 0) {
-		outPath = autoFilename(rawURL, contentDisp)
+	if cfg.remoteNames || cfg.outPath == "" {
+		return autoFilename(rawURL, contentDisp)
 	}
-	if outPath == "" {
-		outPath = autoFilename(rawURL, contentDisp)
-	}
+	return cfg.outPath
+}
 
-	// Determine resume offset.
-	var offset int64
-	if cfg.resume {
-		if info, err := os.Stat(outPath); err == nil {
-			offset = info.Size()
-			if !cfg.quiet {
-				fmt.Fprintf(os.Stderr, "resuming %s from %s\n", outPath, formatBytes(offset))
-			}
-		}
+// resumeOffset returns the byte offset to resume from if cfg.resume is set
+// and outPath already exists on disk, printing a status line unless quiet.
+func resumeOffset(outPath string, cfg downloadConfig) int64 {
+	if !cfg.resume {
+		return 0
 	}
+	info, err := os.Stat(outPath)
+	if err != nil {
+		return 0
+	}
+	offset := info.Size()
+	if !cfg.quiet {
+		fmt.Fprintf(os.Stderr, "resuming %s from %s\n", outPath, formatBytes(offset))
+	}
+	return offset
+}
+
+// openDownloadFile opens outPath for writing, appending if the server
+// confirmed the resume via HTTP 206; otherwise it (re)creates the file and
+// resets offset to 0.
+func openDownloadFile(outPath string, offset int64, statusCode int) (*os.File, int64, error) {
+	if offset > 0 && statusCode == http.StatusPartialContent {
+		f, err := os.OpenFile(outPath, os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304
+		return f, offset, err
+	}
+	// server sent 200 instead of 206 - start over
+	f, err := os.Create(outPath) // #nosec G304
+	return f, 0, err
+}
+
+// downloadOne downloads a single URL and saves it to disk.
+func downloadOne(ctx context.Context, client *relay.Client, rawURL string, cfg downloadConfig) error {
+	outPath := resolveDownloadPath(ctx, client, rawURL, cfg)
+	offset := resumeOffset(outPath, cfg)
 
 	req := client.Get(rawURL)
 	if offset > 0 {
@@ -115,14 +137,7 @@ func downloadOne(ctx context.Context, client *relay.Client, rawURL string, cfg d
 	// Parse total size from Content-Length or Content-Range.
 	total := parseContentLength(stream.Headers, offset)
 
-	// Open the output file.
-	var f *os.File
-	if offset > 0 && stream.StatusCode == http.StatusPartialContent {
-		f, err = os.OpenFile(outPath, os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304
-	} else {
-		offset = 0                  // server sent 200 instead of 206 - start over
-		f, err = os.Create(outPath) // #nosec G304
-	}
+	f, offset, err := openDownloadFile(outPath, offset, stream.StatusCode)
 	if err != nil {
 		return err
 	}
