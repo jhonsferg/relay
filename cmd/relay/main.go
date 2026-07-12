@@ -223,23 +223,7 @@ func buildOptions(
 	}
 
 	if retryMax > 0 {
-		rc := &relay.RetryConfig{
-			MaxAttempts:     retryMax + 1,
-			InitialInterval: retryInterval,
-			MaxInterval:     30 * time.Second,
-			Multiplier:      2.0,
-			RandomFactor:    0.3,
-		}
-		if retryVerbose {
-			rc.OnRetry = func(attempt int, resp *http.Response, err error) {
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "retry #%d: %v\n", attempt, err)
-				} else {
-					fmt.Fprintf(os.Stderr, "retry #%d: HTTP %d\n", attempt, resp.StatusCode)
-				}
-			}
-		}
-		opts = append(opts, relay.WithRetry(rc))
+		opts = append(opts, relay.WithRetry(buildRetryConfig(retryMax, retryInterval, retryVerbose)))
 	}
 
 	if rateLimit > 0 {
@@ -251,17 +235,69 @@ func buildOptions(
 	}
 
 	if cbEnable {
-		opts = append(opts, relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
-			MaxFailures:      cbFailures,
-			ResetTimeout:     10 * time.Second,
-			HalfOpenRequests: 2,
-			SuccessThreshold: 1,
-			OnStateChange: func(from, to relay.CircuitBreakerState) {
-				fmt.Fprintf(os.Stderr, "circuit breaker: %s → %s\n", from, to)
-			},
-		}))
+		opts = append(opts, relay.WithCircuitBreaker(buildCircuitBreakerConfig(cbFailures)))
 	}
 
+	if defHeaders := buildAuthHeaders(user, token, apiKey, cookies); len(defHeaders) > 0 {
+		opts = append(opts, relay.WithDefaultHeaders(defHeaders))
+	}
+
+	var jar *fileCookieJar
+	if cookieJarPath != "" {
+		var err error
+		jar, err = newFileCookieJar(cookieJarPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: cookie jar: %v\n", err)
+		} else {
+			opts = append(opts, relay.WithCookieJar(jar))
+		}
+	}
+
+	if verbose && !silent {
+		opts = append(opts, buildVerboseHookOptions()...)
+	}
+
+	return opts, jar
+}
+
+// buildRetryConfig assembles the *relay.RetryConfig for -retry / -retry-delay
+// / -retry-verbose.
+func buildRetryConfig(retryMax int, retryInterval time.Duration, retryVerbose bool) *relay.RetryConfig {
+	rc := &relay.RetryConfig{
+		MaxAttempts:     retryMax + 1,
+		InitialInterval: retryInterval,
+		MaxInterval:     30 * time.Second,
+		Multiplier:      2.0,
+		RandomFactor:    0.3,
+	}
+	if retryVerbose {
+		rc.OnRetry = func(attempt int, resp *http.Response, err error) {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "retry #%d: %v\n", attempt, err)
+			} else {
+				fmt.Fprintf(os.Stderr, "retry #%d: HTTP %d\n", attempt, resp.StatusCode)
+			}
+		}
+	}
+	return rc
+}
+
+// buildCircuitBreakerConfig assembles the *relay.CircuitBreakerConfig for -cb
+// / -cb-failures.
+func buildCircuitBreakerConfig(cbFailures int) *relay.CircuitBreakerConfig {
+	return &relay.CircuitBreakerConfig{
+		MaxFailures:      cbFailures,
+		ResetTimeout:     10 * time.Second,
+		HalfOpenRequests: 2,
+		SuccessThreshold: 1,
+		OnStateChange: func(from, to relay.CircuitBreakerState) {
+			fmt.Fprintf(os.Stderr, "circuit breaker: %s → %s\n", from, to)
+		},
+	}
+}
+
+// buildAuthHeaders assembles the default headers driven by -u / -t / -k / -b.
+func buildAuthHeaders(user, token, apiKey, cookies string) map[string]string {
 	defHeaders := map[string]string{}
 	if user != "" {
 		username, password, _ := strings.Cut(user, ":")
@@ -279,41 +315,28 @@ func buildOptions(
 	if cookies != "" {
 		defHeaders["Cookie"] = cookies
 	}
-	if len(defHeaders) > 0 {
-		opts = append(opts, relay.WithDefaultHeaders(defHeaders))
-	}
+	return defHeaders
+}
 
-	var jar *fileCookieJar
-	if cookieJarPath != "" {
-		var err error
-		jar, err = newFileCookieJar(cookieJarPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: cookie jar: %v\n", err)
-		} else {
-			opts = append(opts, relay.WithCookieJar(jar))
-		}
-	}
-
-	if verbose && !silent {
-		opts = append(opts,
-			relay.WithOnBeforeRequest(func(_ context.Context, r *relay.Request) error {
-				fmt.Fprintf(os.Stderr, "> %s %s\n", r.Method(), r.URL())
-				return nil
-			}),
-			relay.WithOnAfterResponse(func(_ context.Context, r *relay.Response) error {
-				fmt.Fprintf(os.Stderr, "< %s\n", r.Status)
-				for _, k := range sortedKeys(r.Headers) {
-					for _, v := range r.Headers[k] {
-						fmt.Fprintf(os.Stderr, "< %s: %s\n", k, v)
-					}
+// buildVerboseHookOptions returns the before-request/after-response hooks
+// used to print "> "/"< " trace lines for -v.
+func buildVerboseHookOptions() []relay.Option {
+	return []relay.Option{
+		relay.WithOnBeforeRequest(func(_ context.Context, r *relay.Request) error {
+			fmt.Fprintf(os.Stderr, "> %s %s\n", r.Method(), r.URL())
+			return nil
+		}),
+		relay.WithOnAfterResponse(func(_ context.Context, r *relay.Response) error {
+			fmt.Fprintf(os.Stderr, "< %s\n", r.Status)
+			for _, k := range sortedKeys(r.Headers) {
+				for _, v := range r.Headers[k] {
+					fmt.Fprintf(os.Stderr, "< %s: %s\n", k, v)
 				}
-				fmt.Fprintln(os.Stderr)
-				return nil
-			}),
-		)
+			}
+			fmt.Fprintln(os.Stderr)
+			return nil
+		}),
 	}
-
-	return opts, jar
 }
 
 // buildRequest constructs a *relay.Request from the parsed CLI flags.
