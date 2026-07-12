@@ -49,31 +49,40 @@ func (c ErrorClass) String() string {
 //	}
 func ClassifyError(err error, resp *Response) ErrorClass {
 	if err == nil {
-		if resp == nil || resp.IsSuccess() {
-			return ErrorClassNone
-		}
-		if resp.StatusCode == 429 {
-			return ErrorClassRateLimited
-		}
-		if resp.IsServerError() {
-			return ErrorClassTransient
-		}
-		if resp.IsClientError() {
-			return ErrorClassPermanent
-		}
+		return classifyFromResponse(resp)
 	}
+	return classifyFromError(err)
+}
 
+// classifyFromResponse handles the err == nil path: classification based
+// purely on the HTTP response status.
+func classifyFromResponse(resp *Response) ErrorClass {
+	if resp == nil || resp.IsSuccess() {
+		return ErrorClassNone
+	}
+	switch {
+	case resp.StatusCode == 429:
+		return ErrorClassRateLimited
+	case resp.IsServerError():
+		return ErrorClassTransient
+	case resp.IsClientError():
+		return ErrorClassPermanent
+	default:
+		// Non-success status outside 4xx/5xx (e.g. an unexpected 3xx that
+		// slipped through) - matches the original fallthrough behaviour of
+		// treating unclassified conditions as transient.
+		return ErrorClassTransient
+	}
+}
+
+// classifyFromError handles the err != nil path: classification based on
+// well-known sentinel errors, network errors, and typed HTTP errors.
+func classifyFromError(err error) ErrorClass {
 	if errors.Is(err, context.Canceled) {
 		return ErrorClassCanceled
 	}
 
-	// Well-known client-side transient conditions.
-	if errors.Is(err, ErrCircuitOpen) ||
-		errors.Is(err, ErrMaxRetriesReached) ||
-		errors.Is(err, ErrTimeout) ||
-		errors.Is(err, ErrRateLimitExceeded) ||
-		errors.Is(err, ErrBulkheadFull) ||
-		errors.Is(err, ErrRetryBudgetExhausted) {
+	if isKnownTransientError(err) {
 		return ErrorClassTransient
 	}
 
@@ -91,20 +100,42 @@ func ClassifyError(err error, resp *Response) ErrorClass {
 	}
 
 	// Typed HTTP errors from AsHTTPError / IsHTTPError.
-	if httpErr, ok := IsHTTPError(err); ok {
-		if httpErr.StatusCode == 429 {
-			return ErrorClassRateLimited
-		}
-		if httpErr.StatusCode >= 500 {
-			return ErrorClassTransient
-		}
-		if httpErr.StatusCode >= 400 {
-			return ErrorClassPermanent
-		}
+	if class, ok := classifyHTTPError(err); ok {
+		return class
 	}
 
 	// Default: treat unknown errors as transient.
 	return ErrorClassTransient
+}
+
+// isKnownTransientError reports whether err is one of the well-known
+// client-side sentinel errors that are always safe to retry.
+func isKnownTransientError(err error) bool {
+	return errors.Is(err, ErrCircuitOpen) ||
+		errors.Is(err, ErrMaxRetriesReached) ||
+		errors.Is(err, ErrTimeout) ||
+		errors.Is(err, ErrRateLimitExceeded) ||
+		errors.Is(err, ErrBulkheadFull) ||
+		errors.Is(err, ErrRetryBudgetExhausted)
+}
+
+// classifyHTTPError classifies a typed HTTP error (from AsHTTPError /
+// IsHTTPError) by its status code. ok is false if err is not an HTTPError.
+func classifyHTTPError(err error) (class ErrorClass, ok bool) {
+	httpErr, isHTTPErr := IsHTTPError(err)
+	if !isHTTPErr {
+		return ErrorClassNone, false
+	}
+	switch {
+	case httpErr.StatusCode == 429:
+		return ErrorClassRateLimited, true
+	case httpErr.StatusCode >= 500:
+		return ErrorClassTransient, true
+	case httpErr.StatusCode >= 400:
+		return ErrorClassPermanent, true
+	default:
+		return ErrorClassNone, false
+	}
 }
 
 // IsTransientError reports whether the error may succeed on a subsequent call.
