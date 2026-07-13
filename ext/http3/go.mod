@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/http3
 go 1.25.0
 
 require (
-	github.com/jhonsferg/relay v0.4.3
+	github.com/jhonsferg/relay v0.4.8
 	github.com/quic-go/quic-go v0.60.0
 )
 
