@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/zap
 go 1.25.0
 
 require (
-	github.com/jhonsferg/relay v0.4.3
+	github.com/jhonsferg/relay v0.4.8
 	go.uber.org/zap v1.28.0
 )
 
