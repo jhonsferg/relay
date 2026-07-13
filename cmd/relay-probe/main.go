@@ -120,6 +120,13 @@ func newProbeClient(url string, timeout time.Duration, retries int, cbEnable, ve
 			MaxInterval:     5 * time.Second,
 			Multiplier:      2.0,
 			RandomFactor:    0.2,
+			RetryableStatus: []int{
+				http.StatusTooManyRequests,
+				http.StatusInternalServerError,
+				http.StatusBadGateway,
+				http.StatusServiceUnavailable,
+				http.StatusGatewayTimeout,
+			},
 		}
 		if verbose {
 			rc.OnRetry = func(attempt int, resp *http.Response, err error) {
