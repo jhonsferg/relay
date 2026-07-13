@@ -59,7 +59,12 @@ func TestAllow_ExceedsLimit(t *testing.T) {
 }
 
 func TestAllow_WindowExpiry(t *testing.T) {
-	mr, rdb := newRedis(t)
+	// The sliding-window script keys off a timestamp computed client-side
+	// (time.Now(), see RateLimiter.Allow), not Redis server time. miniredis's
+	// FastForward only advances its internal TTL clock and has no effect on
+	// that client-supplied timestamp, so the window must be crossed with a
+	// real sleep rather than a simulated one.
+	_, rdb := newRedis(t)
 	limiter := relaydist.New(rdb, "rl:expiry", 2, 100*time.Millisecond)
 
 	ctx := context.Background()
@@ -71,8 +76,8 @@ func TestAllow_WindowExpiry(t *testing.T) {
 		t.Fatalf("expected ErrRateLimited before window expiry, got %v", err)
 	}
 
-	// Fast-forward past the window.
-	mr.FastForward(150 * time.Millisecond)
+	// Sleep past the window using the real clock.
+	time.Sleep(150 * time.Millisecond)
 
 	// Window has reset - should be allowed again.
 	if err := limiter.Allow(ctx); err != nil {
