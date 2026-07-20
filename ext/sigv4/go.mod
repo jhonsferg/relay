@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.42.1
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.28
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.29
 	github.com/jhonsferg/relay v0.4.3
 )
 
