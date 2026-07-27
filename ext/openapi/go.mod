@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/openapi
 go 1.25.0
 
 require (
-	github.com/getkin/kin-openapi v0.142.0
+	github.com/getkin/kin-openapi v0.145.0
 	github.com/jhonsferg/relay v0.4.3
 )
 
