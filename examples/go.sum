@@ -33,8 +33,8 @@ github.com/jhonsferg/relay/ext/tracing v0.2.2 h1:IlQFaQWpNWzpW+GpqWWGfrs5uSP+3K3
 github.com/jhonsferg/relay/ext/tracing v0.2.2/go.mod h1:8StmY62JpmCU5kxoppEruljRSLbcOoSrOpUuzYGpVtQ=
 github.com/jhonsferg/relay/ext/zap v0.1.2 h1:rL6uViyokselpP5LxrR9ovPrlUaFTTUMXGxn5cL866c=
 github.com/jhonsferg/relay/ext/zap v0.1.2/go.mod h1:jMSQBvzh10BX9sZ9p2xs7F9v0IktPsEodxxhgCkaUjo=
-github.com/klauspost/compress v1.19.0 h1:sXLILfc9jV2QYWkzFOPWStmcUVH2RHEB1JCdY2oVvCQ=
-github.com/klauspost/compress v1.19.0/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
+github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
+github.com/klauspost/compress v1.19.1/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/klauspost/cpuid/v2 v2.2.10 h1:tBs3QSyvjDyFTq3uoc/9xFpCuOsJQFNPiAhYdw2skhE=
 github.com/klauspost/cpuid/v2 v2.2.10/go.mod h1:hqwkgyIinND0mEev00jJYCxPNVRVXFQeu1XKlok6oO0=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
