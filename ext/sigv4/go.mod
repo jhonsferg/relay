@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/sigv4
 go 1.25.0
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.42.1
+	github.com/aws/aws-sdk-go-v2 v1.43.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.28
 	github.com/jhonsferg/relay v0.4.3
 )
