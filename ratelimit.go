@@ -57,6 +57,17 @@ func newTokenBucket(rps float64, burst int) *tokenBucket {
 	if ratePerUs < 1 {
 		ratePerUs = 1 // guard against very low rates (< 0.001 req/s)
 	}
+	if burst < 1 {
+		// A bucket must hold at least 1 token's worth of capacity to ever
+		// dispatch a request. Burst <= 0 (zero value if the caller forgets
+		// to set it, or an explicit "no burst" attempt) previously made
+		// maxNanoBurst 0, and refill() clamps nanoTokens back down to
+		// maxNanoBurst on every call - tokens could never accumulate to the
+		// 1-token threshold Wait/TryAcquire require, so the limiter
+		// deadlocked (Wait blocked until ctx was done; TryAcquire always
+		// returned false) regardless of RequestsPerSecond.
+		burst = 1
+	}
 	maxNano := int64(burst) * nanoTokensPerToken
 	return &tokenBucket{
 		nanoTokens:   maxNano,
