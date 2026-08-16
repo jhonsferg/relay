@@ -128,12 +128,21 @@ func BenchmarkMemoryStress_Relay(b *testing.B) {
 	server := SetupHeavyServer(100000)
 	defer server.Close()
 
-	relayClient := relay.New(relay.WithBaseURL(server.URL))
+	// 100k records is ~14MB, above the 10MB default MaxResponseBodyBytes -
+	// WithMaxResponseBodyBytes(0) removes the cap so this measures a real,
+	// fully-decoded response instead of a silently truncated one.
+	relayClient := relay.New(relay.WithBaseURL(server.URL), relay.WithMaxResponseBodyBytes(0))
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		if err != nil {
+			b.Fatalf("ExecuteAs failed: %v", err)
+		}
+		if data.Total != 100000 {
+			b.Fatalf("data mismatch: expected 100000, got %d", data.Total)
+		}
 
 		if i%10 == 0 {
 			runtime.GC()
@@ -161,7 +170,14 @@ func BenchmarkSmallPayload_Parallel_Relay(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+			data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+			if err != nil {
+				b.Errorf("ExecuteAs failed: %v", err)
+				continue
+			}
+			if data.Total != 1 {
+				b.Errorf("data mismatch: expected 1, got %d", data.Total)
+			}
 		}
 	})
 }
@@ -173,13 +189,60 @@ func BenchmarkLargeStream_Sequential_Relay(b *testing.B) {
 	server := SetupHeavyServer(250000)
 	defer server.Close()
 
-	relayClient := relay.New(relay.WithBaseURL(server.URL))
+	// 250k records is ~35MB, above the 10MB default MaxResponseBodyBytes -
+	// WithMaxResponseBodyBytes(0) removes the cap so this measures a real,
+	// fully-decoded response instead of a silently truncated one (previously
+	// every call here failed with "unexpected end of JSON input" and the
+	// error was discarded, so this benchmark measured a fast-failing 10MB
+	// truncated read, not a successful 35MB one).
+	relayClient := relay.New(relay.WithBaseURL(server.URL), relay.WithMaxResponseBodyBytes(0))
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		if err != nil {
+			b.Fatalf("ExecuteAs failed: %v", err)
+		}
+		if data.Total != 250000 {
+			b.Fatalf("data mismatch: expected 250000, got %d", data.Total)
+		}
+	}
+}
+
+// BenchmarkLargeStream_Sequential_Standard is the net/http counterpart to
+// BenchmarkLargeStream_Sequential_Relay, at the same ~35MB body size, so
+// -benchmem output is directly comparable for the "large streamed body"
+// scenario (as opposed to BenchmarkAllocationProfile_*, which covers the
+// same comparison at a smaller ~7MB body).
+func BenchmarkLargeStream_Sequential_Standard(b *testing.B) {
+	server := SetupHeavyServer(250000)
+	defer server.Close()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        1000,
+			MaxIdleConnsPerHost: 1000,
+		},
+		Timeout: 30 * time.Second,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		res, err := client.Get(server.URL)
+		if err != nil {
+			b.Fatal(err)
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			b.Fatal(err)
+		}
+		var data HeavyResponse
+		_ = json.Unmarshal(body, &data)
+		_ = res.Body.Close() //nolint:errcheck
 	}
 }
 
@@ -198,7 +261,13 @@ func BenchmarkConnectionReuse_Sequential_Relay(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		if err != nil {
+			b.Fatalf("ExecuteAs failed: %v", err)
+		}
+		if data.Total != RecordsPerRequest {
+			b.Fatalf("data mismatch: expected %d, got %d", RecordsPerRequest, data.Total)
+		}
 	}
 }
 
@@ -220,11 +289,22 @@ func BenchmarkAllocationProfile_Standard(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		res, _ := client.Get(server.URL)
-		body, _ := io.ReadAll(res.Body)
+		res, err := client.Get(server.URL)
+		if err != nil {
+			b.Fatal(err)
+		}
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			b.Fatal(err)
+		}
 		var data HeavyResponse
-		_ = json.Unmarshal(body, &data)
+		if err := json.Unmarshal(body, &data); err != nil {
+			b.Fatal(err)
+		}
 		_ = res.Body.Close() //nolint:errcheck
+		if data.Total != RecordsPerRequest {
+			b.Fatalf("data mismatch: expected %d, got %d", RecordsPerRequest, data.Total)
+		}
 	}
 }
 
@@ -238,7 +318,13 @@ func BenchmarkAllocationProfile_Relay(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		if err != nil {
+			b.Fatalf("ExecuteAs failed: %v", err)
+		}
+		if data.Total != RecordsPerRequest {
+			b.Fatalf("data mismatch: expected %d, got %d", RecordsPerRequest, data.Total)
+		}
 	}
 }
 
@@ -257,7 +343,13 @@ func BenchmarkIdleConnections_Relay(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _, _ = relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		data, _, err := relay.ExecuteAs[HeavyResponse](relayClient, relayClient.Get("/"))
+		if err != nil {
+			b.Fatalf("ExecuteAs failed: %v", err)
+		}
+		if data.Total != 10000 {
+			b.Fatalf("data mismatch: expected 10000, got %d", data.Total)
+		}
 
 		// Every 100 requests, simulate idle period
 		if i%100 == 99 {
