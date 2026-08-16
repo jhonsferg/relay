@@ -181,6 +181,68 @@ func TestGenerate_Models(t *testing.T) {
 	}
 }
 
+// TestSanitizeIdent_GoKeywords guards against a regression where a spec
+// parameter literally named "type", "func", "range", etc. produced a Go
+// keyword as an identifier, which fails to compile in the generated client.
+func TestSanitizeIdent_GoKeywords(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"type", "typeParam"},
+		{"func", "funcParam"},
+		{"range", "rangeParam"},
+		{"select", "selectParam"},
+		{"case", "caseParam"},
+		{"map", "mapParam"},
+		{"var", "varParam"},
+		// Non-keywords must be unaffected.
+		{"limit", "limit"},
+		{"user-id", "user_id"},
+		{"Filter.Name", "filter_Name"},
+	}
+	for _, tc := range tests {
+		got := sanitizeIdent(tc.input)
+		if got != tc.want {
+			t.Errorf("sanitizeIdent(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+const keywordParamSpec = `{
+  "paths": {
+    "/items": {
+      "get": {
+        "operationId": "listItems",
+        "parameters": [
+          {"name": "type", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "success"}}
+      }
+    }
+  },
+  "components": {"schemas": {}}
+}`
+
+// TestGenerate_KeywordQueryParamCompiles is the end-to-end counterpart to
+// TestSanitizeIdent_GoKeywords: a query parameter named "type" is a
+// realistic OpenAPI spec (e.g. a filter parameter) that previously produced
+// a generated client.go with "type" used as a Go parameter identifier -
+// invalid syntax that Generate's internal format.Source call would reject.
+func TestGenerate_KeywordQueryParamCompiles(t *testing.T) {
+	result, err := Generate([]byte(keywordParamSpec), "myclient", "github.com/jhonsferg/relay")
+	if err != nil {
+		t.Fatalf("Generate failed (likely a Go keyword used as an identifier): %v", err)
+	}
+	src := string(result.Files["client.go"])
+	if !strings.Contains(src, "typeParam") {
+		t.Errorf("expected sanitized 'typeParam' identifier, got:\n%s", src)
+	}
+	if strings.Contains(src, "type string") {
+		t.Errorf("generated code uses the bare keyword 'type' as an identifier:\n%s", src)
+	}
+}
+
 func TestPascalCase(t *testing.T) {
 	tests := []struct {
 		input string
