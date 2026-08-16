@@ -3,6 +3,8 @@ package relay
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,6 +12,12 @@ import (
 	"github.com/jhonsferg/relay/internal/backoff"
 	"github.com/jhonsferg/relay/internal/pool"
 )
+
+// maxRetryBodyDrain caps how many bytes of a discarded retryable response
+// body are read before Close, so the connection can return to the keep-alive
+// pool instead of being torn down. Bounded to avoid draining an unexpectedly
+// large or malicious error body on the hot retry path.
+const maxRetryBodyDrain = 4 << 10 // 4KB
 
 // RetryConfig controls the retry and backoff behaviour of the client.
 // The default policy retries on network errors and 5xx/429 responses using
@@ -129,23 +137,46 @@ func (r *retrier) backoff(attempt int) time.Duration {
 	}.Next(attempt)
 }
 
+// maxRetryAfterSeconds bounds the delay-seconds form of a parsed Retry-After
+// header, well below the point where secs*time.Second would overflow
+// time.Duration's int64 nanosecond range (~292 years) - an overflow wraps
+// to a nonsensical, often-negative duration, which a timer fires
+// immediately instead of backing off as the server asked. A server-supplied
+// value this large (~68 years) is never meaningful anyway.
+const maxRetryAfterSeconds = 1<<31 - 1
+
 // retryAfterDelay parses the Retry-After response header and returns the
 // indicated delay. Supports both the delay-seconds form ("120") and the
 // HTTP-date form. Returns 0 if the header is absent or unparseable.
+// The result is capped to r.cfg.MaxInterval when configured, matching the
+// cap the exponential-backoff path (backoff()) already respects - a
+// misbehaving or malicious server otherwise dictates an arbitrarily long
+// wait regardless of the caller's configured ceiling.
 func (r *retrier) retryAfterDelay(resp *http.Response) time.Duration {
 	val := resp.Header.Get("Retry-After")
 	if val == "" {
 		return 0
 	}
 	if secs, err := strconv.Atoi(val); err == nil && secs > 0 {
-		return time.Duration(secs) * time.Second
+		if secs > maxRetryAfterSeconds {
+			secs = maxRetryAfterSeconds
+		}
+		return r.clampToMaxInterval(time.Duration(secs) * time.Second)
 	}
 	if t, err := http.ParseTime(val); err == nil {
 		if d := time.Until(t); d > 0 {
-			return d
+			return r.clampToMaxInterval(d)
 		}
 	}
 	return 0
+}
+
+// clampToMaxInterval caps d to r.cfg.MaxInterval when configured (> 0).
+func (r *retrier) clampToMaxInterval(d time.Duration) time.Duration {
+	if r.cfg.MaxInterval > 0 && d > r.cfg.MaxInterval {
+		return r.cfg.MaxInterval
+	}
+	return d
 }
 
 // isIdempotentMethod reports whether the HTTP method is idempotent per RFC 7231.
@@ -188,9 +219,14 @@ func (r *retrier) Do(ctx context.Context, method string, hasIdempotencyKey bool,
 			// Check retry budget before sleeping and retrying.
 			if r.budget != nil && !r.budget.CanRetry() {
 				if lastErr != nil {
-					return nil, ErrRetryBudgetExhausted
+					// Wrap the transport error that triggered this retry
+					// attempt so the caller can see *why* the budget ran out,
+					// not just that it did.
+					return nil, fmt.Errorf("%w: %w", ErrRetryBudgetExhausted, lastErr)
 				}
-				// Budget exhausted after a retryable status - return budget error.
+				// Budget exhausted after a retryable status - the previous
+				// response's body was already drained and closed before this
+				// check runs (see below), so it can't be returned here.
 				return nil, ErrRetryBudgetExhausted
 			}
 
@@ -257,6 +293,10 @@ func (r *retrier) Do(ctx context.Context, method string, hasIdempotencyKey bool,
 
 		// Respect the Retry-After header (e.g. on 429 Too Many Requests).
 		pendingWait = r.retryAfterDelay(resp)
+		// Drain before closing so the Transport can return the connection to
+		// the keep-alive pool instead of tearing it down - closing an
+		// unread body forces a new TCP/TLS handshake on the next attempt.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxRetryBodyDrain))
 		_ = resp.Body.Close() //nolint:errcheck
 	}
 
