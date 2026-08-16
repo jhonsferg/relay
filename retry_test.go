@@ -56,7 +56,11 @@ func TestRetry_DrainsBodyBeforeCloseForConnectionReuse(t *testing.T) {
 	var handlerCalls int32
 	var newConns int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// NewUnstartedServer (not NewServer) so Config.ConnState can be set
+	// before the server's Serve loop starts - assigning it after NewServer
+	// has already returned races with the background goroutine that reads
+	// it on every accepted connection.
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if atomic.AddInt32(&handlerCalls, 1) == 1 {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(strings.Repeat("x", 2048)))
@@ -69,6 +73,7 @@ func TestRetry_DrainsBodyBeforeCloseForConnectionReuse(t *testing.T) {
 			atomic.AddInt32(&newConns, 1)
 		}
 	}
+	srv.Start()
 	defer srv.Close()
 
 	c := New(
