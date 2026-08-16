@@ -365,10 +365,10 @@ func TestDefaultAccept_NotOverriddenWhenSet(t *testing.T) {
 // via req.Header.Set), a caller-supplied lowercase "accept" header was
 // missed by that check, injecting a second "Accept" entry alongside it.
 // build() then applies both map entries via req.Header.Set in Go's
-// randomized map-iteration order, so whichever was applied last won,
+// randomised map-iteration order, so whichever was applied last won,
 // nondeterministically - sometimes correctly the caller's value, sometimes
 // the injected default. Executed repeatedly since the map has 2 entries and
-// Go's iteration order is randomized per range, so the bug can pass by
+// Go's iteration order is randomised per range, so the bug can pass by
 // chance on some runs without repetition.
 func TestDefaultAccept_NotOverriddenWhenSetLowercase(t *testing.T) {
 	t.Parallel()
