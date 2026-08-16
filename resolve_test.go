@@ -353,7 +353,7 @@ func TestResolveTest_WithTrailingSlash(t *testing.T) {
 // than a real request would actually use for a path with more than one
 // leading slash - ResolveTest's own purpose is "debugging URL resolution
 // issues" / "understanding which normalisation strategy is used" against
-// real client behavior, so a divergence here defeats the tool. Verifies
+// real client behaviour, so a divergence here defeats the tool. Verifies
 // against a real client hitting a real server, not just against a
 // hand-computed expected string.
 func TestResolveTest_MatchesRealRequestForDoubleLeadingSlash(t *testing.T) {
