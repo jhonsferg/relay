@@ -9,6 +9,13 @@
 //	    http3ext.WithHTTP3(),
 //	)
 //
+// [WithHTTP3] and [WithHTTP3Config] never expose the underlying QUIC
+// transport, so its UDP socket is never released - [relay.Client.Shutdown]
+// only closes idle HTTP/1.1 and HTTP/2 connections, not io.Closer transports.
+// For a long-lived process that creates and discards relay clients (rather
+// than one client living for the whole process), use [NewManagedTransport]
+// instead so the socket can be explicitly closed.
+//
 // # Custom TLS and timeouts
 //
 //	cfg := &http3ext.Config{
