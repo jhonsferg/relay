@@ -236,7 +236,7 @@ func TestGenerate_KeywordQueryParamCompiles(t *testing.T) {
 	}
 	src := string(result.Files["client.go"])
 	if !strings.Contains(src, "typeParam") {
-		t.Errorf("expected sanitized 'typeParam' identifier, got:\n%s", src)
+		t.Errorf("expected sanitised 'typeParam' identifier, got:\n%s", src)
 	}
 	if strings.Contains(src, "type string") {
 		t.Errorf("generated code uses the bare keyword 'type' as an identifier:\n%s", src)
