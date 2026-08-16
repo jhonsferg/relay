@@ -799,6 +799,6 @@ func (c *Client) BaseURL() string { return c.config.BaseURL }
 // Config returns a copy of this client's configuration, primarily useful
 // for [ResolveTest] to debug URL resolution against a real client's actual
 // settings. The returned Config is an independent copy (mutating it does
-// not affect this client); to change the client's own behavior, use
+// not affect this client); to change the client's own behaviour, use
 // [Client.With] instead.
 func (c *Client) Config() *Config { return c.config.clone() }
