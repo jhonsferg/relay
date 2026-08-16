@@ -150,6 +150,12 @@ func (c *Client) ExecuteStream(req *Request) (*StreamResponse, error) {
 
 	httpReq, err := req.build(c.config.BaseURL, c.config.parsedBaseURL, c.config.URLNormalisationMode)
 	if err != nil {
+		// Allow() may have granted a half-open probe slot above; since we
+		// never reach the RecordSuccess/RecordFailure calls below, release it
+		// explicitly so it doesn't leak permanently.
+		if c.circuitBreaker != nil {
+			c.circuitBreaker.abandon()
+		}
 		return nil, abort(err)
 	}
 
