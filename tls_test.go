@@ -159,10 +159,10 @@ func TestWithClientCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile := filepath.Join(dir, "client.crt")
 	keyFile := filepath.Join(dir, "client.key")
-	if err := os.WriteFile(certFile, certPEM, 0o600); err != nil {
+	if err = os.WriteFile(certFile, certPEM, 0o600); err != nil {
 		t.Fatalf("write cert file: %v", err)
 	}
-	if err := os.WriteFile(keyFile, keyPEM, 0o600); err != nil {
+	if err = os.WriteFile(keyFile, keyPEM, 0o600); err != nil {
 		t.Fatalf("write key file: %v", err)
 	}
 
@@ -182,7 +182,7 @@ func TestWithClientCert(t *testing.T) {
 }
 
 // TestWithClientCert_MissingFiles confirms the documented "leave TLS config
-// unchanged on load error" behavior: a nonexistent cert/key path must not
+// unchanged on load error" behaviour: a nonexistent cert/key path must not
 // panic or prevent client construction.
 func TestWithClientCert_MissingFiles(t *testing.T) {
 	client := relay.New(
