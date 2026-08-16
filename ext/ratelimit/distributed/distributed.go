@@ -43,6 +43,14 @@
 // When the rate limit is exceeded, [relay.Client.Execute] returns
 // [ErrRateLimited]. When Redis is unavailable the limiter fails open (allows
 // the request) to avoid cascading failures.
+//
+// # Testing
+//
+// distributed_test.go tests against miniredis (an in-memory Redis
+// simulator). distributed_docker_test.go (build tag "docker") additionally
+// tests the atomic Lua script against a real Redis container via
+// testcontainers-go: run with `go test -tags=docker ./...` (requires a
+// local Docker daemon).
 package distributed
 
 import (
