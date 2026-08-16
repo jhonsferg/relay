@@ -22,12 +22,21 @@
 // subsequent retries can restore it. For bodies that already implement
 // [http.Request.GetBody] (e.g. those created with json / form helpers) the
 // original GetBody function is used instead, avoiding the extra allocation.
+//
+// # Idempotency
+//
+// Non-idempotent methods (POST, PATCH) are retried only when the request
+// carries an X-Idempotency-Key header (signalling server-side deduplication)
+// or [Config.RetryIf] is set (trusting the caller's own judgement) - the
+// same protection relay's core retrier provides, since these strategies are
+// meant to fully replace it.
 package jitterbug
 
 import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net/http"
@@ -89,8 +98,37 @@ type baseTransport struct {
 	cfg  Config
 }
 
-// isRetryable reports whether resp+err warrant another attempt.
-func (t *baseTransport) isRetryable(resp *http.Response, err error) bool {
+// idempotencyKeyHeader mirrors relay's own (unexported) constant of the same
+// name - its presence on req signals that the server handles deduplication,
+// making even a non-idempotent method safe to retry.
+const idempotencyKeyHeader = "X-Idempotency-Key"
+
+// isIdempotentMethod reports whether method is safe to retry without
+// side-effect risk, per RFC 9110 §9.2.2 (repeating it has the same effect as
+// calling it once). Mirrors relay core's retry.go:isIdempotentMethod, since
+// this package's own doc instructs pairing with relay.WithDisableRetry -
+// meaning this is the *only* method-safety gate protecting a request routed
+// through one of these transports, with no fallback to core's.
+func isIdempotentMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPut,
+		http.MethodDelete, http.MethodOptions, http.MethodTrace:
+		return true
+	}
+	return false
+}
+
+// isRetryable reports whether resp+err warrant another attempt on req.
+//
+// Non-idempotent methods (POST, PATCH) are retried only when the caller
+// supplies an explicit RetryIf predicate (trusting the caller's own
+// judgement - e.g. because the server deduplicates via an idempotency key)
+// or the request already carries an X-Idempotency-Key header. Without this
+// gate, a POST that already reached the server before a transport
+// error/retryable status would be silently retried, risking duplicate
+// side effects - exactly what relay's own core retrier guards against.
+func (t *baseTransport) isRetryable(req *http.Request, resp *http.Response, err error) bool {
+	safeToRetry := isIdempotentMethod(req.Method) || req.Header.Get(idempotencyKeyHeader) != ""
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return false
@@ -98,14 +136,14 @@ func (t *baseTransport) isRetryable(resp *http.Response, err error) bool {
 		if t.cfg.RetryIf != nil {
 			return t.cfg.RetryIf(nil, err)
 		}
-		return true
+		return safeToRetry
 	}
 	for _, s := range t.cfg.RetryableStatus {
 		if resp != nil && resp.StatusCode == s {
 			if t.cfg.RetryIf != nil {
 				return t.cfg.RetryIf(resp, nil)
 			}
-			return true
+			return safeToRetry
 		}
 	}
 	return false
@@ -184,7 +222,7 @@ func (t *baseTransport) doRetryLoop(
 
 		resp, err := t.next.RoundTrip(req)
 
-		if !t.isRetryable(resp, err) {
+		if !t.isRetryable(req, resp, err) {
 			return resp, err
 		}
 
@@ -352,9 +390,11 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 	prevSleep := t.cfg.Base
 	var lastErr error
+	var budgetExhausted bool
 
 	for attempt := 0; attempt < t.cfg.MaxAttempts; attempt++ {
 		if time.Since(start) >= t.totalBudget {
+			budgetExhausted = true
 			break
 		}
 
@@ -377,6 +417,7 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 				d = remaining
 			}
 			if d <= 0 {
+				budgetExhausted = true
 				break
 			}
 
@@ -390,7 +431,7 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err := t.next.RoundTrip(req)
 
-		if !t.isRetryable(resp, err) {
+		if !t.isRetryable(req, resp, err) {
 			return resp, err
 		}
 		if attempt == t.cfg.MaxAttempts-1 {
@@ -413,6 +454,18 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		lastErr = err
 	}
 
+	// A budget-driven exit gets relay.ErrRetryBudgetExhausted (matching
+	// relay's own core retrier - see retry.go), not ErrMaxRetriesReached -
+	// otherwise a caller checking errors.Is(err, ErrRetryBudgetExhausted)
+	// silently misses every case where the last retryable attempt returned
+	// a non-nil response with a nil Go error (e.g. a 500 status), since
+	// lastErr would be nil at that point.
+	if budgetExhausted {
+		if lastErr != nil {
+			return nil, fmt.Errorf("%w: %w", relay.ErrRetryBudgetExhausted, lastErr)
+		}
+		return nil, relay.ErrRetryBudgetExhausted
+	}
 	if lastErr != nil {
 		return nil, lastErr
 	}
