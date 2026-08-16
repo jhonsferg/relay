@@ -109,6 +109,52 @@ func TestOAuth2_TokenCachedAcrossRequests(t *testing.T) {
 	}
 }
 
+// TestOAuth2_ZeroExpiresInStillCaches guards against expires_in being
+// OPTIONAL per RFC 6749 §5.1: a token endpoint issuing a non-expiring
+// service token may omit it (JSON-unmarshaled as 0), which must not be
+// treated as "expires immediately" - that previously defeated caching
+// entirely, forcing a full token re-fetch on every outgoing request.
+func TestOAuth2_ZeroExpiresInStillCaches(t *testing.T) {
+	t.Parallel()
+
+	tokenSrv := testutil.NewMockServer()
+	defer tokenSrv.Close()
+
+	apiSrv := testutil.NewMockServer()
+	defer apiSrv.Close()
+
+	// expires_in omitted entirely (not just 0) - the realistic shape of a
+	// non-expiring-token response.
+	tokenSrv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    `{"access_token":"tok-noexpiry","token_type":"Bearer"}`,
+	})
+	apiSrv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+	apiSrv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := relay.New(
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relayoauth.WithClientCredentials(relayoauth.Config{
+			TokenURL:     tokenSrv.URL() + "/token",
+			ClientID:     "c",
+			ClientSecret: "s",
+		}),
+	)
+
+	for i := 0; i < 2; i++ {
+		_, err := c.Execute(c.Get(apiSrv.URL() + "/api"))
+		if err != nil {
+			t.Fatalf("Execute %d: %v", i, err)
+		}
+	}
+
+	if tokenSrv.RequestCount() != 1 {
+		t.Errorf("token endpoint should be called once despite missing expires_in (caching); called %d times", tokenSrv.RequestCount())
+	}
+}
+
 func TestOAuth2_AutoRefreshWhenNearExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -213,8 +259,8 @@ func TestOAuth2_RFC6749ErrorFromTokenEndpoint(t *testing.T) {
 	defer apiSrv.Close()
 
 	tokenSrv.Enqueue(testutil.MockResponse{
-		Status: http.StatusUnauthorized,
-		Body:   `{"error":"invalid_client","error_description":"Client authentication failed."}`,
+		Status:  http.StatusUnauthorized,
+		Body:    `{"error":"invalid_client","error_description":"Client authentication failed."}`,
 		Headers: map[string]string{"Content-Type": "application/json"},
 	})
 
@@ -288,4 +334,55 @@ func TestOAuth2_TokenRequestIncludesScopes(t *testing.T) {
 		t.Errorf("expected 'read' scope in token request, body: %q", body)
 	}
 	_ = fmt.Sprintf("token body: %s", body)
+}
+
+// TestOAuth2_TokenRequestTimesOutIndependently guards against a regression
+// where the token-fetch httpClient had no Timeout of its own and only relied
+// on the triggering request's context deadline. Since the token fetch runs
+// inside a transport middleware - outside the relay client's own
+// retry/circuit-breaker/rate-limit pipeline - a caller relying solely on
+// relay.WithTimeout (a client-level http.Client.Timeout on a *different*,
+// unrelated http.Client) rather than a per-request timeout or context
+// deadline would see every request hang indefinitely if the token endpoint
+// stalls. TokenRequestTimeout must bound the token fetch on its own.
+func TestOAuth2_TokenRequestTimesOutIndependently(t *testing.T) {
+	t.Parallel()
+
+	tokenSrv := testutil.NewMockServer()
+	defer tokenSrv.Close()
+
+	apiSrv := testutil.NewMockServer()
+	defer apiSrv.Close()
+
+	const tokenEndpointDelay = 500 * time.Millisecond
+	tokenSrv.Enqueue(testutil.MockResponse{
+		Status:  http.StatusOK,
+		Headers: map[string]string{"Content-Type": "application/json"},
+		Body:    tokenResponse("tok-slow", 3600),
+		Delay:   tokenEndpointDelay,
+	})
+
+	c := relay.New(
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relayoauth.WithClientCredentials(relayoauth.Config{
+			TokenURL:            tokenSrv.URL() + "/token",
+			ClientID:            "client1",
+			ClientSecret:        "secret1",
+			TokenRequestTimeout: 50 * time.Millisecond,
+		}),
+	)
+
+	// No per-request timeout and no context deadline on this request -
+	// only TokenRequestTimeout should bound the token fetch.
+	start := time.Now()
+	_, err := c.Execute(c.Get(apiSrv.URL() + "/api"))
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected an error when the token endpoint stalls past TokenRequestTimeout")
+	}
+	if elapsed >= tokenEndpointDelay {
+		t.Errorf("Execute took %v, which suggests it waited for the full token-endpoint delay (%v) instead of TokenRequestTimeout", elapsed, tokenEndpointDelay)
+	}
 }
