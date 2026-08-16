@@ -38,6 +38,21 @@ func main() {
 }
 ```
 
+> **Required action if you're upgrading relay**: `duration_ms` (below) is
+> read from `Response.Timing.Total`, which is now **opt-in** on the core
+> relay client (see relay's `CHANGELOG.md`, "Unreleased" - timing
+> instrumentation used to be on by default). Unless you add
+> `relay.WithTiming()` to your client's options, every log line from this
+> extension will silently report `"duration_ms": 0`. Example:
+>
+> ```go
+> client := relay.New(
+>     relay.WithBaseURL("https://api.example.com"),
+>     relay.WithTiming(), // required for ext/slog's duration_ms field
+>     relayslog.WithRequestResponseLogging(logger),
+> )
+> ```
+
 ## Logging Levels
 
 Logs are emitted at different slog levels based on HTTP response status:
