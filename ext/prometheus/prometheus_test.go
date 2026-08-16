@@ -106,6 +106,67 @@ func TestWithPrometheus_DuplicateRegistrationNoError(t *testing.T) {
 	}
 }
 
+// TestWithPrometheus_SecondClientMetricsStillExposed guards against a
+// regression where AlreadyRegisteredError was treated as fully benign and
+// discarded: the second client kept its own freshly-constructed (but never
+// actually registered) collector, so its Observe()/Inc() calls succeeded
+// without error but the data was never wired into the shared registry and
+// silently never appeared in /metrics. Reusing AlreadyRegisteredError's
+// ExistingCollector fixes this: both clients must end up incrementing the
+// SAME registered counter.
+func TestWithPrometheus_SecondClientMetricsStillExposed(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	reg := newRegistry()
+
+	c1 := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "shared"),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+	c2 := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relayprom.WithPrometheus(reg, "shared"),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+	)
+
+	for _, c := range []*relay.Client{c1, c2} {
+		if _, err := c.Execute(c.Get("/")); err != nil {
+			t.Fatalf("Execute: %v", err)
+		}
+	}
+
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather: %v", err)
+	}
+
+	var total float64
+	found := false
+	for _, fam := range families {
+		if fam.GetName() != "shared_http_client_requests_total" {
+			continue
+		}
+		found = true
+		for _, m := range fam.GetMetric() {
+			total += m.GetCounter().GetValue()
+		}
+	}
+	if !found {
+		t.Fatal("shared_http_client_requests_total metric family not found")
+	}
+	if total != 2 {
+		t.Errorf("shared_http_client_requests_total total = %v, want 2 (both clients' requests should land on the same registered collector)", total)
+	}
+}
+
 func TestWithPrometheus_ErrorRequestRecorded(t *testing.T) {
 	t.Parallel()
 
