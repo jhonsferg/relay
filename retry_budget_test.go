@@ -176,6 +176,128 @@ func TestRetryBudget_Integration(t *testing.T) {
 	}
 }
 
+// BenchmarkRetryBudget_CanRetry_SustainedTraffic simulates a long-lived
+// tracker under sustained traffic within its window (the scenario
+// WithRetryBudget targets) and measures CanRetry's per-call cost. Before the
+// incremental-counter fix, this scaled linearly with entries-in-window; with
+// it, cost is dominated by the fixed per-call append/lock overhead
+// regardless of how much traffic has accumulated in the window.
+func BenchmarkRetryBudget_CanRetry_SustainedTraffic(b *testing.B) {
+	tracker := newRetryBudgetTracker(RetryBudget{
+		Ratio:    0.5,
+		Window:   time.Hour, // long window: entries accumulate without evicting
+		MinRetry: 1 << 30,   // always MinRetry-allowed: isolates CanRetry's own cost
+	})
+
+	// Pre-populate the window with a realistic amount of sustained traffic.
+	for i := 0; i < 10_000; i++ {
+		tracker.RecordAttempt()
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		tracker.CanRetry()
+	}
+}
+
+// recount returns a fresh count of live entries, independent of the
+// incremental t.attempts/t.retries counters, for cross-checking.
+func recount(entries []budgetEntry) (attempts, retries int) {
+	for _, e := range entries {
+		if e.isRetry {
+			retries++
+		} else {
+			attempts++
+		}
+	}
+	return attempts, retries
+}
+
+// TestRetryBudget_IncrementalCountersMatchRecount guards against a
+// regression in the CanRetry O(n)-scan-under-lock fix: CanRetry previously
+// recomputed attempts/retries by rescanning the entire entries slice on
+// every call, which under sustained traffic cost O(requests in window) per
+// call, serialising all concurrent retry-budget checks. Replacing that with
+// incrementally-maintained counters (updated in RecordAttempt, CanRetry, and
+// evict) must produce byte-for-byte identical attempts/retries values to the
+// old full-recount approach at every point - including after entries expire
+// out of the sliding window - so this test cross-checks the incremental
+// counters against an independent recount after every operation in a mixed
+// sequence that spans multiple eviction rounds.
+func TestRetryBudget_IncrementalCountersMatchRecount(t *testing.T) {
+	tracker := newRetryBudgetTracker(RetryBudget{
+		Ratio:    0.5,
+		Window:   30 * time.Millisecond,
+		MinRetry: 3,
+	})
+
+	check := func(step string) {
+		t.Helper()
+		tracker.mu.Lock()
+		wantAttempts, wantRetries := recount(tracker.entries)
+		gotAttempts, gotRetries := tracker.attempts, tracker.retries
+		tracker.mu.Unlock()
+		if gotAttempts != wantAttempts || gotRetries != wantRetries {
+			t.Fatalf("%s: incremental counters (attempts=%d, retries=%d) != recount (attempts=%d, retries=%d)",
+				step, gotAttempts, gotRetries, wantAttempts, wantRetries)
+		}
+	}
+
+	for round := 0; round < 4; round++ {
+		for i := 0; i < 5; i++ {
+			tracker.RecordAttempt()
+			check("after RecordAttempt")
+			tracker.CanRetry()
+			check("after CanRetry")
+		}
+		// Sleep past the window so the next round's operations trigger
+		// eviction of everything recorded so far.
+		time.Sleep(40 * time.Millisecond)
+	}
+}
+
+// TestRetryBudget_ExhaustedWrapsUnderlyingTransportError guards against a
+// regression where the retry-budget-exhausted branch for the transport-error
+// path (lastErr != nil) and the retryable-status path were dead/duplicated
+// code returning the identical bare ErrRetryBudgetExhausted, discarding any
+// detail about *why* retries were happening in the first place. When the
+// budget runs out after a transport error, the caller should still be able
+// to see that underlying error via errors.Is/errors.Unwrap, not just the
+// generic budget-exhausted sentinel.
+func TestRetryBudget_ExhaustedWrapsUnderlyingTransportError(t *testing.T) {
+	sentinelErr := errors.New("boom: simulated transport failure")
+
+	c := New(
+		WithDisableCircuitBreaker(),
+		WithRetry(&RetryConfig{
+			MaxAttempts:     5,
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     5 * time.Millisecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+		}),
+		WithRetryBudget(&RetryBudget{
+			Ratio:    0.0,
+			Window:   10 * time.Second,
+			MinRetry: 1, // only 1 retry allowed before the budget trips
+		}),
+		WithTransportMiddleware(func(http.RoundTripper) http.RoundTripper {
+			return roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return nil, sentinelErr
+			})
+		}),
+	)
+
+	_, err := c.Execute(c.Get("http://example.invalid/"))
+	if !errors.Is(err, ErrRetryBudgetExhausted) {
+		t.Fatalf("expected ErrRetryBudgetExhausted, got: %v", err)
+	}
+	if !errors.Is(err, sentinelErr) {
+		t.Errorf("expected the underlying transport error to still be reachable via errors.Is, got: %v", err)
+	}
+}
+
 // TestRetryBudget_DefaultMinRetry verifies that MinRetry defaults to 10.
 func TestRetryBudget_DefaultMinRetry(t *testing.T) {
 	tracker := newRetryBudgetTracker(RetryBudget{
