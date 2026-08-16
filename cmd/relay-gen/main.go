@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"go/format"
+	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -133,7 +134,7 @@ func New(opts ...relay.Option) *Client {
 {{range .Methods}}
 // {{.FuncName}} calls {{.HTTPMethod}} {{.Path}}
 func (c *Client) {{.FuncName}}(ctx context.Context{{range .Params}}, {{.GoName}} {{.GoType}}{{end}}{{if .HasBody}}, body interface{}{{end}}) (*relay.Response, error) {
-	req := c.inner.{{httpMethodFunc .HTTPMethod}}({{pathLiteral .Path .Params}})
+	req := c.inner.{{httpMethodFunc .HTTPMethod}}({{pathLiteral .Path}})
 {{- range .Params}}{{if eq .Kind "path"}}
 	req = req.WithPathParam("{{.APIName}}", {{.GoName}})
 {{- end}}{{end}}
@@ -235,9 +236,9 @@ func schemaGoType(s schemaObject) string {
 	}
 }
 
-// pathToGoLiteral converts "/users/{id}" to `"/users/{id}"` (unchanged).
+// pathLiteral converts "/users/{id}" to `"/users/{id}"` (unchanged).
 // The path params will be substituted at runtime via WithPathParam.
-func pathLiteral(path string, params []paramData) string {
+func pathLiteral(path string) string {
 	return `"` + path + `"`
 }
 
@@ -427,7 +428,14 @@ func sanitizeIdent(s string) string {
 	}
 	runes := []rune(s)
 	runes[0] = unicode.ToLower(runes[0])
-	return string(runes)
+	s = string(runes)
+	// A spec parameter literally named "type", "func", "range", etc. would
+	// otherwise produce a Go keyword as a parameter identifier, which fails
+	// to compile in the generated client.
+	if token.Lookup(s).IsKeyword() {
+		s += "Param"
+	}
+	return s
 }
 
 // ── Code rendering ────────────────────────────────────────────────────────────
