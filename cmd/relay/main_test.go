@@ -337,7 +337,7 @@ func TestWriteResponsePretty(t *testing.T) {
 // (not os.Exit) on every path so the deferred jar.Save() always executes.
 func TestRun_CookieJarPersistedOnServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: "session", Value: "abc123"})
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "abc123"}) // #nosec G124 -- test-only cookie on a local httptest server, not a real session
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
@@ -365,7 +365,7 @@ func TestRun_CookieJarPersistedOnServerError(t *testing.T) {
 // skipped the deferred jar.Save().
 func TestRun_CookieJarPersistedInDownloadMode(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: "session", Value: "dl456"})
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "dl456"}) // #nosec G124 -- test-only cookie on a local httptest server, not a real session
 		_, _ = w.Write([]byte("data"))
 	}))
 	defer srv.Close()
