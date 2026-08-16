@@ -122,6 +122,10 @@ func Load(data []byte) (*openapi3.T, error) {
 // WithValidation returns a [relay.Option] that installs an OpenAPI validation
 // transport middleware. Requests that do not conform to doc are rejected before
 // reaching the network. Pass [WithResponseValidation] to also validate responses.
+//
+// Panics if a routable request matcher cannot be built from doc (i.e. doc is
+// an invalid OpenAPI spec) - this is a permanent, construction-time failure,
+// not a per-request one.
 func WithValidation(doc *openapi3.T, opts ...Option) relay.Option {
 	cfg := &option{}
 	for _, o := range opts {
@@ -182,6 +186,10 @@ func (t *validatingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		var err error
 		bodyBytes, err = io.ReadAll(req.Body)
 		if err != nil {
+			// http.RoundTripper's contract requires the body to always be
+			// closed, including on error paths - the request is never
+			// forwarded to t.base here, so nothing else would close it.
+			_ = req.Body.Close()
 			return nil, err
 		}
 		req = req.Clone(ctx)
@@ -213,8 +221,13 @@ func (t *validatingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	// Pass the original request (not findReq) so validation uses the real URL.
+	// findReq's host/scheme were rewritten to the spec's declared server only
+	// so FindRoute could match a path when the actual target differs (test
+	// servers, proxies, etc.) - that rewrite is scoped to route resolution
+	// and must not leak into validation, which should see the request as it
+	// will actually be sent.
 	reqInput := &openapi3filter.RequestValidationInput{
-		Request:    findReq,
+		Request:    req,
 		PathParams: pathParams,
 		Route:      route,
 		Options:    t.filterOpts,
