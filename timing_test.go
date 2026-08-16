@@ -13,7 +13,10 @@ import (
 func TestTiming_TotalIsPositiveAfterExecute(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
-	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "timing-body"})
+	// A small delay guards against a flaky failure on platforms/CI runners
+	// with coarse timer resolution, where an in-process round-trip fast
+	// enough to land within a single clock tick can measure as exactly 0.
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "timing-body", Delay: 10 * time.Millisecond})
 
 	c := New(WithTiming(), WithDisableRetry(), WithDisableCircuitBreaker())
 	resp, err := c.Execute(c.Get(srv.URL() + "/"))
@@ -138,8 +141,11 @@ func TestTiming_MultipleRequests(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
+	// A small delay guards against a flaky failure on platforms/CI runners
+	// with coarse timer resolution, where an in-process round-trip fast
+	// enough to land within a single clock tick can measure as exactly 0.
 	for i := 0; i < 3; i++ {
-		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "multi"})
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "multi", Delay: 10 * time.Millisecond})
 	}
 
 	c := New(WithTiming(), WithDisableRetry(), WithDisableCircuitBreaker())
