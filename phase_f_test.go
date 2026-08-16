@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -353,6 +354,54 @@ func TestDefaultAccept_NotOverriddenWhenSet(t *testing.T) {
 	}
 	if gotAccept != "text/plain" {
 		t.Errorf("expected Accept: text/plain (request-level), got %q", gotAccept)
+	}
+}
+
+// TestDefaultAccept_NotOverriddenWhenSetLowercase guards against a
+// regression where the "already set" check for the default Accept header
+// compared req.headers["Accept"] with an exact-case map lookup. Since
+// req.headers is keyed by whatever casing the caller used (unlike
+// net/http.Header, it isn't canonicalized until build() applies each entry
+// via req.Header.Set), a caller-supplied lowercase "accept" header was
+// missed by that check, injecting a second "Accept" entry alongside it.
+// build() then applies both map entries via req.Header.Set in Go's
+// randomized map-iteration order, so whichever was applied last won,
+// nondeterministically - sometimes correctly the caller's value, sometimes
+// the injected default. Executed repeatedly since the map has 2 entries and
+// Go's iteration order is randomized per range, so the bug can pass by
+// chance on some runs without repetition.
+func TestDefaultAccept_NotOverriddenWhenSetLowercase(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var gotAccepts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotAccepts = append(gotAccepts, r.Header.Get("Accept"))
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := relay.New(
+		relay.WithDefaultAccept("application/json"),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithDisableRetry(),
+	)
+
+	const iterations = 30
+	for i := 0; i < iterations; i++ {
+		req := c.Get(srv.URL).WithHeader("accept", "text/plain")
+		if _, err := c.Execute(req); err != nil {
+			t.Fatalf("iteration %d: unexpected error: %v", i, err)
+		}
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for i, got := range gotAccepts {
+		if got != "text/plain" {
+			t.Errorf("iteration %d: Accept = %q, want %q (request-level, lowercase key)", i, got, "text/plain")
+		}
 	}
 }
 
