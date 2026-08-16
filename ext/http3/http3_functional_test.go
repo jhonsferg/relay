@@ -19,6 +19,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -104,9 +105,17 @@ func startHTTP3TestServer(t *testing.T, handler http.Handler) string {
 }
 
 func TestHTTP3_RealRequestRoundTrip(t *testing.T) {
+	// Guarded by mu: the handler runs on quic-go's own server goroutine,
+	// which - unlike net/http/httptest's Transport - gives the race
+	// detector no visible happens-before edge back to the goroutine that
+	// reads gotPath below, even though client.Execute has already returned
+	// the full response by the time that read happens.
+	var mu sync.Mutex
 	var gotPath string
 	addr := startHTTP3TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		gotPath = r.URL.Path
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
@@ -133,8 +142,11 @@ func TestHTTP3_RealRequestRoundTrip(t *testing.T) {
 	if body := resp.String(); body != `{"ok":true}` {
 		t.Errorf("body = %q, want {\"ok\":true}", body)
 	}
-	if gotPath != "/hello" {
-		t.Errorf("server saw path %q, want /hello", gotPath)
+	mu.Lock()
+	got := gotPath
+	mu.Unlock()
+	if got != "/hello" {
+		t.Errorf("server saw path %q, want /hello", got)
 	}
 	if resp.Raw().ProtoMajor != 3 {
 		t.Errorf("ProtoMajor = %d, want 3 (real HTTP/3 exchange)", resp.Raw().ProtoMajor)
