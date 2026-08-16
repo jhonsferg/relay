@@ -12,6 +12,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -128,5 +130,65 @@ func TestWithRootCA(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusNoContent {
 		t.Errorf("status = %d, want 204", resp.StatusCode)
+	}
+}
+
+// TestWithClientCert is the file-based counterpart to TestWithClientCertPEM:
+// WithClientCert loads the certificate/key pair from disk via
+// tls.LoadX509KeyPair instead of accepting PEM bytes directly.
+func TestWithClientCert(t *testing.T) {
+	certPEM, keyPEM := generateSelfSignedCert(t)
+
+	serverCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		t.Fatalf("server X509KeyPair: %v", err)
+	}
+	clientPool := x509.NewCertPool()
+	clientPool.AppendCertsFromPEM(certPEM)
+
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv.TLS = &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAnyClientCert,
+	}
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "client.crt")
+	keyFile := filepath.Join(dir, "client.key")
+	if err := os.WriteFile(certFile, certPEM, 0o600); err != nil {
+		t.Fatalf("write cert file: %v", err)
+	}
+	if err := os.WriteFile(keyFile, keyPEM, 0o600); err != nil {
+		t.Fatalf("write key file: %v", err)
+	}
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL),
+		relay.WithRootCA(certPEM),
+		relay.WithClientCert(certFile, keyFile),
+	)
+
+	resp, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+// TestWithClientCert_MissingFiles confirms the documented "leave TLS config
+// unchanged on load error" behavior: a nonexistent cert/key path must not
+// panic or prevent client construction.
+func TestWithClientCert_MissingFiles(t *testing.T) {
+	client := relay.New(
+		relay.WithClientCert("/no/such/cert.crt", "/no/such/key.key"),
+	)
+	if client == nil {
+		t.Fatal("client should not be nil when the cert/key files don't exist")
 	}
 }
