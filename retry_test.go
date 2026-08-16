@@ -1,7 +1,10 @@
 package relay
 
 import (
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -42,6 +45,56 @@ func TestRetry_CorrectNumberOfAttempts(t *testing.T) {
 	}
 }
 
+// TestRetry_DrainsBodyBeforeCloseForConnectionReuse guards against a
+// regression where a retryable response's body was closed without being
+// drained first. net/http documents that closing a Response.Body before
+// reading it to EOF prevents the Transport from returning the underlying
+// connection to the keep-alive pool, forcing a fresh TCP/TLS handshake on
+// the next attempt - exactly the wrong place to pay that cost, since retries
+// are the hot path for recovering from failures quickly.
+func TestRetry_DrainsBodyBeforeCloseForConnectionReuse(t *testing.T) {
+	var handlerCalls int32
+	var newConns int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if atomic.AddInt32(&handlerCalls, 1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(strings.Repeat("x", 2048)))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			atomic.AddInt32(&newConns, 1)
+		}
+	}
+	defer srv.Close()
+
+	c := New(
+		WithDisableCircuitBreaker(),
+		WithRetry(&RetryConfig{
+			MaxAttempts:     2,
+			InitialInterval: 1 * time.Millisecond,
+			MaxInterval:     5 * time.Millisecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+			RetryableStatus: []int{http.StatusServiceUnavailable},
+		}),
+	)
+
+	resp, err := c.Execute(c.Get(srv.URL + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := atomic.LoadInt32(&newConns); got != 1 {
+		t.Errorf("expected the retry to reuse the connection (1 new TCP connection total), got %d", got)
+	}
+}
+
 func TestRetry_ExhaustsAllAttempts(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
@@ -73,6 +126,38 @@ func TestRetry_ExhaustsAllAttempts(t *testing.T) {
 	}
 	if srv.RequestCount() != 3 {
 		t.Errorf("expected exactly 3 attempts, got %d", srv.RequestCount())
+	}
+}
+
+// TestRetryAfterDelay_LargeSecondsDoesNotOverflowNegative guards against
+// time.Duration(secs)*time.Second overflowing int64 nanoseconds (wrapping
+// to a negative duration) for a server-supplied Retry-After value beyond
+// ~292 years. A negative duration fires a timer immediately instead of
+// backing off, which is the opposite of what Retry-After asked for.
+func TestRetryAfterDelay_LargeSecondsDoesNotOverflowNegative(t *testing.T) {
+	r := newRetrier(&RetryConfig{MaxInterval: 30 * time.Second})
+
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{"9223372040"}}}
+	d := r.retryAfterDelay(resp)
+
+	if d <= 0 {
+		t.Fatalf("retryAfterDelay = %v, want a positive duration (overflowed negative)", d)
+	}
+}
+
+// TestRetryAfterDelay_ClampedToMaxInterval guards against the Retry-After
+// path bypassing RetryConfig.MaxInterval entirely - unlike the
+// exponential-backoff path (backoff()), which already respects it. A
+// server (misbehaving or malicious) could otherwise dictate an arbitrarily
+// long wait regardless of the caller's configured ceiling.
+func TestRetryAfterDelay_ClampedToMaxInterval(t *testing.T) {
+	r := newRetrier(&RetryConfig{MaxInterval: 5 * time.Second})
+
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{"99999999"}}}
+	d := r.retryAfterDelay(resp)
+
+	if d != 5*time.Second {
+		t.Errorf("retryAfterDelay = %v, want clamped to MaxInterval (5s)", d)
 	}
 }
 
