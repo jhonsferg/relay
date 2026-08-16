@@ -4,6 +4,7 @@ package concurrency
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -39,6 +40,42 @@ func BenchmarkConcurrency_ParallelRequests(b *testing.B) {
 
 			resp, _ := client.Execute(client.Get("/concurrent/parallel"))
 			_ = resp
+		}
+	})
+}
+
+// BenchmarkConcurrency_ParallelRequests_Native is the net/http counterpart to
+// BenchmarkConcurrency_ParallelRequests, against the same mock server and
+// concurrency pattern, so -benchmem output is directly comparable. It exists
+// to confirm relay's bulkhead/pool/circuit-breaker checks don't add
+// meaningful contention overhead beyond what a bare net/http.Client already
+// pays for the same sustained concurrent load.
+func BenchmarkConcurrency_ParallelRequests_Native(b *testing.B) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	client := &http.Client{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			srv.Enqueue(testutil.MockResponse{
+				Status: http.StatusOK,
+				Body:   `{"parallel":true}`,
+			})
+
+			req, err := http.NewRequest(http.MethodGet, srv.URL()+"/concurrent/parallel", nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				b.Fatal(err)
+			}
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
 		}
 	})
 }
