@@ -52,47 +52,30 @@ func ResolveTest(baseURL string, relativePath string, config *Config) *Resolutio
 	// Determine if this is an API base URL
 	isAPIBase := parsedBaseURL != nil && isAPIBaseParsed(parsedBaseURL)
 
-	// Determine the strategy that would be used
+	// Determine the strategy name to report (purely informational - the
+	// actual resolution below is delegated to resolveBaseAndPath, which
+	// makes this same determination itself).
 	var strategyUsed string
-	useRFC3986 := false
-
 	switch config.URLNormalisationMode {
 	case NormalisationAuto:
-		// Auto: use RFC 3986 for host-only, safe string for APIs
-		useRFC3986 = parsedBaseURL != nil && !isAPIBase
 		strategyUsed = "Auto"
 	case NormalisationRFC3986:
-		// Force RFC 3986
-		useRFC3986 = parsedBaseURL != nil
 		strategyUsed = "RFC3986"
 	case NormalisationAPI:
-		// Force safe string normalisation
-		useRFC3986 = false
 		strategyUsed = "API"
 	default:
 		strategyUsed = "Unknown"
 	}
 
+	// Delegate to the same resolution logic build() uses for real requests
+	// (request.go), so this debugging helper can never silently diverge
+	// from what an actual request would resolve to.
 	var resolvedURL string
-
 	if baseURL == "" {
 		// No base URL, return path as-is
 		resolvedURL = relativePath
-	} else if useRFC3986 && parsedBaseURL != nil {
-		// Use RFC 3986 resolution (zero-alloc, via url.ResolveReference)
-		resolved := parsedBaseURL.ResolveReference(&url.URL{Path: relativePath})
-		resolvedURL = resolved.String()
 	} else {
-		// Use safe string normalisation (preserves base path)
-		// Ensure base URL ends with / and relative path doesn't start with /
-		if len(baseURL) == 0 || baseURL[len(baseURL)-1] != '/' {
-			baseURL += "/"
-		}
-		// Remove leading slash from relative path to avoid double slashes
-		if len(relativePath) > 0 && relativePath[0] == '/' {
-			relativePath = relativePath[1:]
-		}
-		resolvedURL = baseURL + relativePath
+		resolvedURL = resolveBaseAndPath(baseURL, parsedBaseURL, relativePath, config.URLNormalisationMode)
 	}
 
 	// Parse the final resolved URL
