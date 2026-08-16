@@ -162,6 +162,13 @@ func (r *Request) URL() string { return r.rawURL }
 // fires first cancels the request.
 func (r *Request) WithContext(ctx context.Context) *Request { r.ctx = ctx; return r }
 
+// Context returns the context associated with this request. It is never nil;
+// a freshly built request carries [context.Background].
+//
+// Useful in [Config.OnBeforeRequest] hooks when middleware needs to read or
+// propagate context values (e.g. tracing spans, per-request flags).
+func (r *Request) Context() context.Context { return r.ctx }
+
 // WithTimeout sets a per-request timeout that wraps the existing context.
 // When the timeout fires, [Client.Execute] returns [ErrTimeout].
 func (r *Request) WithTimeout(d time.Duration) *Request { r.timeout = d; return r }
@@ -233,6 +240,24 @@ func (r *Request) Tags() map[string]string {
 		cp[k] = v
 	}
 	return cp
+}
+
+// hasHeaderFold reports whether the request already has a header matching
+// key under any casing. r.headers is a plain map[string]string keyed by
+// whatever casing the caller used (unlike net/http.Header, it is not
+// canonicalized on write - that only happens later, per entry, when build()
+// calls req.Header.Set), so an exact-case map lookup can miss a
+// case-insensitive duplicate the caller set via a different casing (e.g.
+// "accept" vs "Accept"). Used to decide whether to inject a default header
+// without accidentally leaving two differently-cased entries in r.headers,
+// which build() would apply in a nondeterministic order (Go map iteration).
+func (r *Request) hasHeaderFold(key string) bool {
+	for k := range r.headers {
+		if strings.EqualFold(k, key) {
+			return true
+		}
+	}
+	return false
 }
 
 // WithHeader sets (or replaces) a single request header. Per-request headers
@@ -511,6 +536,10 @@ func (r *Request) WithMaxBodySize(n int64) *Request { r.maxBodyBytes = n; return
 // WithDeduplication overrides the client-level deduplication setting for this
 // single request. Call with no argument or true to force deduplication on;
 // call with false to disable it even when the client has deduplication enabled.
+//
+// When enabled and this request shares a key with a concurrent one, this
+// request's own [Request.WithTimeout] does not bound the shared call - see
+// [WithRequestDeduplication] for why.
 func (r *Request) WithDeduplication(enabled ...bool) *Request {
 	e := true
 	if len(enabled) > 0 {
@@ -609,6 +638,75 @@ func (r *Request) applyPathParams(rawURL string) string {
 	return b.String()
 }
 
+// resolveBaseAndPath combines baseURL (parsed as parsedBaseURL, may be nil)
+// with path per normalisationMode, returning the resolved URL string. path
+// must not itself be an absolute URL (http:// or https://) - callers check
+// that themselves before calling this, since they may have different
+// conditions for skipping resolution entirely.
+//
+// This is the single, canonical implementation of relay's URL-joining
+// logic, shared between build() (the real per-request path) and
+// [ResolveTest] (resolve.go, a debugging helper) so the two can never
+// diverge - an earlier version of ResolveTest reimplemented a similar but
+// not identical copy of this logic (missing the excess-leading-slash
+// normalisation on both paths below), silently reporting a different URL
+// than what a real request would actually use for the same inputs.
+func resolveBaseAndPath(baseURL string, parsedBaseURL *url.URL, path string, normalisationMode URLNormalisationMode) string {
+	// Determine which normalisation strategy to use
+	useRFC3986 := false
+	switch normalisationMode {
+	case NormalisationAuto:
+		// Intelligent detection: RFC 3986 for host-only, safe for APIs
+		useRFC3986 = parsedBaseURL != nil && !isAPIBaseParsed(parsedBaseURL)
+	case NormalisationRFC3986:
+		// Force RFC 3986 (requires parsed URL)
+		useRFC3986 = parsedBaseURL != nil
+	case NormalisationAPI:
+		// Force safe normalisation
+		useRFC3986 = false
+	}
+
+	if useRFC3986 {
+		// Fast path: host-only base URL (with or without trailing slash) +
+		// absolute request path. Avoids 4 allocs from ResolveReference
+		// (&url.URL, internal copy, String(), plus escaping).
+		// AutoNormaliseBaseURL adds a trailing slash so parsedBaseURL.Path
+		// can be "/" even for host-only bases -- treat that identically.
+		isHostOnly := parsedBaseURL.Path == "" || parsedBaseURL.Path == "/"
+		if isHostOnly && len(path) > 0 && path[0] == '/' && parsedBaseURL.User == nil {
+			// Normalise excess leading slashes (e.g. "//path" → "/path") to
+			// prevent double-slash URLs like "https://host//path" which some
+			// servers (SAP, nginx) reject with 401/404 instead of redirecting.
+			normPath := "/" + strings.TrimLeft(path, "/")
+			return parsedBaseURL.Scheme + "://" + parsedBaseURL.Host + normPath
+		}
+		// Slow path: proper RFC 3986 resolution for complex base URLs.
+		// Split any query string out of path before building the url.URL
+		// reference; placing '?' in the Path field causes url.URL.String()
+		// to percent-encode it as %3F.
+		pathPart := path
+		rawQuery := ""
+		if idx := strings.IndexByte(path, '?'); idx >= 0 {
+			pathPart = path[:idx]
+			rawQuery = path[idx+1:]
+		}
+		resolved := parsedBaseURL.ResolveReference(&url.URL{Path: pathPart, RawQuery: rawQuery})
+		return resolved.String()
+	}
+
+	// Safe string normalisation for API URLs. Handles API base URLs with
+	// path components (e.g., http://api.com/v1/odata) correctly by
+	// preserving the entire base path instead of replacing it per RFC 3986.
+	var sb strings.Builder
+	sb.Grow(len(baseURL) + len(path) + 1)
+	trimmedBase := strings.TrimRight(baseURL, "/")
+	sb.WriteString(trimmedBase)
+	sb.WriteByte('/')
+	trimmedPath := strings.TrimLeft(path, "/")
+	sb.WriteString(trimmedPath)
+	return sb.String()
+}
+
 // build constructs the stdlib *http.Request from this builder's state.
 // It applies path params, resolves the URL against baseURL/parsedBaseURL,
 // appends query params, and sets all headers. parsedBaseURL, if non-nil,
@@ -643,62 +741,7 @@ func (r *Request) build(baseURL string, parsedBaseURL *url.URL, normalisationMod
 
 	fullURL := r.applyPathParams(r.rawURL)
 	if baseURL != "" && !strings.HasPrefix(fullURL, "http://") && !strings.HasPrefix(fullURL, "https://") {
-		// Determine which normalisation strategy to use
-		useRFC3986 := false
-		switch normalisationMode {
-		case NormalisationAuto:
-			// Intelligent detection: RFC 3986 for host-only, safe for APIs
-			useRFC3986 = parsedBaseURL != nil && !isAPIBaseParsed(parsedBaseURL)
-		case NormalisationRFC3986:
-			// Force RFC 3986 (requires parsed URL)
-			useRFC3986 = parsedBaseURL != nil
-		case NormalisationAPI:
-			// Force safe normalisation
-			useRFC3986 = false
-		}
-
-		if useRFC3986 {
-			// Fast path: host-only base URL (with or without trailing slash) +
-			// absolute request path. Avoids 4 allocs from ResolveReference
-			// (&url.URL, internal copy, String(), plus escaping).
-			// AutoNormaliseBaseURL adds a trailing slash so parsedBaseURL.Path
-			// can be "/" even for host-only bases -- treat that identically.
-			isHostOnly := (parsedBaseURL.Path == "" || parsedBaseURL.Path == "/")
-			if isHostOnly && len(fullURL) > 0 && fullURL[0] == '/' && parsedBaseURL.User == nil {
-				// Normalise excess leading slashes (e.g. "//path" → "/path") to
-				// prevent double-slash URLs like "https://host//path" which some
-				// servers (SAP, nginx) reject with 401/404 instead of redirecting.
-				normPath := "/" + strings.TrimLeft(fullURL, "/")
-				fullURL = parsedBaseURL.Scheme + "://" + parsedBaseURL.Host + normPath
-			} else {
-				// Slow path: proper RFC 3986 resolution for complex base URLs.
-				// Split any query string out of fullURL before building the
-				// url.URL reference; placing '?' in the Path field causes
-				// url.URL.String() to percent-encode it as %3F.
-				pathPart := fullURL
-				rawQuery := ""
-				if idx := strings.IndexByte(fullURL, '?'); idx >= 0 {
-					pathPart = fullURL[:idx]
-					rawQuery = fullURL[idx+1:]
-				}
-				resolved := parsedBaseURL.ResolveReference(&url.URL{Path: pathPart, RawQuery: rawQuery})
-				fullURL = resolved.String()
-			}
-		} else {
-			// Path 2: Use safe string normalisation for API URLs.
-			// Handles API base URLs with path components (e.g., http://api.com/v1/odata)
-			// correctly by preserving the entire base path instead of replacing it per RFC 3986.
-			var sb strings.Builder
-			sb.Grow(len(baseURL) + len(fullURL) + 1)
-			// TrimRight baseURL and write
-			trimmedBase := strings.TrimRight(baseURL, "/")
-			sb.WriteString(trimmedBase)
-			sb.WriteByte('/')
-			// TrimLeft fullURL and write
-			trimmedPath := strings.TrimLeft(fullURL, "/")
-			sb.WriteString(trimmedPath)
-			fullURL = sb.String()
-		}
+		fullURL = resolveBaseAndPath(baseURL, parsedBaseURL, fullURL, normalisationMode)
 	}
 	if len(r.query) > 0 {
 		if !strings.Contains(fullURL, "?") {

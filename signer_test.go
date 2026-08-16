@@ -12,6 +12,33 @@ import (
 	"github.com/jhonsferg/relay/testutil"
 )
 
+// TestWithRequestSigner_IsAliasForWithSigner confirms the documented alias
+// actually wires the signer into the client the same way WithSigner does.
+func TestWithRequestSigner_IsAliasForWithSigner(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	var called bool
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithRequestSigner(RequestSignerFunc(func(r *http.Request) error {
+			called = true
+			r.Header.Set("X-Signed", "yes")
+			return nil
+		})),
+	)
+
+	_, err := c.Execute(c.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !called {
+		t.Error("expected the signer registered via WithRequestSigner to be invoked")
+	}
+}
+
 // TestWithSigner_HeaderInjected verifies that the signer's Sign method is
 // called and its header mutation is visible to the server.
 func TestWithSigner_HeaderInjected(t *testing.T) {

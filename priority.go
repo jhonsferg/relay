@@ -30,6 +30,12 @@ type priorityItem struct {
 	priority Priority
 	sequence uint64
 	notify   chan struct{} // closed when this item is dequeued
+	// index is this item's current position in priorityQueue.items, kept in
+	// sync by Push/Swap/Pop. -1 means the item is not currently in the heap
+	// (already dequeued or removed). Lets removeItem locate and remove an
+	// item in O(log n) via heap.Remove(pq, index) instead of a linear scan -
+	// see removeItem.
+	index int
 }
 
 // priorityQueue implements container/heap.Interface for a max-heap where
@@ -120,14 +126,21 @@ func (pq *priorityQueue) EnqueueAndWait(ctx context.Context, req *Request, prior
 // removeItem removes a specific item from the queue. Returns true if the item
 // was found and removed, false if it was not present (already dequeued).
 // Must be called under lock.
+//
+// O(log n) via the item's own tracked heap index (see priorityItem.index)
+// instead of an O(n) linear scan. This matters specifically under
+// WithPriorityQueue + a saturated bulkhead: EnqueueAndWait calls removeItem
+// on context cancellation, so a burst of many waiters' contexts expiring
+// together (e.g. a client-wide timeout, or an upstream outage cancelling
+// every queued request at once) previously blocked all other enqueue/
+// dequeue operations for O(queue depth) per cancellation, compounding into
+// O(n²) total work across n simultaneous cancellations.
 func (pq *priorityQueue) removeItem(target *priorityItem) bool {
-	for i, item := range pq.items {
-		if item == target {
-			heap.Remove(pq, i)
-			return true
-		}
+	if target.index < 0 || target.index >= len(pq.items) || pq.items[target.index] != target {
+		return false
 	}
-	return false
+	heap.Remove(pq, target.index)
+	return true
 }
 
 // DequeueNext dequeues and returns the highest-priority request from the queue.
@@ -162,6 +175,7 @@ func (pq *priorityQueue) Close() {
 	defer pq.mu.Unlock()
 	pq.closed.Store(true)
 	for _, item := range pq.items {
+		item.index = -1
 		close(item.notify)
 	}
 	pq.items = nil
@@ -190,16 +204,22 @@ func (pq *priorityQueue) Less(i, j int) bool {
 
 func (pq *priorityQueue) Swap(i, j int) {
 	pq.items[i], pq.items[j] = pq.items[j], pq.items[i]
+	pq.items[i].index = i
+	pq.items[j].index = j
 }
 
 func (pq *priorityQueue) Push(x interface{}) {
-	pq.items = append(pq.items, x.(*priorityItem))
+	item := x.(*priorityItem)
+	item.index = len(pq.items)
+	pq.items = append(pq.items, item)
 }
 
 func (pq *priorityQueue) Pop() interface{} {
 	old := pq.items
 	n := len(old)
 	x := old[n-1]
+	old[n-1] = nil // avoid retaining a reference to a popped item's Request/channel
+	x.index = -1
 	pq.items = old[0 : n-1]
 	return x
 }

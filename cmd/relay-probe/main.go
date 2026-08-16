@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -18,22 +19,32 @@ import (
 const version = "0.1.0"
 
 func main() {
-	expect := flag.Int("expect", 200, "expected HTTP status code")
-	timeout := flag.Duration("timeout", 10*time.Second, "per-request timeout")
-	retries := flag.Int("retry", 2, "retry attempts on failure")
-	interval := flag.Duration("interval", 0, "watch interval - 0 runs a single check")
-	watchCnt := flag.Int("count", 0, "watch iterations (0 = unlimited, requires -interval)")
-	maxLat := flag.Duration("latency", 0, "maximum acceptable latency (0 = no limit)")
-	cbEnable := flag.Bool("cb", false, "enable circuit breaker per endpoint")
-	verbose := flag.Bool("v", false, "verbose output")
-	jsonOut := flag.Bool("json", false, "output results as JSON")
-	showVer := flag.Bool("version", false, "print version and exit")
+	os.Exit(run(os.Args[1:]))
+}
 
-	flag.Usage = func() {
+// run parses args and executes the health probe, returning the process exit
+// code. All work happens here (rather than directly in main) so deferred
+// cleanup - shutting down every probe's connection pool - always runs via a
+// normal function return instead of being skipped by a direct os.Exit call.
+func run(args []string) int {
+	fs := flag.NewFlagSet("relay-probe", flag.ContinueOnError)
+
+	expect := fs.Int("expect", 200, "expected HTTP status code")
+	timeout := fs.Duration("timeout", 10*time.Second, "per-request timeout")
+	retries := fs.Int("retry", 2, "retry attempts on failure")
+	interval := fs.Duration("interval", 0, "watch interval - 0 runs a single check")
+	watchCnt := fs.Int("count", 0, "watch iterations (0 = unlimited, requires -interval)")
+	maxLat := fs.Duration("latency", 0, "maximum acceptable latency (0 = no limit)")
+	cbEnable := fs.Bool("cb", false, "enable circuit breaker per endpoint")
+	verbose := fs.Bool("v", false, "verbose output")
+	jsonOut := fs.Bool("json", false, "output results as JSON")
+	showVer := fs.Bool("version", false, "print version and exit")
+
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "relay-probe %s - health probe powered by relay\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n  relay-probe [OPTIONS] <URL> [URL...]\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
+		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExit codes:\n")
 		fmt.Fprintf(os.Stderr, "  0  all endpoints healthy\n")
 		fmt.Fprintf(os.Stderr, "  1  one or more endpoints unhealthy\n")
@@ -45,17 +56,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  relay-probe --cb --json https://api.example.com/health\n")
 	}
 
-	flag.Parse()
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 1
+	}
 
 	if *showVer {
 		fmt.Printf("relay-probe %s\n", version)
-		os.Exit(0)
+		return 0
 	}
 
-	urls := flag.Args()
+	urls := fs.Args()
 	if len(urls) == 0 {
-		flag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -72,7 +88,7 @@ func main() {
 
 	if *interval <= 0 {
 		results := runChecks(ctx, probes, cfg)
-		os.Exit(printReport(results, *jsonOut))
+		return printReport(results, *jsonOut)
 	}
 
 	ticker := time.NewTicker(*interval)
@@ -83,12 +99,12 @@ func main() {
 		code := printReport(results, *jsonOut)
 
 		if *watchCnt > 0 && iteration >= *watchCnt {
-			os.Exit(code)
+			return code
 		}
 
 		select {
 		case <-ctx.Done():
-			os.Exit(0)
+			return 0
 		case <-ticker.C:
 		}
 	}
@@ -111,6 +127,7 @@ func buildProbes(urls []string, timeout time.Duration, retries int, cbEnable, ve
 func newProbeClient(url string, timeout time.Duration, retries int, cbEnable, verbose bool) *relay.Client {
 	opts := []relay.Option{
 		relay.WithTimeout(timeout),
+		relay.WithTiming(), // probe always reports per-request latency
 	}
 
 	if retries > 0 {

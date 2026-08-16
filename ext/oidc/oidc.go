@@ -25,17 +25,38 @@
 //
 //	src := oidc.OAuthTokenSource(myOAuth2TokenSource)
 //	client := relay.New(oidc.WithBearerToken(src))
+//
+// # Testing
+//
+// oidc_test.go tests against an httptest.Server. oidc_docker_test.go
+// (build tag "docker") additionally tests RefreshingTokenSource against a
+// real Keycloak container: run with `go test -tags=docker ./...` (requires
+// a local Docker daemon).
 package oidc
 
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/jhonsferg/relay"
 )
+
+// defaultRefreshTimeout bounds each token refresh HTTP call made by
+// [RefreshingTokenSource] and [RefreshingTokenSourceContext] when the caller
+// hasn't already supplied their own HTTP client via the ctx passed in (see
+// golang.org/x/oauth2's oauth2.HTTPClient context key). Without an
+// independent timeout, x/oauth2's clientcredentials.Config falls back to
+// http.DefaultClient (Timeout: 0 - unbounded), and oauthAdapter.Token drops
+// the per-request context it's called with (oauth2.TokenSource.Token() takes
+// no context - it's fixed at construction time), so a stalled token endpoint
+// would otherwise hang every request through the client indefinitely, with
+// no way for an individual caller to bound it.
+const defaultRefreshTimeout = 30 * time.Second
 
 // TokenSource is the single abstraction this package requires: given a context,
 // return a raw bearer token string. Implementations are free to cache, refresh,
@@ -98,7 +119,24 @@ func RefreshingTokenSource(clientID, clientSecret, tokenURL string) TokenSource 
 // context that governs the lifetime of token refresh HTTP requests. Pass the
 // application's root context (or a context with a deadline) so that refresh
 // operations honour cancellation and shutdown signals.
+//
+// Unless ctx already carries its own HTTP client (via
+// context.WithValue(ctx, oauth2.HTTPClient, ...)), refresh calls are bounded
+// by an independent 30s timeout - see [RefreshingTokenSourceContextTimeout]
+// to customise it.
 func RefreshingTokenSourceContext(ctx context.Context, clientID, clientSecret, tokenURL string) TokenSource {
+	return RefreshingTokenSourceContextTimeout(ctx, clientID, clientSecret, tokenURL, defaultRefreshTimeout)
+}
+
+// RefreshingTokenSourceContextTimeout is like [RefreshingTokenSourceContext]
+// but lets the caller configure the token refresh timeout explicitly. A
+// timeout <= 0 leaves ctx untouched (no independent timeout is applied,
+// restoring the pre-fix behaviour for callers who manage their own HTTP
+// client via ctx).
+func RefreshingTokenSourceContextTimeout(ctx context.Context, clientID, clientSecret, tokenURL string, timeout time.Duration) TokenSource {
+	if timeout > 0 && ctx.Value(oauth2.HTTPClient) == nil {
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Timeout: timeout})
+	}
 	cfg := &clientcredentials.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,

@@ -12,6 +12,11 @@ timeout = percentile(recent_latencies, p95) * multiplier
 
 The result is clamped between a minimum and maximum bound.
 
+> **Note:** `WithAdaptiveTimeout` automatically enables per-request timing
+> instrumentation (equivalent to `WithTiming`), since it needs observed
+> latency samples to compute anything. You don't need to enable timing
+> separately.
+
 ## Configuration
 
 ```go

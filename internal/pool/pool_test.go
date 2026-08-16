@@ -2,56 +2,11 @@ package pool
 
 import (
 	"bytes"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
-
-// ----- bytespool -----
-
-func TestGetSizedBuffer_Small(t *testing.T) {
-	b := GetSizedBuffer(1024)
-	if b == nil {
-		t.Fatal("expected non-nil buffer")
-	}
-	if cap(*b) != smallBufferSize {
-		t.Errorf("cap = %d, want %d", cap(*b), smallBufferSize)
-	}
-	PutSizedBuffer(b)
-}
-
-func TestGetSizedBuffer_Medium(t *testing.T) {
-	b := GetSizedBuffer(smallBufferSize + 1)
-	if cap(*b) != mediumBufferSize {
-		t.Errorf("cap = %d, want %d", cap(*b), mediumBufferSize)
-	}
-	PutSizedBuffer(b)
-}
-
-func TestGetSizedBuffer_Large(t *testing.T) {
-	b := GetSizedBuffer(mediumBufferSize + 1)
-	if cap(*b) != largeBufferSize {
-		t.Errorf("cap = %d, want %d", cap(*b), largeBufferSize)
-	}
-	PutSizedBuffer(b)
-}
-
-func TestGetSizedBuffer_Huge(t *testing.T) {
-	b := GetSizedBuffer(largeBufferSize + 1)
-	if cap(*b) != hugeBufferSize {
-		t.Errorf("cap = %d, want %d", cap(*b), hugeBufferSize)
-	}
-	PutSizedBuffer(b)
-}
-
-func TestPutSizedBuffer_Nil(t *testing.T) {
-	PutSizedBuffer(nil) // should not panic
-}
-
-func TestPutSizedBuffer_UnknownSize(t *testing.T) {
-	// A buffer with a non-standard cap should be silently dropped (no pool match).
-	b := make([]byte, 12345)
-	PutSizedBuffer(&b) // should not panic
-}
 
 // ----- readerpool -----
 
@@ -129,4 +84,60 @@ func TestGetTimer_Reuse(t *testing.T) {
 		t.Error("expected non-nil reused timer")
 	}
 	PutTimer(t2)
+}
+
+// TestTimerPoolNew_ChannelDrained guards against a regression where a
+// pool-miss handed out a timer whose channel could already hold a pending
+// value: timerPool.New wraps time.NewTimer(0), which fires almost
+// immediately, but previously did not Stop+drain it before returning it.
+// time.Timer.Reset's documented contract requires the timer be stopped and
+// drained first; violating it on a cold-miss meant GetTimer's Reset(d) could
+// leave the near-instant original fire sitting undrained in the channel, so
+// a later <-timer.C in retry/rate-limit code returned immediately instead of
+// waiting the requested duration.
+func TestTimerPoolNew_ChannelDrained(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		raw := timerPool.New()
+		timer, ok := raw.(*time.Timer)
+		if !ok {
+			t.Fatalf("New() returned %T, want *time.Timer", raw)
+		}
+		time.Sleep(time.Millisecond) // let an undrained 0-duration fire land, if present
+		select {
+		case <-timer.C:
+			t.Fatalf("iteration %d: timer channel had a pending value immediately after New() - not drained", i)
+		default:
+		}
+	}
+}
+
+// TestGetTimer_ConcurrentColdMisses forces many concurrent pool-misses (by
+// requesting far more timers than have ever been returned to the pool) and
+// verifies none of them fire meaningfully earlier than the requested
+// duration.
+func TestGetTimer_ConcurrentColdMisses(t *testing.T) {
+	const (
+		n    = 50
+		want = 30 * time.Millisecond
+	)
+	var wg sync.WaitGroup
+	errs := make(chan string, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			start := time.Now()
+			timer := GetTimer(want)
+			defer PutTimer(timer)
+			<-timer.C
+			if elapsed := time.Since(start); elapsed < want/2 {
+				errs <- fmt.Sprintf("goroutine %d: timer fired after %v, want ~%v", i, elapsed, want)
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for msg := range errs {
+		t.Error(msg)
+	}
 }

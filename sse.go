@@ -179,14 +179,19 @@ func (c *Client) ExecuteSSEWithReconnect(req *Request, cfg SSEClientConfig, hand
 	)
 
 	for {
-		attempt := *req
+		// Clone (not a shallow `*req` struct copy) since Request.headers is a
+		// map: a shallow copy shares the same underlying map, so writing
+		// Last-Event-ID via WithHeader below would mutate the caller's
+		// original req in place whenever it already had any header set,
+		// corrupting it for any later reuse after this call returns.
+		attempt := req.Clone()
 
 		if lastID != "" {
-			attempt = *attempt.WithHeader("Last-Event-ID", lastID)
+			attempt = attempt.WithHeader("Last-Event-ID", lastID)
 		}
 
 		var shouldStop bool
-		err := c.ExecuteSSE(&attempt, func(ev SSEEvent) bool {
+		err := c.ExecuteSSE(attempt, func(ev SSEEvent) bool {
 			if len(eventTypeFilter) > 0 && !eventTypeFilter[ev.Event] {
 				return true
 			}
@@ -258,7 +263,18 @@ func (c *Client) ExecuteSSEStream(ctx context.Context, req *Request) (<-chan SSE
 		default:
 		}
 
-		stream, err := c.ExecuteStream(req)
+		// Attach ctx to a clone (not req itself, to avoid mutating the
+		// caller's original request) so the underlying HTTP transport tears
+		// down the connection on cancellation. Without this, the doc
+		// comment's "close ctx to stop the stream" only worked between
+		// scanner.Scan() calls (the ctx.Done() check above/below) - a real,
+		// long-lived SSE connection idle between events blocks on the
+		// socket Read() itself, governed by whatever context req already
+		// carried (default context.Background() if none), not ctx, so
+		// cancellation didn't unblock a pending read at all.
+		streamReq := req.Clone().WithContext(ctx)
+
+		stream, err := c.ExecuteStream(streamReq)
 		if err != nil {
 			errsCh <- err
 			return

@@ -7,7 +7,17 @@ import (
 
 var timerPool = &sync.Pool{
 	New: func() any {
-		return time.NewTimer(0)
+		// time.NewTimer(0) fires almost immediately. Stop+drain it before
+		// handing it out so GetTimer's Reset(d) below always operates on a
+		// stopped, drained timer, per time.Timer.Reset's documented contract
+		// - otherwise a pool-miss could race the near-instant fire against
+		// Reset, leaving a stale wakeup in t.C that a later <-t.C consumes
+		// immediately instead of waiting the intended duration.
+		t := time.NewTimer(0)
+		if !t.Stop() {
+			<-t.C
+		}
+		return t
 	},
 }
 

@@ -3,6 +3,7 @@
 package vcr
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,17 +42,143 @@ type Interaction struct {
 
 // RecordedRequest is a request that was recorded.
 type RecordedRequest struct {
-	Method string            `json:"method"`
-	URL    string            `json:"url"`
-	Header map[string]string `json:"header,omitempty"`
-	Body   string            `json:"body,omitempty"`
+	Method string              `json:"method"`
+	URL    string              `json:"url"`
+	Header map[string][]string `json:"header,omitempty"`
+	Body   string              `json:"body,omitempty"`
+}
+
+// MarshalJSON base64-encodes Body so binary bodies (images, protobuf, gzip)
+// round-trip byte-for-byte instead of being corrupted by encoding/json's
+// replacement of invalid UTF-8 sequences with U+FFFD when marshaling a Go
+// string directly.
+func (r RecordedRequest) MarshalJSON() ([]byte, error) {
+	return json.Marshal(recordedRequestJSON{
+		Method:       r.Method,
+		URL:          r.URL,
+		Header:       r.Header,
+		Body:         base64.StdEncoding.EncodeToString([]byte(r.Body)),
+		BodyEncoding: bodyEncodingBase64,
+	})
+}
+
+// UnmarshalJSON decodes Body according to its BodyEncoding. An empty
+// BodyEncoding means the cassette was written before this change (Body is
+// literal text), which is preserved for backward compatibility with
+// existing cassette files.
+func (r *RecordedRequest) UnmarshalJSON(data []byte) error {
+	var raw recordedRequestJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	body, err := decodeBody(raw.Body, raw.BodyEncoding)
+	if err != nil {
+		return fmt.Errorf("vcr: request body: %w", err)
+	}
+	r.Method = raw.Method
+	r.URL = raw.URL
+	r.Header = raw.Header
+	r.Body = body
+	return nil
+}
+
+// recordedRequestJSON is the on-disk shape of RecordedRequest.
+type recordedRequestJSON struct {
+	Method       string       `json:"method"`
+	URL          string       `json:"url"`
+	Header       headerValues `json:"header,omitempty"`
+	Body         string       `json:"body,omitempty"`
+	BodyEncoding string       `json:"body_encoding,omitempty"`
 }
 
 // RecordedResponse is a response that was recorded.
 type RecordedResponse struct {
-	Status int               `json:"status"`
-	Header map[string]string `json:"header,omitempty"`
-	Body   string            `json:"body"`
+	Status int                 `json:"status"`
+	Header map[string][]string `json:"header,omitempty"`
+	Body   string              `json:"body"`
+}
+
+// MarshalJSON base64-encodes Body; see RecordedRequest.MarshalJSON.
+func (r RecordedResponse) MarshalJSON() ([]byte, error) {
+	return json.Marshal(recordedResponseJSON{
+		Status:       r.Status,
+		Header:       r.Header,
+		Body:         base64.StdEncoding.EncodeToString([]byte(r.Body)),
+		BodyEncoding: bodyEncodingBase64,
+	})
+}
+
+// UnmarshalJSON decodes Body according to its BodyEncoding; see
+// RecordedRequest.UnmarshalJSON.
+func (r *RecordedResponse) UnmarshalJSON(data []byte) error {
+	var raw recordedResponseJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	body, err := decodeBody(raw.Body, raw.BodyEncoding)
+	if err != nil {
+		return fmt.Errorf("vcr: response body: %w", err)
+	}
+	r.Status = raw.Status
+	r.Header = raw.Header
+	r.Body = body
+	return nil
+}
+
+// recordedResponseJSON is the on-disk shape of RecordedResponse.
+type recordedResponseJSON struct {
+	Status       int          `json:"status"`
+	Header       headerValues `json:"header,omitempty"`
+	Body         string       `json:"body"`
+	BodyEncoding string       `json:"body_encoding,omitempty"`
+}
+
+// headerValues is the on-disk representation of recorded HTTP headers.
+// Marshals as the standard {"X-Foo": ["a","b"]} multi-value shape (matching
+// http.Header semantics - a repeated header, e.g. multiple Set-Cookie
+// values, is common and was previously silently collapsed to just the
+// first value). UnmarshalJSON also accepts the older {"X-Foo": "a"}
+// single-value shape written by cassettes recorded before multi-value
+// support, for backward compatibility.
+type headerValues map[string][]string
+
+func (h *headerValues) UnmarshalJSON(data []byte) error {
+	var multi map[string][]string
+	if err := json.Unmarshal(data, &multi); err == nil {
+		*h = multi
+		return nil
+	}
+	var single map[string]string
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err
+	}
+	multi = make(map[string][]string, len(single))
+	for k, v := range single {
+		multi[k] = []string{v}
+	}
+	*h = multi
+	return nil
+}
+
+// bodyEncodingBase64 marks a cassette body field as base64-encoded. Cassette
+// files written before this change have no body_encoding field at all,
+// which decodeBody treats as literal plain text for backward compatibility.
+const bodyEncodingBase64 = "base64"
+
+// decodeBody decodes a cassette body field according to its encoding marker.
+func decodeBody(body, encoding string) (string, error) {
+	switch encoding {
+	case "", "plain":
+		return body, nil
+	case bodyEncodingBase64:
+		decoded, err := base64.StdEncoding.DecodeString(body)
+		if err != nil {
+			return "", fmt.Errorf("invalid base64 body: %w", err)
+		}
+		return string(decoded), nil
+	default:
+		return "", fmt.Errorf("unknown body encoding %q", encoding)
+	}
 }
 
 // VCR is the cassette player/recorder.
@@ -61,6 +188,34 @@ type VCR struct {
 	cassette     *Cassette
 	mu           sync.Mutex
 	playbackIdx  int
+	saveCount    int // number of times saveUnlocked has actually written to disk; used by tests
+}
+
+// saveDebounceThreshold is the interaction count above which cassette saves
+// are batched instead of happening after every single interaction. Below
+// this threshold - the common case, a handful of interactions in a typical
+// test - every interaction is still saved immediately, preserving full
+// crash resilience ("if a test fails, previous requests are still
+// recorded"). Above it, saving after every single interaction makes
+// recording a large session (hundreds of interactions) needlessly slow:
+// each save re-marshals and rewrites the *entire* cassette from scratch, so
+// per-call cost is O(n) and total cost across n interactions is O(n²).
+const saveDebounceThreshold = 20
+
+// saveDebounceEvery is how many interactions accumulate between saves once
+// saveDebounceThreshold is exceeded. Any interactions recorded after the
+// last debounced save are not guaranteed to be on disk until the caller
+// explicitly calls [VCR.Save] - already the documented pattern for ending a
+// recording session.
+const saveDebounceEvery = 10
+
+// shouldSaveAfterAppend reports whether the cassette should be persisted to
+// disk immediately after it has grown to hold n interactions.
+func shouldSaveAfterAppend(n int) bool {
+	if n <= saveDebounceThreshold {
+		return true
+	}
+	return n%saveDebounceEvery == 0
 }
 
 // New creates a VCR for the given cassette file.
@@ -78,8 +233,14 @@ func New(cassettePath string, mode Mode) (*VCR, error) {
 			return nil, fmt.Errorf("failed to load cassette: %w", err)
 		}
 	case ModeRecord:
-		// Try to load existing cassette if it exists
-		_ = vcr.load()
+		// Try to load an existing cassette to append to. load() already
+		// treats a missing file as non-fatal (returns nil); any other error
+		// (e.g. a corrupted/truncated cassette) must not be silently
+		// swallowed - otherwise ModeRecord would silently start from an
+		// empty cassette and overwrite the corrupted file on the next save.
+		if err := vcr.load(); err != nil {
+			return nil, fmt.Errorf("failed to load existing cassette: %w", err)
+		}
 	}
 
 	return vcr, nil
@@ -128,7 +289,11 @@ func (v *VCR) saveUnlocked() error {
 		return err
 	}
 
-	return os.WriteFile(v.cassettePath, data, 0o600) //nolint:gosec
+	if err := os.WriteFile(v.cassettePath, data, 0o600); err != nil { //nolint:gosec
+		return err
+	}
+	v.saveCount++
+	return nil
 }
 
 // Middleware returns a relay transport middleware for recording/playback.
@@ -161,6 +326,11 @@ func (t *vcrTransport) recordRoundTrip(req *http.Request) (*http.Response, error
 	var reqBody string
 	if req.Body != nil {
 		bodyBytes, err := io.ReadAll(req.Body)
+		// The original body is being replaced below regardless of outcome
+		// (success or error) - close it now since http.RoundTripper's
+		// contract requires the body to always be closed, and this was the
+		// last reference to it.
+		_ = req.Body.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -205,11 +375,15 @@ func (t *vcrTransport) recordRoundTrip(req *http.Request) (*http.Response, error
 
 	t.vcr.cassette.Interactions = append(t.vcr.cassette.Interactions, interaction)
 
-	// Save cassette immediately (using unlocked version since we hold the lock).
-	// Return resp even on save failure: the network round-trip succeeded and the
-	// caller should not be penalised with a nil response for a disk write error.
-	if err := t.vcr.saveUnlocked(); err != nil {
-		return resp, fmt.Errorf("vcr: cassette save failed (response still returned): %w", err)
+	// Save cassette (using unlocked version since we hold the lock), unless
+	// this recording session is large enough that shouldSaveAfterAppend
+	// decides to debounce - see saveDebounceThreshold. Return resp even on
+	// save failure: the network round-trip succeeded and the caller should
+	// not be penalised with a nil response for a disk write error.
+	if shouldSaveAfterAppend(len(t.vcr.cassette.Interactions)) {
+		if err := t.vcr.saveUnlocked(); err != nil {
+			return resp, fmt.Errorf("vcr: cassette save failed (response still returned): %w", err)
+		}
 	}
 
 	return resp, nil
@@ -242,20 +416,22 @@ func (t *vcrTransport) playbackRoundTrip(req *http.Request) (*http.Response, err
 	return nil, fmt.Errorf("vcr: no matching interaction found for %s %s", req.Method, req.URL.String())
 }
 
-func headerMapFromHeader(h http.Header) map[string]string {
-	m := make(map[string]string)
+func headerMapFromHeader(h http.Header) map[string][]string {
+	m := make(map[string][]string, len(h))
 	for k, v := range h {
 		if len(v) > 0 {
-			m[k] = v[0]
+			m[k] = append([]string(nil), v...)
 		}
 	}
 	return m
 }
 
-func headerFromMap(m map[string]string) http.Header {
-	h := make(http.Header)
+func headerFromMap(m map[string][]string) http.Header {
+	h := make(http.Header, len(m))
 	for k, v := range m {
-		h.Set(k, v)
+		for _, val := range v {
+			h.Add(k, val)
+		}
 	}
 	return h
 }

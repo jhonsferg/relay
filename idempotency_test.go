@@ -178,3 +178,54 @@ func TestIdempotencyKeyHeader_ConstantValue(t *testing.T) {
 		t.Errorf("idempotencyKeyHeader should be 'X-Idempotency-Key', got %q", idempotencyKeyHeader)
 	}
 }
+
+// TestIsSafeMethod_MatchesIsIdempotentMethod guards against a regression
+// where isSafeMethod excluded DELETE based on an incorrect RFC 9110
+// classification (DELETE is idempotent even though it isn't "safe"/
+// non-mutating - the same is already true of PUT, which was correctly
+// included). isSafeMethod and retry.go's isIdempotentMethod exist to answer
+// the same underlying question ("can this method be safely replayed?") for
+// two different features (auto idempotency-key generation vs retry
+// eligibility) and must agree on every method.
+func TestIsSafeMethod_MatchesIsIdempotentMethod(t *testing.T) {
+	methods := []string{
+		http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+		http.MethodDelete, http.MethodPatch, http.MethodOptions, http.MethodTrace,
+	}
+	for _, m := range methods {
+		if got, want := isSafeMethod(m), isIdempotentMethod(m); got != want {
+			t.Errorf("isSafeMethod(%q) = %v, isIdempotentMethod(%q) = %v - must agree", m, got, m, want)
+		}
+	}
+	if !isSafeMethod(http.MethodDelete) {
+		t.Error("isSafeMethod(DELETE) = false, want true - DELETE is idempotent per RFC 9110 §9.2.2")
+	}
+}
+
+// TestWithAutoIdempotencyOnSafeRetries_DELETE_GetsKey is the integration-level
+// counterpart: a DELETE request with WithAutoIdempotencyOnSafeRetries enabled
+// must receive an auto-generated X-Idempotency-Key, consistent with PUT.
+func TestWithAutoIdempotencyOnSafeRetries_DELETE_GetsKey(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithAutoIdempotencyOnSafeRetries(),
+	)
+
+	_, err := c.Execute(c.Delete(srv.URL() + "/resource/1"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	req, err := srv.TakeRequest(time.Second)
+	if err != nil {
+		t.Fatalf("TakeRequest: %v", err)
+	}
+	if req.Headers.Get(idempotencyKeyHeader) == "" {
+		t.Error("expected DELETE to receive an auto-generated idempotency key, matching PUT's behaviour")
+	}
+}

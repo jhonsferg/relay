@@ -41,6 +41,15 @@
 // The signer injects: Authorization, X-Amz-Date, and (when a session token is
 // present) X-Amz-Security-Token. Existing values for these headers are
 // overwritten.
+//
+// # Testing
+//
+// sigv4_test.go checks that the Authorization header is present and
+// correctly shaped. sigv4_docker_test.go (build tag "docker") additionally
+// signs a real request against a MinIO container - a genuine S3-API server
+// that strictly validates SigV4 signatures - proving the signature relay
+// produces is cryptographically correct, not just header-shaped: run with
+// `go test -tags=docker ./...` (requires a local Docker daemon).
 package sigv4
 
 import (

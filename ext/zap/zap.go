@@ -37,13 +37,23 @@ type zapAdapter struct {
 // NewAdapter wraps l so it can be passed to [relay.WithLogger].
 // The underlying SugaredLogger is used so that the key/value pairs relay
 // passes as variadic args are forwarded without allocating zap.Field values.
+// A nil l uses [zap.L], zap's global logger (a no-op until
+// [zap.ReplaceGlobals] is called), matching [github.com/jhonsferg/relay/ext/slog]'s
+// convention of falling back to a sensible default instead of panicking.
 func NewAdapter(l *zap.Logger) relay.Logger {
+	if l == nil {
+		l = zap.L()
+	}
 	return &zapAdapter{s: l.Sugar()}
 }
 
 // NewSugaredAdapter wraps an already-sugared logger. Use this when your
-// application works directly with *zap.SugaredLogger.
+// application works directly with *zap.SugaredLogger. A nil s uses [zap.S],
+// zap's global sugared logger.
 func NewSugaredAdapter(s *zap.SugaredLogger) relay.Logger {
+	if s == nil {
+		s = zap.S()
+	}
 	return &zapAdapter{s: s}
 }
 

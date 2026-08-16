@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,67 +32,79 @@ func (m *multiFlag) String() string     { return strings.Join(*m, ", ") }
 func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 
 func main() {
+	os.Exit(run(os.Args[1:]))
+}
+
+// run parses args and executes the requested HTTP operation, returning the
+// process exit code. All work happens here (rather than directly in main)
+// so that deferred cleanup - closing the client's idle connections and
+// flushing the cookie jar to disk - always runs via a normal function
+// return, on every exit path (errors, non-2xx status, download/upload
+// completion), instead of being skipped by a direct os.Exit call.
+func run(args []string) int {
 	var (
 		headers     multiFlag
 		queryParams multiFlag
 		formFields  multiFlag
 	)
 
+	fs := flag.NewFlagSet("relay", flag.ContinueOnError)
+
 	// ── Request ──────────────────────────────────────────────────────────────
-	method := flag.String("X", "GET", "HTTP `method` (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)")
-	data := flag.String("d", "", "request body; prefix with @ to read file, @- for stdin")
-	jsonBody := flag.String("j", "", "JSON request body (sets Content-Type: application/json)")
-	userAgent := flag.String("A", "", "User-Agent `string`")
+	method := fs.String("X", "GET", "HTTP `method` (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)")
+	data := fs.String("d", "", "request body; prefix with @ to read file, @- for stdin")
+	jsonBody := fs.String("j", "", "JSON request body (sets Content-Type: application/json)")
+	userAgent := fs.String("A", "", "User-Agent `string`")
 
 	// ── Auth ─────────────────────────────────────────────────────────────────
-	user := flag.String("u", "", "basic auth `user:password`")
-	token := flag.String("t", "", "bearer `token`")
-	apiKey := flag.String("k", "", "API key as `Header=value` (e.g. X-API-Key=secret)")
-	cookies := flag.String("b", "", "send cookies as `Name=Value; Name2=Value2`")
-	cookieJar := flag.String("c", "", "Netscape cookie `file` to load and save cookies")
+	user := fs.String("u", "", "basic auth `user:password`")
+	token := fs.String("t", "", "bearer `token`")
+	apiKey := fs.String("k", "", "API key as `Header=value` (e.g. X-API-Key=secret)")
+	cookies := fs.String("b", "", "send cookies as `Name=Value; Name2=Value2`")
+	cookieJar := fs.String("c", "", "Netscape cookie `file` to load and save cookies")
 
 	// ── Network ──────────────────────────────────────────────────────────────
-	timeout := flag.Duration("timeout", 0, "max transfer `duration` (0 = no limit; Ctrl+C always cancels)")
-	connectTimeout := flag.Duration("connect-timeout", 30*time.Second, "TCP/TLS connection `timeout`")
-	maxRedir := flag.Int("L", 10, "maximum redirects (0 = disabled)")
-	proxyURL := flag.String("proxy", "", "HTTP/HTTPS proxy URL")
-	insecure := flag.Bool("insecure", false, "skip TLS certificate verification")
+	timeout := fs.Duration("timeout", 0, "max transfer `duration` (0 = no limit; Ctrl+C always cancels)")
+	connectTimeout := fs.Duration("connect-timeout", 30*time.Second, "TCP/TLS connection `timeout`")
+	maxRedir := fs.Int("L", 10, "maximum redirects (0 = disabled)")
+	proxyURL := fs.String("proxy", "", "HTTP/HTTPS proxy URL")
+	insecure := fs.Bool("insecure", false, "skip TLS certificate verification")
 
 	// ── Retry / resilience ───────────────────────────────────────────────────
-	retryMax := flag.Int("retry", 0, "maximum retry `attempts` (0 = disabled)")
-	retryDelay := flag.Duration("retry-delay", 100*time.Millisecond, "initial retry interval")
-	retryLog := flag.Bool("retry-verbose", false, "print each retry attempt to stderr")
-	rateLimit := flag.Float64("rate", 0, "requests per second limit (0 = unlimited)")
-	cbOn := flag.Bool("cb", false, "enable circuit breaker")
-	cbFail := flag.Int("cb-failures", 5, "circuit-breaker consecutive-failure threshold")
+	retryMax := fs.Int("retry", 0, "maximum retry `attempts` (0 = disabled)")
+	retryDelay := fs.Duration("retry-delay", 100*time.Millisecond, "initial retry interval")
+	retryLog := fs.Bool("retry-verbose", false, "print each retry attempt to stderr")
+	rateLimit := fs.Float64("rate", 0, "requests per second limit (0 = unlimited)")
+	cbOn := fs.Bool("cb", false, "enable circuit breaker")
+	cbFail := fs.Int("cb-failures", 5, "circuit-breaker consecutive-failure threshold")
 
 	// ── Output / download ────────────────────────────────────────────────────
-	outFile := flag.String("o", "", "write response body to `file` instead of stdout")
-	remoteName := flag.Bool("O", false, "use remote filename (from URL or Content-Disposition)")
-	resume := flag.Bool("C", false, "resume a partial download (-o or -O required)")
-	parallel := flag.Int("P", 1, "max parallel downloads when multiple URLs are given")
-	uploadFilePath := flag.String("upload-file", "", "upload `file` using PUT with a progress bar")
-	dumpHdr := flag.String("D", "", "write response headers to `file`")
-	headOnly := flag.Bool("I", false, "HEAD request only (prints headers to stdout)")
-	pretty := flag.Bool("pretty", false, "pretty-print JSON response body")
-	silent := flag.Bool("s", false, "suppress all output (exit code reflects HTTP status)")
-	showTiming := flag.Bool("timing", false, "print per-phase timing breakdown to stderr")
-	verbose := flag.Bool("v", false, "print request/response headers to stderr")
-	include := flag.Bool("i", false, "include response headers in stdout output")
-	noProgress := flag.Bool("no-progress", false, "disable download/upload progress bar")
+	outFile := fs.String("o", "", "write response body to `file` instead of stdout")
+	remoteName := fs.Bool("O", false, "use remote filename (from URL or Content-Disposition)")
+	resume := fs.Bool("C", false, "resume a partial download (-o or -O required)")
+	parallel := fs.Int("P", 1, "max parallel downloads when multiple URLs are given")
+	uploadFilePath := fs.String("upload-file", "", "upload `file` using PUT with a progress bar")
+	dumpHdr := fs.String("D", "", "write response headers to `file`")
+	headOnly := fs.Bool("I", false, "HEAD request only (prints headers to stdout)")
+	pretty := fs.Bool("pretty", false, "pretty-print JSON response body")
+	silent := fs.Bool("s", false, "suppress all output (exit code reflects HTTP status)")
+	showTiming := fs.Bool("timing", false, "print per-phase timing breakdown to stderr")
+	verbose := fs.Bool("v", false, "print request/response headers to stderr")
+	include := fs.Bool("i", false, "include response headers in stdout output")
+	noProgress := fs.Bool("no-progress", false, "disable download/upload progress bar")
 
-	showVersion := flag.Bool("version", false, "print version and exit")
+	showVersion := fs.Bool("version", false, "print version and exit")
 
-	flag.Var(&headers, "H", "add request `header` as \"Key: Value\" (repeatable)")
-	flag.Var(&queryParams, "q", "add query `param` as \"key=value\" (repeatable)")
-	flag.Var(&formFields, "F", "add form `field` as \"key=value\" (repeatable, multipart body)")
+	fs.Var(&headers, "H", "add request `header` as \"Key: Value\" (repeatable)")
+	fs.Var(&queryParams, "q", "add query `param` as \"key=value\" (repeatable)")
+	fs.Var(&formFields, "F", "add form `field` as \"key=value\" (repeatable, multipart body)")
 
-	flag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "relay %s - HTTP client powered by the relay library\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "  relay [OPTIONS] <URL> [URL...]\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
+		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  relay https://httpbin.org/get --timing --pretty\n")
 		fmt.Fprintf(os.Stderr, "  relay -X POST -j '{\"name\":\"Alice\"}' --retry 3 https://api.example.com/users\n")
@@ -104,17 +117,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  relay -c cookies.txt https://example.com/login          # cookie jar\n")
 	}
 
-	flag.Parse()
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 1
+	}
 
 	if *showVersion {
 		fmt.Printf("relay %s\n", version)
-		os.Exit(0)
+		return 0
 	}
 
-	args := flag.Args()
-	if len(args) == 0 {
-		flag.Usage()
-		os.Exit(1)
+	positional := fs.Args()
+	if len(positional) == 0 {
+		fs.Usage()
+		return 1
 	}
 
 	if *headOnly {
@@ -132,6 +150,9 @@ func main() {
 		*user, *token, *apiKey, *cookies, *cookieJar,
 		*verbose, *silent,
 	)
+	if *showTiming {
+		opts = append(opts, relay.WithTiming())
+	}
 
 	client := relay.New(opts...)
 
@@ -146,16 +167,15 @@ func main() {
 
 	// ── Upload mode ──────────────────────────────────────────────────────────
 	if *uploadFilePath != "" {
-		resp, err := uploadFile(ctx, client, args[0], *uploadFilePath, quiet)
+		resp, err := uploadFile(ctx, client, positional[0], *uploadFilePath, quiet)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "upload error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 		if !*silent {
 			writeResponse(resp, *include || *headOnly, *pretty, *showTiming, *dumpHdr)
 		}
-		exitForStatus(resp.StatusCode)
-		return
+		return exitForStatus(resp.StatusCode)
 	}
 
 	dlCfg := downloadConfig{
@@ -168,36 +188,40 @@ func main() {
 
 	// ── Multi-URL download mode - only when -O is explicitly set ────────────
 	if *remoteName {
-		if err := downloadAll(ctx, client, args, dlCfg); err != nil {
+		if err := downloadAll(ctx, client, positional, dlCfg); err != nil {
 			fmt.Fprintf(os.Stderr, "download error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// ── Single request, streaming to file ───────────────────────────────────
 	if *outFile != "" {
-		if err := downloadOne(ctx, client, args[0], dlCfg); err != nil {
+		if err := downloadOne(ctx, client, positional[0], dlCfg); err != nil {
 			fmt.Fprintf(os.Stderr, "download error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	// ── Normal single request ────────────────────────────────────────────────
-	req := buildRequest(client, *method, args[0], headers, queryParams, formFields, *data, *jsonBody, *userAgent)
+	req, err := buildRequest(client, *method, positional[0], headers, queryParams, formFields, *data, *jsonBody, *userAgent)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
 
 	resp, err := client.Execute(req.WithContext(ctx))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	if !*silent {
 		writeResponse(resp, *include || *headOnly, *pretty, *showTiming, *dumpHdr)
 	}
 
-	exitForStatus(resp.StatusCode)
+	return exitForStatus(resp.StatusCode)
 }
 
 // buildOptions assembles relay.Option values from the parsed flags.
@@ -339,13 +363,15 @@ func buildVerboseHookOptions() []relay.Option {
 	}
 }
 
-// buildRequest constructs a *relay.Request from the parsed CLI flags.
+// buildRequest constructs a *relay.Request from the parsed CLI flags. It
+// returns an error instead of exiting the process directly, so the caller
+// can decide how to report it and still run deferred cleanup.
 func buildRequest(
 	client *relay.Client,
 	method, rawURL string,
 	headers, queryParams, formFields multiFlag,
 	data, jsonBody, userAgent string,
-) *relay.Request {
+) (*relay.Request, error) {
 	var req *relay.Request
 	switch strings.ToUpper(method) {
 	case "POST":
@@ -383,13 +409,11 @@ func buildRequest(
 	case jsonBody != "":
 		body, err := readBody(jsonBody)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading JSON body: %v\n", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("reading JSON body: %w", err)
 		}
 		var v json.RawMessage
 		if err = json.Unmarshal(body, &v); err != nil {
-			fmt.Fprintf(os.Stderr, "invalid JSON: %v\n", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("invalid JSON: %w", err)
 		}
 		req = req.WithJSON(v)
 
@@ -405,13 +429,12 @@ func buildRequest(
 	case data != "":
 		body, err := readBody(data)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading body: %v\n", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("reading body: %w", err)
 		}
 		req = req.WithBody(body)
 	}
 
-	return req
+	return req, nil
 }
 
 // writeResponse writes the response to stdout and optional meta to stderr.
@@ -506,11 +529,14 @@ func sortedKeys(h http.Header) []string {
 	return keys
 }
 
-func exitForStatus(code int) {
+// exitForStatus maps an HTTP response status to a process exit code: 5 for
+// server errors, 4 for client errors, 0 otherwise.
+func exitForStatus(code int) int {
 	switch {
 	case code >= 500:
-		os.Exit(5)
+		return 5
 	case code >= 400:
-		os.Exit(4)
+		return 4
 	}
+	return 0
 }

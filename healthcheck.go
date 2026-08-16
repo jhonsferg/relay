@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 )
@@ -79,6 +80,9 @@ func (c *Client) probeHealthEndpoint(ctx context.Context, hc *http.Client, cfg *
 	if err != nil {
 		return false
 	}
+	// Drain before closing so the Transport can reuse the connection for the
+	// next probe tick instead of tearing it down (see maxRetryBodyDrain).
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxRetryBodyDrain))
 	_ = resp.Body.Close()
 
 	if cfg.ExpectedStatus != 0 {

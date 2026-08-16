@@ -105,6 +105,7 @@ func (s *inMemoryCacheStore) Get(key string) (*CachedResponse, bool) {
 	}
 	if e.isExpired() {
 		delete(s.entries, key)
+		s.removeFromInsertOrder(key)
 		return nil, false
 	}
 	return e, true
@@ -167,7 +168,29 @@ func (s *inMemoryCacheStore) evict() {
 func (s *inMemoryCacheStore) Delete(key string) {
 	s.mu.Lock()
 	delete(s.entries, key)
+	s.removeFromInsertOrder(key)
 	s.mu.Unlock()
+}
+
+// removeFromInsertOrder compacts key out of s.insertOrder. Must be called
+// with s.mu held.
+//
+// Without this, a deleted (or lazily-expired, see Get) key left a stale
+// reference in insertOrder: re-Set-ing the same key later made it look like
+// a brand-new key (append a *second* reference, since it's absent from
+// s.entries at the check in Set), and the next eviction could then pop the
+// stale first reference and delete the just-inserted live entry instead of
+// the genuinely oldest one - violating the documented oldest-first eviction
+// policy. Independently, leaving the stale entry behind also grows
+// insertOrder without bound for any Delete/Get-driven churn that never
+// triggers evict() (e.g. maxEntries never reached).
+func (s *inMemoryCacheStore) removeFromInsertOrder(key string) {
+	for i, k := range s.insertOrder {
+		if k == key {
+			s.insertOrder = append(s.insertOrder[:i], s.insertOrder[i+1:]...)
+			return
+		}
+	}
 }
 
 // Clear removes all entries from the store and resets the insertion-order list.

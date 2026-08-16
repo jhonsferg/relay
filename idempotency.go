@@ -38,13 +38,19 @@ func generateIdempotencyKey() (string, error) {
 	return string(buf[:]), nil
 }
 
-// isSafeMethod reports whether method is semantically idempotent or safe
-// per RFC 9110: GET, HEAD, PUT, OPTIONS, and TRACE. POST, PATCH, and DELETE
-// are excluded because they are not guaranteed safe to replay.
+// isSafeMethod reports whether method is idempotent per RFC 9110 §9.2.2:
+// GET, HEAD, PUT, DELETE, OPTIONS, and TRACE - repeating any of these has the
+// same effect as calling it once, so auto-generating an idempotency key for
+// them is safe. POST and PATCH are excluded because they are not guaranteed
+// idempotent. Despite the name, this is an idempotency check, not RFC 9110's
+// narrower "safe" (non-mutating) classification - PUT and DELETE both mutate
+// state but are still idempotent, which is what matters for replay safety.
+// Kept in sync with retry.go's isIdempotentMethod, which answers the same
+// question for the retry-eligibility decision.
 func isSafeMethod(method string) bool {
 	switch method {
 	case http.MethodGet, http.MethodHead, http.MethodPut,
-		http.MethodOptions, http.MethodTrace:
+		http.MethodDelete, http.MethodOptions, http.MethodTrace:
 		return true
 	}
 	return false

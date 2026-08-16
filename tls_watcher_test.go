@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -146,6 +147,23 @@ func TestCertWatcher_InvalidFilesFail(t *testing.T) {
 	}
 }
 
+// TestCertWatcher_NonPositiveIntervalFails guards against run()'s
+// time.NewTicker(w.interval) panicking (crashing the process - the
+// background goroutine is unrecovered) for interval <= 0, a plausible
+// misconfiguration (e.g. a zero-value config field left unset) that
+// newCertWatcher previously never validated.
+func TestCertWatcher_NonPositiveIntervalFails(t *testing.T) {
+	dir := t.TempDir()
+	certFile, keyFile := writeTLSKeyPair(t, dir, "zero-interval")
+
+	for _, interval := range []time.Duration{0, -time.Second} {
+		_, err := newCertWatcher(certFile, keyFile, interval)
+		if err == nil {
+			t.Errorf("expected error for interval=%v, got nil", interval)
+		}
+	}
+}
+
 func TestWithDynamicTLSCert(t *testing.T) {
 	dir := t.TempDir()
 	certFile, keyFile := writeTLSKeyPair(t, dir, "dynamic")
@@ -161,6 +179,93 @@ func TestWithDynamicTLSCert(t *testing.T) {
 		t.Fatal("expected GetClientCertificate hook to be set")
 	}
 	c.config.CertWatcher.Stop()
+}
+
+// TestClient_Shutdown_StopsOwnedCertWatcher guards against a regression
+// where the background reload goroutine spawned by WithDynamicTLSCert was
+// never stopped by Client.Shutdown, leaking a goroutine + time.Ticker for
+// the life of the process on every client created with this option -
+// Shutdown already had a working pattern for exactly this (bgCancel stops
+// the health-check goroutine) but the cert watcher was never wired into it.
+func TestClient_Shutdown_StopsOwnedCertWatcher(t *testing.T) {
+	dir := t.TempDir()
+	certFile, keyFile := writeTLSKeyPair(t, dir, "shutdown-owned")
+
+	c := New(WithDynamicTLSCert(certFile, keyFile, time.Hour))
+	w := c.config.CertWatcher
+	if w == nil {
+		t.Fatal("expected CertWatcher to be set")
+	}
+
+	if err := c.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+
+	select {
+	case <-w.stopCh:
+		// Stopped, as expected.
+	default:
+		t.Error("expected Shutdown to stop the CertWatcher it created (stopCh should be closed)")
+	}
+}
+
+// TestClient_Shutdown_DoesNotStopCallerManagedCertWatcher is the
+// WithCertWatcher counterpart: a caller-supplied watcher may be shared
+// across multiple clients, so Shutdown on one client must not stop it.
+func TestClient_Shutdown_DoesNotStopCallerManagedCertWatcher(t *testing.T) {
+	dir := t.TempDir()
+	certFile, keyFile := writeTLSKeyPair(t, dir, "shutdown-caller-managed")
+
+	w, err := newCertWatcher(certFile, keyFile, time.Hour)
+	if err != nil {
+		t.Fatalf("newCertWatcher: %v", err)
+	}
+	defer w.Stop()
+
+	c := New(WithCertWatcher(w))
+	if err := c.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+
+	select {
+	case <-w.stopCh:
+		t.Error("Shutdown must not stop a caller-managed (WithCertWatcher) watcher - it may be shared")
+	default:
+		// Still running, as expected.
+	}
+}
+
+// TestClient_With_DoesNotShareCertWatcherOwnership guards against a bug
+// where (*Client).With's clone of Config carries ownsCertWatcher=true (and
+// the same *CertWatcher pointer) straight to the child, breaking
+// WithDynamicTLSCert's documented invariant that the watcher is "exclusively
+// owned by this client (nothing else can reach it)" - see that doc comment.
+// After With, both the parent and the child reach the same watcher and both
+// have ownsCertWatcher=true, so Shutdown on either one stops the watcher
+// out from under the other, still-live client, silently killing its
+// certificate rotation with no error or indication anything went wrong.
+func TestClient_With_DoesNotShareCertWatcherOwnership(t *testing.T) {
+	dir := t.TempDir()
+	certFile, keyFile := writeTLSKeyPair(t, dir, "with-owned")
+
+	parent := New(WithDynamicTLSCert(certFile, keyFile, time.Hour))
+	w := parent.config.CertWatcher
+	if w == nil {
+		t.Fatal("expected CertWatcher to be set")
+	}
+
+	child := parent.With(WithTimeout(5 * time.Second))
+
+	if err := child.Shutdown(context.Background()); err != nil {
+		t.Fatalf("child.Shutdown: %v", err)
+	}
+
+	select {
+	case <-w.stopCh:
+		t.Error("child.Shutdown stopped the parent's still-live CertWatcher - With must not propagate exclusive ownership to a second client")
+	default:
+		// Still running, as expected - the parent is unaffected by the child's Shutdown.
+	}
 }
 
 func TestWithDynamicTLSCert_InvalidIgnored(t *testing.T) {

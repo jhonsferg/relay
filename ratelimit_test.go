@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -61,6 +62,26 @@ func TestRateLimit_TryAcquire(t *testing.T) {
 	// Bucket is now empty; second should fail immediately.
 	if tb.TryAcquire() {
 		t.Error("expected TryAcquire=false when bucket is empty")
+	}
+}
+
+// TestRateLimit_ZeroBurstDoesNotDeadlock guards against Burst: 0 (the zero
+// value if a caller forgets to set it, or an explicit "no burst" attempt)
+// clamping maxNanoBurst to 0, which made refill() perpetually clamp
+// nanoTokens back down to 0 before it could ever reach the 1-token
+// threshold Wait/TryAcquire require - the limiter deadlocked regardless of
+// RequestsPerSecond. Burst < 1 must be treated as burst = 1.
+func TestRateLimit_ZeroBurstDoesNotDeadlock(t *testing.T) {
+	tb := newTokenBucket(1000, 0)
+
+	if !tb.TryAcquire() {
+		t.Fatal("expected TryAcquire=true with Burst=0 clamped to 1, got false (deadlocked)")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if err := tb.Wait(ctx); err != nil {
+		t.Errorf("Wait with Burst=0 (clamped to 1) should eventually succeed as tokens refill, got %v", err)
 	}
 }
 

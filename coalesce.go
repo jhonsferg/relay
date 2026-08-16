@@ -37,7 +37,11 @@ func (t *coalesceTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	}
 
 	v, err, _ := t.group.Do(key, func() (any, error) {
-		resp, err := t.base.RoundTrip(req)
+		// Use a detached context so the leader's cancellation/timeout does not
+		// abort the shared request for other callers waiting on the same key
+		// (mirrors deduplicator.RoundTrip in singleflight.go).
+		detached := req.WithContext(newDetachedContext(req.Context()))
+		resp, err := t.base.RoundTrip(detached)
 		if err != nil {
 			return nil, err
 		}
@@ -55,8 +59,16 @@ func (t *coalesceTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 	r := v.(*result)
 
-	// Clone the response and give each caller its own body reader.
+	// Clone the response and give each caller its own body reader and its
+	// own Header map. `cloned := *r.resp` only shallow-copies the struct -
+	// cloned.Header would otherwise still alias the exact same map every
+	// other coalesced caller's Response also received, so one caller
+	// mutating its own Response.Headers (Set/Add/Del - relay never
+	// disallows this) would silently corrupt every other caller's
+	// Response.Headers too. Mirrors deduplicator.RoundTrip's identical
+	// per-caller Header.Clone() in singleflight.go.
 	cloned := *r.resp
+	cloned.Header = r.resp.Header.Clone()
 	cloned.Body = io.NopCloser(bytes.NewReader(r.body))
 	return &cloned, nil
 }

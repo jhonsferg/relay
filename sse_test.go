@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -200,6 +201,79 @@ func TestExecuteSSEWithReconnect_SingleStream(t *testing.T) {
 	}
 }
 
+// TestExecuteSSEWithReconnect_DoesNotMutateOriginalRequest guards against a
+// regression where each reconnect attempt was built via a shallow struct
+// copy (`attempt := *req`) instead of req.Clone(). Since Request.headers is
+// a map, a shallow copy shares the same underlying map with the original
+// req - so writing the Last-Event-ID header for a reconnect attempt (via
+// WithHeader, which mutates in place) leaked that header back into the
+// caller's original req whenever it already had at least one header set,
+// permanently corrupting it for any later reuse after this call returns.
+func TestExecuteSSEWithReconnect_DoesNotMutateOriginalRequest(t *testing.T) {
+	var mu sync.Mutex
+	var seenHeaders []http.Header
+	var connCount int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seenHeaders = append(seenHeaders, r.Header.Clone())
+		connCount++
+		n := connCount
+		mu.Unlock()
+
+		if n <= 2 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Connection", "keep-alive")
+			_, _ = fmt.Fprint(w, "id: 1\ndata: hello\n\n")
+			return
+		}
+		// Third connection: the plain request reusing the original req
+		// after ExecuteSSEWithReconnect has returned.
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client := relay.New()
+	// A pre-existing header is required to reproduce the bug: it forces
+	// req.headers to be a non-nil map that a shallow copy would share.
+	req := client.Get(srv.URL).WithHeader("X-Custom", "preexisting")
+
+	cfg := relay.SSEClientConfig{
+		MaxReconnects:  1,
+		ReconnectDelay: 1 * time.Millisecond,
+	}
+	err := client.ExecuteSSEWithReconnect(req, cfg, func(relay.SSEEvent) bool {
+		return true // keep going until MaxReconnects stops the loop
+	})
+	if err != nil {
+		t.Fatalf("ExecuteSSEWithReconnect error: %v", err)
+	}
+
+	// Reuse the original req for a plain request after the reconnect loop
+	// finished - this is the exact scenario the bug corrupts.
+	if _, execErr := client.Execute(req); execErr != nil {
+		t.Fatalf("reusing req after ExecuteSSEWithReconnect: %v", execErr)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seenHeaders) != 3 {
+		t.Fatalf("expected 3 connections (initial SSE, 1 reconnect, 1 reused plain request), got %d", len(seenHeaders))
+	}
+	if got := seenHeaders[0].Get("Last-Event-Id"); got != "" {
+		t.Errorf("first connection should not carry Last-Event-Id yet, got %q", got)
+	}
+	if got := seenHeaders[1].Get("Last-Event-Id"); got != "1" {
+		t.Errorf("reconnect should carry Last-Event-Id=1, got %q", got)
+	}
+	if got := seenHeaders[2].Get("Last-Event-Id"); got != "" {
+		t.Errorf("reusing the original req after ExecuteSSEWithReconnect leaked Last-Event-Id = %q onto it", got)
+	}
+	if got := seenHeaders[2].Get("X-Custom"); got != "preexisting" {
+		t.Errorf("reused req lost its own pre-existing header: X-Custom = %q, want %q", got, "preexisting")
+	}
+}
+
 func TestExecuteSSEWithReconnect_EventTypeFiltering(t *testing.T) {
 	raw := "event: update\ndata: wanted\n\nevent: ignored\ndata: not-wanted\n\nevent: update\ndata: wanted-too\n\n"
 	srv := sseServer(raw)
@@ -310,6 +384,66 @@ func TestExecuteSSEStream_ContextCancellation(t *testing.T) {
 	case <-events:
 	case <-errs:
 	case <-time.After(5 * time.Second):
+	}
+}
+
+// TestExecuteSSEStream_ContextCancellationUnblocksPendingRead guards
+// against ctx never being attached to the underlying request - the doc
+// comment says "close ctx to stop the stream," and there's a ctx.Done()
+// check between scanner.Scan() calls, but that only fires between reads.
+// For a real long-lived SSE connection idle between events (the whole
+// point of the API), scanner.Scan() blocks on the socket Read(), governed
+// by whatever context the request carries - not ctx, unless ctx is
+// actually attached to it. Unlike TestExecuteSSEStream_ContextCancellation
+// (whose server returns immediately, reaching body EOF on its own
+// regardless of cancellation), this server blocks after the first event
+// without ever closing the connection on its own, so only a correctly
+// wired cancellation can unblock the client.
+func TestExecuteSSEStream_ContextCancellationUnblocksPendingRead(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "data: one\n\n")
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		// Block until the client disconnects - simulates a long-lived idle
+		// SSE connection with no more data, never closing on its own.
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	client := relay.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events, errs := client.ExecuteSSEStream(ctx, client.Get(srv.URL))
+
+	select {
+	case ev := <-events:
+		if ev.Data != "one" {
+			t.Fatalf("data = %q, want %q", ev.Data, "one")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for first event")
+	}
+
+	// The scanner is now blocked on a socket Read() waiting for more data
+	// that will never come - exactly the scenario the bug affected.
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		for range events { //nolint:revive
+		}
+		for range errs { //nolint:revive
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("channels did not close within 5s after ctx cancellation - the pending read was not interrupted")
 	}
 }
 

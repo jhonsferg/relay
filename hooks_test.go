@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	relay "github.com/jhonsferg/relay"
 )
@@ -236,6 +237,13 @@ func TestWithAutoIdempotencyOnSafeRetries_SafeMethod(t *testing.T) {
 	}
 }
 
+// TestWithAutoIdempotencyOnSafeRetries_UnsafeMethod checks the genuinely
+// non-idempotent methods (POST, PATCH). DELETE used to be included in this
+// list too, asserting that it should NOT receive an auto-generated key -
+// that encoded a bug: DELETE is idempotent per RFC 9110 §9.2.2 (repeating it
+// has the same effect as calling it once), same as PUT, which already
+// receives a key. See TestWithAutoIdempotencyOnSafeRetries_DELETE_GetsKey in
+// idempotency_test.go for DELETE's corrected (positive) expectation.
 func TestWithAutoIdempotencyOnSafeRetries_UnsafeMethod(t *testing.T) {
 	t.Parallel()
 
@@ -252,7 +260,7 @@ func TestWithAutoIdempotencyOnSafeRetries_UnsafeMethod(t *testing.T) {
 	)
 	defer client.Shutdown(context.Background()) //nolint:errcheck
 
-	for _, req := range []*relay.Request{client.Post("/"), client.Patch("/"), client.Delete("/")} {
+	for _, req := range []*relay.Request{client.Post("/"), client.Patch("/")} {
 		gotKey = ""
 		_, err := client.Execute(req)
 		if err != nil {
@@ -413,5 +421,195 @@ func TestRedirectChain_NoRedirects(t *testing.T) {
 	}
 	if got := len(resp.RedirectChain()); got != 0 {
 		t.Errorf("RedirectChain() length = %d, want 0", got)
+	}
+}
+
+func TestExecute_WithDisableRedirectTracking_ZeroRedirectCount(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/a":
+			http.Redirect(w, r, "/b", http.StatusFound)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL), relay.WithDisableRedirectTracking())
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/a"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	if got := resp.RedirectCount; got != 0 {
+		t.Errorf("RedirectCount = %d, want 0 with tracking disabled", got)
+	}
+	if got := len(resp.RedirectChain()); got != 0 {
+		t.Errorf("RedirectChain() length = %d, want 0 with tracking disabled", got)
+	}
+}
+
+func TestExecute_WithDisableRedirectTracking_MaxRedirectsStillEnforced(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Always redirect - an infinite redirect loop.
+		http.Redirect(w, r, "/next", http.StatusFound)
+	}))
+	defer srv.Close()
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL),
+		relay.WithDisableRedirectTracking(),
+		relay.WithMaxRedirects(3),
+	)
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	_, err := client.Execute(client.Get("/start"))
+	if err == nil {
+		t.Fatal("expected an error from exceeding MaxRedirects, got nil")
+	}
+}
+
+func TestExecute_WithDisableRedirectTracking_BeforeRedirectHookStillRuns(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/a":
+			http.Redirect(w, r, "/b", http.StatusFound)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	var hookCalls int
+	client := relay.New(
+		relay.WithBaseURL(srv.URL),
+		relay.WithDisableRedirectTracking(),
+		relay.WithBeforeRedirectHook(func(_ *http.Request, _ []*http.Request) error {
+			hookCalls++
+			return nil
+		}),
+	)
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	_, err := client.Execute(client.Get("/a"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+
+	if hookCalls != 1 {
+		t.Errorf("BeforeRedirectHook calls = %d, want 1 even with tracking disabled", hookCalls)
+	}
+}
+
+// TestRedirectChain_NoLeakBetweenRequests guards against stale entries
+// leaking from one Execute call into the next now that the redirect-tracking
+// state (count + chain) is pooled and reused across requests instead of
+// allocated fresh every time.
+func TestRedirectChain_NoLeakBetweenRequests(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/redirect":
+			http.Redirect(w, r, "/target", http.StatusFound)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	client := relay.New(relay.WithBaseURL(srv.URL))
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	redirected, err := client.Execute(client.Get("/redirect"))
+	if err != nil {
+		t.Fatalf("Execute(/redirect) error: %v", err)
+	}
+	if got := redirected.RedirectCount; got != 1 {
+		t.Fatalf("RedirectCount = %d, want 1", got)
+	}
+	relay.PutResponse(redirected)
+
+	plain, err := client.Execute(client.Get("/"))
+	if err != nil {
+		t.Fatalf("Execute(/) error: %v", err)
+	}
+	defer relay.PutResponse(plain)
+
+	if got := plain.RedirectCount; got != 0 {
+		t.Errorf("RedirectCount = %d, want 0 (leaked from previous request)", got)
+	}
+	if got := len(plain.RedirectChain()); got != 0 {
+		t.Errorf("RedirectChain() length = %d, want 0 (leaked from previous request)", got)
+	}
+}
+
+// TestRedirectChain_NoLeakAcrossRetryAttempts guards against a regression
+// where the pooled redirectState (count + chain) is captured once per
+// executeOnce call and shared, via context.WithValue, across every retry
+// attempt inside it - but was only ever reset at the top of executeOnce, not
+// at the top of each individual attempt. If attempt 1 redirects and then
+// fails with a retryable status, and attempt 2 also redirects before
+// succeeding, the final Response.RedirectChain() ended up containing hops
+// from both attempts concatenated, while RedirectCount reflected only the
+// last attempt - leaving the two mutually inconsistent and reporting a hop
+// that happened on a discarded, failed attempt as if it were part of the
+// successful response.
+func TestRedirectChain_NoLeakAcrossRetryAttempts(t *testing.T) {
+	t.Parallel()
+
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/start":
+			http.Redirect(w, r, "/target", http.StatusFound)
+		case "/target":
+			hits++
+			if hits == 1 {
+				// First attempt's post-redirect response: a retryable failure.
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			// Second attempt's post-redirect response: success.
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithRetry(&relay.RetryConfig{
+			MaxAttempts:     2,
+			InitialInterval: time.Millisecond,
+			MaxInterval:     5 * time.Millisecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+			RetryableStatus: []int{http.StatusServiceUnavailable},
+		}),
+	)
+	defer client.Shutdown(context.Background()) //nolint:errcheck
+
+	resp, err := client.Execute(client.Get("/start"))
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want 200 (after the retry)", resp.StatusCode)
+	}
+
+	if got := resp.RedirectCount; got != 1 {
+		t.Errorf("RedirectCount = %d, want 1 (only the successful attempt's redirect)", got)
+	}
+	if got := len(resp.RedirectChain()); got != 1 {
+		t.Errorf("RedirectChain() length = %d, want 1 - a hop from the failed, discarded first attempt leaked in", got)
 	}
 }

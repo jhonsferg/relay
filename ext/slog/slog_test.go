@@ -285,6 +285,7 @@ func TestLogFieldsContainDuration(t *testing.T) {
 
 	client := relay.New(
 		relay.WithBaseURL(server.URL),
+		relay.WithTiming(), // duration_ms reads Response.Timing, which is opt-in
 		WithRequestResponseLogging(logger),
 	)
 

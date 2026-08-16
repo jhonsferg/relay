@@ -50,6 +50,7 @@ func (t *chaosTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t.cfg.LatencyRate > 0 && t.cfg.Latency > 0 && rand.Float64() < t.cfg.LatencyRate { //nolint:gosec
 		select {
 		case <-req.Context().Done():
+			closeRequestBody(req)
 			return nil, req.Context().Err()
 		case <-time.After(t.cfg.Latency):
 		}
@@ -57,12 +58,14 @@ func (t *chaosTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Inject error
 	if t.cfg.ErrorRate > 0 && rand.Float64() < t.cfg.ErrorRate { //nolint:gosec
+		closeRequestBody(req)
 		return nil, ErrChaosInjected
 	}
 
 	// Inject fault status
 	if len(t.cfg.Faults) > 0 && t.cfg.FaultRate > 0 && rand.Float64() < t.cfg.FaultRate { //nolint:gosec
 		statusCode := t.cfg.Faults[rand.IntN(len(t.cfg.Faults))] //nolint:gosec
+		closeRequestBody(req)
 		return &http.Response{
 			StatusCode: statusCode,
 			Status:     fmt.Sprintf("%d %s", statusCode, http.StatusText(statusCode)),
@@ -73,4 +76,14 @@ func (t *chaosTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return t.base.RoundTrip(req)
+}
+
+// closeRequestBody closes req.Body if present. http.RoundTripper
+// implementations must always close the request body, including on paths
+// that short-circuit before delegating to the base transport (which would
+// otherwise be the one to close it).
+func closeRequestBody(req *http.Request) {
+	if req.Body != nil {
+		_ = req.Body.Close()
+	}
 }

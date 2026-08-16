@@ -227,18 +227,32 @@ func (t *harTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	// Read and restore response body for recording. Use the same size cap as
-	// the request body to prevent large (or infinite) response streams from
-	// exhausting memory while the recorder is active.
+	// Read and restore the response body for recording.
+	//
+	// The read itself must be unbounded - resp.Body is reassigned below from
+	// whatever was read, and that reassigned body is what Execute actually
+	// buffers into the Response returned to the caller (subject to its own,
+	// separate MaxResponseBodyBytes truncation). maxHARRespBodySize instead
+	// bounds only the *recorded* HAR text snapshot (the actual
+	// memory/export-size concern, mirroring buildHARRequest's identical
+	// treatment of the request body), so a response body larger than 10 MB
+	// is still delivered to the caller in full; only what's captured in the
+	// HAR entry's response Content.Text is truncated.
 	const maxHARRespBodySize = 10 * 1024 * 1024
-	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxHARRespBodySize))
+	body, readErr := io.ReadAll(resp.Body)
 	_ = resp.Body.Close() //nolint:errcheck
 	if readErr != nil {
 		return nil, fmt.Errorf("relay: har recording: %w", readErr)
 	}
 	resp.Body = io.NopCloser(newBytesReader(body))
 
-	harResp := buildHARResponse(resp, body)
+	recorded := body
+	if len(recorded) > maxHARRespBodySize {
+		recorded = recorded[:maxHARRespBodySize]
+	}
+	harResp := buildHARResponse(resp, recorded)
+	harResp.BodySize = len(body)
+	harResp.Content.Size = len(body)
 
 	entry := HAREntry{
 		StartedDateTime: start.UTC().Format(time.RFC3339Nano),
@@ -283,17 +297,29 @@ func buildHARRequest(req *http.Request) HARRequest {
 
 	// Capture the request body: read it, record it, and restore it so the
 	// actual transport still gets the full payload.
-	// Limit HAR recording to 10 MB to prevent memory exhaustion on large uploads.
+	//
+	// The read itself must be unbounded - req.Body is reassigned below from
+	// whatever was read, and that reassigned body is what actually goes out
+	// over the network. maxHARBodySize instead bounds only the *recorded*
+	// HAR text snapshot (the actual memory/export-size concern), so a
+	// request body larger than 10 MB is still sent in full; only what's
+	// captured in the HAR entry's postData.text is truncated. BodySize
+	// always reflects the true full size, so BodySize > len(postData.Text)
+	// signals truncation to a HAR consumer.
 	const maxHARBodySize = 10 * 1024 * 1024
 	if req.Body != nil && req.Body != http.NoBody {
-		bodyBytes, err := io.ReadAll(io.LimitReader(req.Body, maxHARBodySize))
+		bodyBytes, err := io.ReadAll(req.Body)
 		_ = req.Body.Close() //nolint:errcheck
 		if err == nil && len(bodyBytes) > 0 {
 			req.Body = io.NopCloser(newBytesReader(bodyBytes))
 			harReq.BodySize = len(bodyBytes)
+			recorded := bodyBytes
+			if len(recorded) > maxHARBodySize {
+				recorded = recorded[:maxHARBodySize]
+			}
 			harReq.PostData = &HARPostData{
 				MimeType: req.Header.Get("Content-Type"),
-				Text:     string(bodyBytes),
+				Text:     string(recorded),
 			}
 		}
 	}

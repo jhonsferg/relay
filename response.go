@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-
-	"github.com/jhonsferg/relay/internal/pool"
 )
 
 // Response is a fully buffered HTTP response. The body has been read and
@@ -18,7 +16,6 @@ import (
 type Response struct {
 	raw           *http.Response
 	body          []byte
-	poolBuf       *[]byte // held when body is backed by a pooled buffer; returned in PutResponse
 	decode        func(contentType string, body []byte, v any) error
 	redirectChain []RedirectInfo
 	StatusCode    int
@@ -55,10 +52,6 @@ func getResponse() *Response {
 func (r *Response) reset() {
 	r.raw = nil
 	r.body = r.body[:0]
-	if r.poolBuf != nil {
-		pool.PutSizedBuffer(r.poolBuf)
-		r.poolBuf = nil
-	}
 	r.decode = nil
 	r.redirectChain = r.redirectChain[:0]
 	r.StatusCode = 0
@@ -74,60 +67,56 @@ func (r *Response) reset() {
 // with the response and not retaining it.
 func PutResponse(r *Response) {
 	if r != nil {
-		if r.poolBuf != nil {
-			pool.PutSizedBuffer(r.poolBuf)
-			r.poolBuf = nil
-		}
 		responsePool.Put(r)
 	}
 }
 
+// newResponse reads resp.Body into a pooled *Response, reusing the body
+// slice's own backing array across PutResponse-recycled instances instead of
+// borrowing a buffer from a separate tiered byte pool. This buffer is never
+// held behind an opt-in release: it lives on r.body directly, so whether or
+// not the caller calls PutResponse it is reclaimed exactly once, either by
+// being handed back to responsePool (warm reuse) or by the GC (cold path) -
+// unlike a detached pooled buffer, which would otherwise be discarded
+// unreturned on every call that skips PutResponse.
 func newResponse(resp *http.Response, maxBytes int64, redirectCount int, chain []RedirectInfo) (*Response, error) {
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
 
 	var reader io.Reader = resp.Body
+	sizeHint := resp.ContentLength
 	if maxBytes > 0 {
 		reader = io.LimitReader(resp.Body, maxBytes+1)
+		// Only ever clamp a *known* size hint down to what will actually be
+		// read. Never turn an unknown length (-1) into maxBytes+1 - that
+		// would make every chunked response with no Content-Length
+		// pre-allocate the full cap (e.g. the 10MB default) regardless of
+		// actual body size.
+		if sizeHint > maxBytes+1 {
+			sizeHint = maxBytes + 1
+		}
 	}
 
-	// Use a sized pooled buffer to reduce GC pressure.
-	// Size selection based on Content-Length hint for optimal tier reuse.
-	poolBuf := pool.GetSizedBuffer(resp.ContentLength)
-	buf := bytes.NewBuffer(*poolBuf)
-	buf.Reset()
+	r := getResponse()
 
-	_, err := buf.ReadFrom(reader)
+	body, err := readAllInto(r.body, reader, sizeHint)
 	if err != nil {
-		pool.PutSizedBuffer(poolBuf)
+		PutResponse(r)
 		return nil, err
 	}
 
-	body := buf.Bytes()
 	truncated := false
 
-	// When the body fits inside the pooled buffer's capacity, keep the buffer
-	// attached to the Response to avoid a copy+alloc. PutResponse returns it.
-	usesPool := cap(*poolBuf) >= cap(body)
-
 	if maxBytes > 0 && int64(len(body)) > maxBytes {
-		body = append([]byte(nil), body[:maxBytes]...)
+		body = body[:maxBytes]
 		truncated = true
-		usesPool = false
-	} else if len(body) == 0 {
-		body = nil
-		usesPool = false
 	}
 
-	if !usesPool {
-		pool.PutSizedBuffer(poolBuf)
-		poolBuf = nil
-	}
-
-	// Get pooled response struct.
-	r := getResponse()
 	r.raw = resp
-	r.body = body
-	r.poolBuf = poolBuf
+	if len(body) == 0 {
+		r.body = nil
+	} else {
+		r.body = body
+	}
 	r.StatusCode = resp.StatusCode
 	r.Status = resp.Status
 	r.Headers = resp.Header
@@ -138,6 +127,89 @@ func newResponse(resp *http.Response, maxBytes int64, redirectCount int, chain [
 	}
 
 	return r, nil
+}
+
+// readAllInto reads reader to EOF, reusing dst's backing array (kept across
+// PutResponse-recycled Response instances) when it already has room.
+//
+// When contentLength is known and positive (a non-chunked response), dst is
+// grown to fit it in one shot - no incremental growth at all.
+//
+// When contentLength is unknown (chunked/streamed, the common case for a
+// dynamically-generated response), growth mirrors the current [io.ReadAll]
+// algorithm: independent, exponentially-sized chunks are accumulated and
+// concatenated into one right-sized slice only once, at the end. A naive
+// repeated append-and-regrow of a single buffer (bytes.Buffer.ReadFrom's
+// approach, and an earlier version of this function) re-copies the entire
+// accumulated content on every grow step; since Go's slice growth factor
+// tapers toward ~1.25x for larger slices (not a flat 2x), that adds up to
+// several times the final body size in total allocated bytes for a
+// multi-megabyte body read in many small increments - confirmed via pprof
+// diffing this function against a naive version and against io.ReadAll.
+func readAllInto(dst []byte, reader io.Reader, contentLength int64) ([]byte, error) {
+	if contentLength > 0 {
+		return readFixedSizeInto(dst, reader, contentLength)
+	}
+
+	b := dst[:0]
+	if cap(b) == 0 {
+		b = make([]byte, 0, 512)
+	}
+	next := 256
+	var chunks [][]byte
+	var finalSize int
+	for {
+		n, err := reader.Read(b[len(b):cap(b)])
+		b = b[:len(b)+n]
+		if err != nil {
+			if err == io.EOF { //nolint:errorlint
+				err = nil
+			}
+			if len(chunks) == 0 {
+				return b, err
+			}
+			finalSize += len(b)
+			final := make([]byte, 0, finalSize)
+			for _, c := range chunks {
+				final = append(final, c...)
+			}
+			final = append(final, b...)
+			return final, err
+		}
+		if cap(b)-len(b) < cap(b)/16 {
+			// Current chunk is nearly full - stash it and start a fresh one
+			// instead of growing-and-copying it in place.
+			chunks = append(chunks, b)
+			finalSize += len(b)
+			b = make([]byte, 0, next)
+			next += next / 2
+		}
+	}
+}
+
+// readFixedSizeInto reads reader to EOF into dst's backing array, grown to
+// fit size in one shot. Used when the response size is known in advance
+// (Content-Length), so no incremental growth is needed for the common case;
+// falls back to append-based growth only if the body turns out larger than
+// size (a malformed or lying Content-Length header).
+func readFixedSizeInto(dst []byte, reader io.Reader, size int64) ([]byte, error) {
+	body := dst[:0]
+	if int64(cap(body)) < size {
+		body = make([]byte, 0, size)
+	}
+	for {
+		if len(body) == cap(body) {
+			body = append(body, 0)[:len(body)]
+		}
+		n, err := reader.Read(body[len(body):cap(body)])
+		body = body[:len(body)+n]
+		if err != nil {
+			if err == io.EOF { //nolint:errorlint
+				err = nil
+			}
+			return body, err
+		}
+	}
 }
 
 // Body returns the full response body as a byte slice. The slice is owned by

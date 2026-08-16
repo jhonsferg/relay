@@ -234,6 +234,28 @@ func TestCacheStore_TTLExpiry(t *testing.T) {
 	}
 }
 
+// TestCacheStore_Set_TTLRoundsUpToWholeSeconds guards against int32(d.Seconds())
+// truncating toward zero (1.5s -> 1) instead of the ceiling the doc comment
+// promises (1.5s -> 2). Understating the TTL made memcached evict up to ~1s
+// before relay's own ExpiresAt still considered the entry valid.
+func TestCacheStore_Set_TTLRoundsUpToWholeSeconds(t *testing.T) {
+	t.Parallel()
+	store, fc := newStore(t)
+
+	store.Set("exp", sampleEntry(1500*time.Millisecond))
+
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if len(fc.items) != 1 {
+		t.Fatalf("expected exactly 1 stored item, got %d", len(fc.items))
+	}
+	for _, it := range fc.items {
+		if it.expiration != 2 {
+			t.Errorf("expiration = %ds, want 2s (ceil of 1.5s)", it.expiration)
+		}
+	}
+}
+
 func TestCacheStore_NoTTLPersists(t *testing.T) {
 	t.Parallel()
 	store, _ := newStore(t)

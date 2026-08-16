@@ -111,11 +111,37 @@ type sentryTransport struct {
 	cfg  sentryConfig
 }
 
+// sensitiveHeaders are stripped from the request passed to Sentry,
+// regardless of the host application's sentrygo.ClientOptions.SendDefaultPII
+// setting. sentry-go only redacts headers itself when SendDefaultPII is
+// false (its default) - a host app that sets SendDefaultPII: true for
+// unrelated reasons (e.g. it wants full PII from other Sentry integrations)
+// would otherwise have relay's credentials forwarded to Sentry on every
+// captured request.
+var sensitiveHeaders = []string{
+	"Authorization",
+	"Cookie",
+	"Set-Cookie",
+	"Proxy-Authorization",
+	"X-Api-Key",
+}
+
+// sanitizedRequest returns a shallow clone of req with sensitiveHeaders
+// removed, safe to hand to Sentry's Scope.SetRequest without risking
+// credential leakage. The original req (and its headers) are untouched.
+func sanitizedRequest(req *http.Request) *http.Request {
+	clone := req.Clone(req.Context())
+	for _, h := range sensitiveHeaders {
+		clone.Header.Del(h)
+	}
+	return clone
+}
+
 func (t *sentryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Clone so this request's scope does not bleed into the parent Hub.
 	localHub := t.hub.Clone()
 	localHub.ConfigureScope(func(scope *sentrygo.Scope) {
-		scope.SetRequest(req)
+		scope.SetRequest(sanitizedRequest(req))
 		scope.SetTag("http.method", req.Method)
 		scope.SetTag("http.host", req.URL.Host)
 	})

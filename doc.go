@@ -11,6 +11,11 @@
 //	)
 //	resp, err := client.Execute(client.Get("/users/42"))
 //
+// Per-phase timing (DNS, TCP, TLS, TTFB) into [Response.Timing] is opt-in:
+// pass [WithTiming] to collect it. It's off by default to avoid its
+// allocation cost on the common path; [WithAdaptiveTimeout] enables it
+// automatically since it needs latency samples to function.
+//
 // See https://github.com/jhonsferg/relay for full documentation.
 //
 // # API Stability

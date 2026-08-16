@@ -46,6 +46,8 @@ type TwoLevelCacheStore struct {
 
 // New returns a two-level cache. Both l1 and l2 must be non-nil.
 // l1 is queried first (fast path); l2 is the fallback (slower, persistent).
+//
+// Panics if l1 or l2 is nil.
 func New(l1, l2 relay.CacheStore) *TwoLevelCacheStore {
 	if l1 == nil {
 		panic("twolevel: l1 must not be nil")

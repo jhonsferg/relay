@@ -68,9 +68,16 @@ func WithGoBreaker(cb *gb.CircuitBreaker) relay.Option {
 	})
 }
 
-// NewCircuitBreaker is a convenience wrapper around [gb.NewCircuitBreaker] that
-// injects a default IsSuccessful predicate treating 5xx responses as failures.
-// You can override this by setting Settings.IsSuccessful before calling New.
+// NewCircuitBreaker is a convenience wrapper around [gb.NewCircuitBreaker]
+// that fills in an explicit default IsSuccessful predicate (err == nil) when
+// one isn't set - functionally identical to sony/gobreaker's own default
+// for a nil Settings.IsSuccessful, so this constructor changes no behavior
+// on its own. Treating HTTP 5xx responses as breaker failures happens
+// entirely in [gobreakerTransport.RoundTrip], which wraps a 5xx response in
+// an error before calling cb.Execute - that happens regardless of whether
+// the breaker was built via this constructor or [gb.NewCircuitBreaker]
+// directly. You can override the success predicate by setting
+// Settings.IsSuccessful before calling this function.
 func NewCircuitBreaker(settings gb.Settings) *gb.CircuitBreaker {
 	if settings.IsSuccessful == nil {
 		settings.IsSuccessful = func(err error) bool { return err == nil }
@@ -85,7 +92,9 @@ type gobreakerTransport struct {
 }
 
 func (t *gobreakerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	var called bool
 	result, err := t.cb.Execute(func() (any, error) {
+		called = true
 		resp, err := t.base.RoundTrip(req)
 		if err != nil {
 			return nil, err
@@ -103,6 +112,15 @@ func (t *gobreakerTransport) RoundTrip(req *http.Request) (*http.Response, error
 		// unwrap and return the response + no error so relay can inspect it.
 		if se, ok := err.(*httpStatusError); ok {
 			return se.resp, nil
+		}
+		// When the breaker denies the request outright (Open, or half-open
+		// saturated), gb.Execute never calls the closure above, so
+		// t.base.RoundTrip - and therefore whatever would have closed
+		// req.Body - never runs. http.RoundTripper's contract requires the
+		// body to always be closed, including on error paths, so close it
+		// here in the one case where nothing downstream ever will.
+		if !called && req.Body != nil {
+			_ = req.Body.Close()
 		}
 		return nil, err
 	}

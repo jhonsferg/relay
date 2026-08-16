@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http/httptrace"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -32,7 +31,10 @@ type RequestTiming struct {
 	Total time.Duration
 }
 
-// timingCollector accumulates timing checkpoints during an HTTP request.
+// timingCollector accumulates timing checkpoints during a single HTTP
+// request. A fresh instance is allocated per request by injectTraceContext
+// and must NOT be pooled/reused across requests - see that function's doc
+// comment for why.
 //
 // All checkpoint fields use sync/atomic.Int64 (Unix nanoseconds) instead of
 // time.Time because net/http's dialParallel fires ConnectStart/ConnectDone
@@ -47,19 +49,6 @@ type timingCollector struct {
 	tlsDone      atomic.Int64
 	firstByte    atomic.Int64
 	requestStart atomic.Int64
-	entry        atomic.Pointer[timingEntry]
-}
-
-// reset clears all checkpoint fields so the collector can be reused.
-func (tc *timingCollector) reset() {
-	tc.dnsStart.Store(0)
-	tc.dnsDone.Store(0)
-	tc.connStart.Store(0)
-	tc.connDone.Store(0)
-	tc.tlsStart.Store(0)
-	tc.tlsDone.Store(0)
-	tc.firstByte.Store(0)
-	tc.requestStart.Store(0)
 }
 
 // nowNano returns the current time as Unix nanoseconds.
@@ -74,70 +63,64 @@ func toTime(v int64) time.Time {
 	return time.Unix(0, v)
 }
 
-// timingEntry pairs a collector and its pre-allocated trace for pool reuse.
-// The trace closures capture the collector pointer so they always write to
-// the same instance. atomic.Int64 fields prevent races even if dialParallel
-// callbacks fire after Do() returns.
-type timingEntry struct {
-	col   *timingCollector
-	trace *httptrace.ClientTrace
-}
-
-var timingPool sync.Pool
-
-func init() {
-	timingPool.New = func() any {
-		col := &timingCollector{}
-		trace := &httptrace.ClientTrace{
-			DNSStart: func(_ httptrace.DNSStartInfo) {
-				col.dnsStart.Store(nowNano())
-			},
-			DNSDone: func(_ httptrace.DNSDoneInfo) {
-				col.dnsDone.Store(nowNano())
-			},
-			ConnectStart: func(_, _ string) {
-				col.connStart.Store(nowNano())
-			},
-			ConnectDone: func(_, _ string, _ error) {
-				col.connDone.Store(nowNano())
-			},
-			TLSHandshakeStart: func() {
-				col.tlsStart.Store(nowNano())
-			},
-			TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
-				col.tlsDone.Store(nowNano())
-			},
-			GotFirstResponseByte: func() {
-				col.firstByte.Store(nowNano())
-			},
-		}
-		return &timingEntry{col: col, trace: trace}
-	}
-}
-
-// injectTraceContext attaches an httptrace.ClientTrace to ctx and returns a
-// per-request timingCollector from the pool. All writes go through atomic
-// stores so the transport's background goroutines (dialParallel) can write
-// concurrently without racing against the buildTiming read that follows Do().
+// injectTraceContext attaches a fresh httptrace.ClientTrace to ctx and
+// returns a fresh, per-request timingCollector. All writes go through
+// atomic stores so the transport's background goroutines (dialParallel) can
+// write concurrently without racing against the buildTiming read that
+// follows Do().
 //
-// The caller must call putTimingCollector when done to return the entry
-// to the pool for reuse.
+// A new collector/trace pair is allocated on every call - they are
+// deliberately NOT pooled. An earlier version pooled a single
+// (*timingCollector, *httptrace.ClientTrace) pair and reused it across
+// requests: net/http's dialParallel can fire a callback (e.g. ConnectDone)
+// from a "loser" dial goroutine (IPv4/IPv6 happy eyeballs, or any race
+// between concurrent dial attempts) *after* the request that raced it has
+// already completed and its collector was returned to the pool. Because the
+// trace's closures close over the collector by reference, that late,
+// unrelated callback silently wrote into whichever *different* request had
+// since been leased the same reused instance - corrupting its
+// Response.Timing with a foreign timestamp. Confirmed reproducible with a
+// deterministic test: lease A, return A's collector, lease B (reuses the
+// same object), fire A's now-stale callback, observe B's field corrupted.
+// Allocating fresh per request (only when WithTiming/WithAdaptiveTimeout is
+// enabled - see client.go) costs a handful of extra allocations but makes
+// this class of cross-request corruption structurally impossible: a stale
+// callback can only ever write into the collector it was originally built
+// for, which nothing else references once that request is done.
 func injectTraceContext(ctx context.Context) (context.Context, *timingCollector) {
-	entry := timingPool.Get().(*timingEntry)
-	entry.col.reset()
-	entry.col.entry.Store(entry)
-	entry.col.requestStart.Store(nowNano())
-	return httptrace.WithClientTrace(ctx, entry.trace), entry.col
+	col := &timingCollector{}
+	col.requestStart.Store(nowNano())
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(_ httptrace.DNSStartInfo) {
+			col.dnsStart.Store(nowNano())
+		},
+		DNSDone: func(_ httptrace.DNSDoneInfo) {
+			col.dnsDone.Store(nowNano())
+		},
+		ConnectStart: func(_, _ string) {
+			col.connStart.Store(nowNano())
+		},
+		ConnectDone: func(_, _ string, _ error) {
+			col.connDone.Store(nowNano())
+		},
+		TLSHandshakeStart: func() {
+			col.tlsStart.Store(nowNano())
+		},
+		TLSHandshakeDone: func(_ tls.ConnectionState, _ error) {
+			col.tlsDone.Store(nowNano())
+		},
+		GotFirstResponseByte: func() {
+			col.firstByte.Store(nowNano())
+		},
+	}
+	return httptrace.WithClientTrace(ctx, trace), col
 }
 
-// putTimingCollector returns a timing collector to the pool for reuse.
-// Must be called after buildTiming has consumed the timing values.
-func putTimingCollector(col *timingCollector) {
-	if col != nil && col.entry.Load() != nil {
-		timingPool.Put(col.entry.Load())
-		col.entry.Store(nil)
-	}
-}
+// putTimingCollector is a no-op, kept so client.go's
+// `defer putTimingCollector(timingCol)` call site needs no change.
+// timingCollector is no longer pooled - see injectTraceContext's doc
+// comment for why reuse across requests was unsafe.
+func putTimingCollector(*timingCollector) {}
 
 // buildTiming computes RequestTiming from atomic-loaded checkpoints.
 // total is the wall-clock duration of the entire Execute call.
