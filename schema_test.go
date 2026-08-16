@@ -180,7 +180,7 @@ func TestApplyRule_MalformedMinMaxRule(t *testing.T) {
 	}
 	// Unknown rule is a silent no-op.
 	if err := applyRule("unknown-rule", "f", fv); err != nil {
-		t.Errorf("expected no error for unrecognized rule, got: %v", err)
+		t.Errorf("expected no error for unrecognised rule, got: %v", err)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestStructValidator_NonStructPrototype(t *testing.T) {
 
 func TestStructValidator_UnmarshalableValue(t *testing.T) {
 	sv := NewStructValidator(validStruct{})
-	// A channel cannot be marshaled to JSON.
+	// A channel cannot be marshalled to JSON.
 	err := sv.Validate(make(chan int))
 	if err == nil {
 		t.Fatal("expected error when the value cannot be re-encoded to JSON")
