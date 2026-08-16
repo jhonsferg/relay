@@ -256,6 +256,55 @@ func TestDownloadAllSequential(t *testing.T) {
 	}
 }
 
+// TestDownloadAllSequentialReportsPartialFailure guards against a regression
+// where downloadAll always returned nil regardless of how many individual
+// downloads failed, so a CI pipeline chaining on the process exit code
+// (`relay -O url1 url2 && next_step`) would advance even when every
+// download failed.
+func TestDownloadAllSequentialReportsPartialFailure(t *testing.T) {
+	chdirTemp(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bad" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte("content"))
+	}))
+	defer srv.Close()
+
+	client := relay.New()
+	defer func() { _ = client.Shutdown(context.Background()) }()
+
+	cfg := downloadConfig{remoteNames: true, quiet: true}
+	err := downloadAll(context.Background(), client, []string{srv.URL + "/good", srv.URL + "/bad"}, cfg)
+	if err == nil {
+		t.Fatal("expected a non-nil error when one of several downloads fails")
+	}
+}
+
+func TestDownloadAllParallelReportsPartialFailure(t *testing.T) {
+	chdirTemp(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bad" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte("content"))
+	}))
+	defer srv.Close()
+
+	client := relay.New()
+	defer func() { _ = client.Shutdown(context.Background()) }()
+
+	cfg := downloadConfig{remoteNames: true, quiet: true, parallel: 4}
+	err := downloadAll(context.Background(), client, []string{srv.URL + "/good", srv.URL + "/bad", srv.URL + "/good2"}, cfg)
+	if err == nil {
+		t.Fatal("expected a non-nil error when one of several parallel downloads fails")
+	}
+}
+
 func TestDownloadAllParallel(t *testing.T) {
 	chdirTemp(t)
 
