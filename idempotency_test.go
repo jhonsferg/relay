@@ -226,6 +226,6 @@ func TestWithAutoIdempotencyOnSafeRetries_DELETE_GetsKey(t *testing.T) {
 		t.Fatalf("TakeRequest: %v", err)
 	}
 	if req.Headers.Get(idempotencyKeyHeader) == "" {
-		t.Error("expected DELETE to receive an auto-generated idempotency key, matching PUT's behavior")
+		t.Error("expected DELETE to receive an auto-generated idempotency key, matching PUT's behaviour")
 	}
 }
