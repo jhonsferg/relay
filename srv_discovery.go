@@ -55,6 +55,13 @@ type SRVResolver struct {
 	cacheExp time.Time
 	rrIdx    atomic.Uint64
 
+	// flights coalesces concurrent cache-miss lookups so a burst of callers
+	// racing a cache expiry (or the very first call from many goroutines at
+	// once) triggers exactly one real DNS SRV query instead of one per
+	// caller. There is only ever one logical lookup target per resolver
+	// instance, so the key is always the same fixed string.
+	flights flightGroup[[]srvTarget]
+
 	// lookupSRV is the DNS SRV lookup function. Defaults to net.DefaultResolver.LookupSRV.
 	// Override for testing.
 	lookupSRV func(ctx context.Context, service, proto, name string) (string, []*net.SRV, error)
@@ -92,42 +99,57 @@ func (r *SRVResolver) Resolve(ctx context.Context) (string, error) {
 	}
 	r.mu.Unlock()
 
-	// Slow path: cache miss — perform DNS lookup without holding the lock so
-	// that concurrent callers are not blocked during network I/O.
-	_, addrs, err := r.lookupSRV(ctx, r.service, r.proto, r.name)
-	if err != nil {
-		return "", fmt.Errorf("srv lookup %s.%s.%s: %w", r.service, r.proto, r.name, err)
-	}
-	if len(addrs) == 0 {
-		return "", fmt.Errorf("srv lookup %s.%s.%s: no records", r.service, r.proto, r.name)
-	}
-
-	if r.balancer == SRVPriority {
-		slices.SortFunc(addrs, func(a, b *net.SRV) int {
-			if a.Priority < b.Priority {
-				return -1
-			}
-			if a.Priority > b.Priority {
-				return 1
-			}
-			return 0
-		})
-	}
-
-	targets := make([]srvTarget, len(addrs))
-	for i, a := range addrs {
-		targets[i] = srvTarget{
-			host: strings.TrimSuffix(a.Target, "."),
-			port: a.Port,
+	// Slow path: cache miss - coalesce concurrent lookups via singleflight so
+	// a burst of callers racing a cache expiry triggers exactly one real DNS
+	// query, not one per caller. The lookup itself still doesn't hold r.mu,
+	// so callers of other SRVResolver instances (or a fast-path cache hit on
+	// this one, once populated) are never blocked by it.
+	targets, err := r.flights.do("srv", func() ([]srvTarget, error) {
+		// Use a detached context so one caller's cancellation/timeout
+		// doesn't abort the shared lookup for other callers coalesced onto
+		// it (mirrors the same fix in dns_cache.go's dnsCache.lookup).
+		_, addrs, lookupErr := r.lookupSRV(newDetachedContext(ctx), r.service, r.proto, r.name)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("srv lookup %s.%s.%s: %w", r.service, r.proto, r.name, lookupErr)
 		}
+		if len(addrs) == 0 {
+			return nil, fmt.Errorf("srv lookup %s.%s.%s: no records", r.service, r.proto, r.name)
+		}
+
+		if r.balancer == SRVPriority {
+			slices.SortFunc(addrs, func(a, b *net.SRV) int {
+				if a.Priority < b.Priority {
+					return -1
+				}
+				if a.Priority > b.Priority {
+					return 1
+				}
+				return 0
+			})
+		}
+
+		resolved := make([]srvTarget, len(addrs))
+		for i, a := range addrs {
+			resolved[i] = srvTarget{
+				host: strings.TrimSuffix(a.Target, "."),
+				port: a.Port,
+			}
+		}
+
+		if r.ttl > 0 {
+			r.mu.Lock()
+			r.cached = resolved
+			r.cacheExp = time.Now().Add(r.ttl)
+			r.mu.Unlock()
+		}
+
+		return resolved, nil
+	})
+	if err != nil {
+		return "", err
 	}
 
-	// Re-acquire the lock only to update the cache.
 	r.mu.Lock()
-	if r.ttl > 0 {
-		r.cached = targets
-		r.cacheExp = time.Now().Add(r.ttl)
-	}
 	result := r.pickTarget(targets)
 	r.mu.Unlock()
 
