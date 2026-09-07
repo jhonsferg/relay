@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/openapi
 go 1.25.0
 
 require (
-	github.com/getkin/kin-openapi v0.142.0
+	github.com/getkin/kin-openapi v0.146.0
 	github.com/jhonsferg/relay v0.4.8
 )
 
@@ -24,5 +24,5 @@ require (
 	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )
