@@ -18,7 +18,7 @@ func TestTransport_NotNil(t *testing.T) {
 }
 
 func TestTransport_ImplementsRoundTripper(t *testing.T) {
-	var _ http.RoundTripper = http3ext.Transport()
+	var _ http.RoundTripper = http3ext.Transport() //nolint:staticcheck // intentional compile-time interface assertion, not a redundant type
 }
 
 func TestConfig_Transport_DefaultTLS(t *testing.T) {
