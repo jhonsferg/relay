@@ -15,7 +15,7 @@ import (
 func BenchmarkWithPrometheus_DefaultLabels(b *testing.B) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":1}`))
+		_, _ = w.Write([]byte(`{"id":1}`))
 	}))
 	defer srv.Close()
 
@@ -44,7 +44,7 @@ func BenchmarkWithPrometheus_DefaultLabels(b *testing.B) {
 func BenchmarkWithPrometheus_AllLabels(b *testing.B) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":1}`))
+		_, _ = w.Write([]byte(`{"id":1}`))
 	}))
 	defer srv.Close()
 
