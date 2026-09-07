@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/otel
 go 1.25.0
 
 require (
-	github.com/jhonsferg/relay v0.4.3
+	github.com/jhonsferg/relay v0.4.8
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/metric v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
