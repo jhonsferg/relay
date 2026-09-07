@@ -164,7 +164,7 @@ func (s *tokenSource) fetch(ctx context.Context) (*token, error) {
 	if err != nil {
 		return nil, fmt.Errorf("relay/oauth: token fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

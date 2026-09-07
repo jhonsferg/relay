@@ -39,6 +39,7 @@ import (
 	"time"
 
 	gorilla "github.com/gorilla/websocket"
+
 	"github.com/jhonsferg/relay"
 )
 

@@ -46,7 +46,7 @@ func TestAllow_ExceedsLimit(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		limiter.Allow(ctx) //nolint:errcheck - consume quota
+		limiter.Allow(ctx) //nolint:errcheck // consume quota
 	}
 
 	err := limiter.Allow(ctx)

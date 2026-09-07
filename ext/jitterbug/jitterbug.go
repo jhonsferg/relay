@@ -160,7 +160,7 @@ func prepareBody(req *http.Request) error {
 		return nil
 	}
 	data, err := io.ReadAll(req.Body)
-	req.Body.Close()
+	_ = req.Body.Close()
 	if err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func (t *decorrelatedTransport) RoundTrip(req *http.Request) (*http.Response, er
 		if hi <= lo {
 			hi = lo + 1
 		}
-		d := time.Duration(lo + rand.Int64N(hi-lo))
+		d := time.Duration(lo + rand.Int64N(hi-lo)) //nolint:gosec // non-cryptographic jitter, not security-sensitive
 		prevSleep = d
 		return d
 	})
@@ -335,7 +335,7 @@ func (t *linearTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			d = t.cfg.Cap
 		}
 		if t.jitterFactor > 0 {
-			d += time.Duration(float64(d) * t.jitterFactor * rand.Float64())
+			d += time.Duration(float64(d) * t.jitterFactor * rand.Float64()) //nolint:gosec // non-cryptographic jitter, not security-sensitive
 			if d > t.cfg.Cap {
 				d = t.cfg.Cap
 			}
@@ -365,7 +365,7 @@ type BudgetConfig struct {
 //
 // Pair with [relay.WithDisableRetry] to avoid double-retrying.
 func WithRetryBudget(cfg BudgetConfig) relay.Option {
-	cfg.Config.applyDefaults()
+	cfg.applyDefaults()
 	if cfg.TotalBudget <= 0 {
 		cfg.TotalBudget = 10 * time.Second
 	}
@@ -409,7 +409,7 @@ func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if hi <= lo {
 				hi = lo + 1
 			}
-			d := time.Duration(lo + rand.Int64N(hi-lo)) //nolint:nolintlint
+			d := time.Duration(lo + rand.Int64N(hi-lo)) //nolint:gosec // non-cryptographic jitter, not security-sensitive
 			prevSleep = d
 
 			remaining := t.totalBudget - time.Since(start)

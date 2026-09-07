@@ -110,7 +110,7 @@ func TestRequestValidation_ValidGET(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	defer srv.Close()
 
@@ -181,7 +181,7 @@ func TestResponseValidation_ValidResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
@@ -202,7 +202,7 @@ func TestResponseValidation_InvalidResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(body))
+		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
 

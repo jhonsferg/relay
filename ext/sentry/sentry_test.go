@@ -19,9 +19,8 @@ import (
 // captureTransport records events sent to Sentry without making real network
 // calls, allowing tests to inspect what was captured.
 type captureTransport struct {
-	mu          sync.Mutex
-	events      []*sentrygo.Event
-	breadcrumbs []*sentrygo.Breadcrumb
+	mu     sync.Mutex
+	events []*sentrygo.Event
 }
 
 func (t *captureTransport) SendEvent(event *sentrygo.Event) {
@@ -123,7 +122,7 @@ func TestWithSentry_Captures5xx(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"error":"boom"}`)
+		_, _ = fmt.Fprint(w, `{"error":"boom"}`)
 	}))
 	defer srv.Close()
 
@@ -161,7 +160,7 @@ func TestWithSentry_Captures5xx(t *testing.T) {
 // sentrygo.Request for captured 5xx/4xx events, which shadows whatever
 // scope.SetRequest contributed - CaptureException builds a bare event with
 // no pre-set Request, so it's scope.ApplyToEvent that fills in Request
-// (headers included, confirmed by inspecting the raw SDK behavior), making
+// (headers included, confirmed by inspecting the raw SDK behaviour), making
 // this the path that actually exercises what scope.SetRequest is given.
 func TestWithSentry_StripsSensitiveHeaders(t *testing.T) {
 	t.Parallel()
@@ -170,7 +169,7 @@ func TestWithSentry_StripsSensitiveHeaders(t *testing.T) {
 	client, _ := sentrygo.NewClient(sentrygo.ClientOptions{
 		Transport:        ct,
 		TracesSampleRate: 0,
-		SendDefaultPII:   true,
+		SendDefaultPII:   true, //nolint:staticcheck // deliberately testing relay's own header scrubbing with PII collection enabled at the Sentry client level
 	})
 	hub := sentrygo.NewHub(client, sentrygo.NewScope())
 	c := relay.New(

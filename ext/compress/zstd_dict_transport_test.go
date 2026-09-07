@@ -52,8 +52,8 @@ func TestWithZstdDictionary_CompressesRequestBody(t *testing.T) {
 
 	c := relay.New(opt)
 	req := c.Post(srv.URL + "/").WithBody([]byte(body))
-	if _, err := c.Execute(req); err != nil {
-		t.Fatalf("Execute: %v", err)
+	if _, execErr := c.Execute(req); execErr != nil {
+		t.Fatalf("Execute: %v", execErr)
 	}
 
 	if gotEncoding != "zstd" {

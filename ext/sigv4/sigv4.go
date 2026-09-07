@@ -153,7 +153,7 @@ func (t *sigv4Transport) hashBody(req *http.Request) (string, error) {
 	}
 
 	data, err := io.ReadAll(req.Body)
-	req.Body.Close()
+	_ = req.Body.Close()
 	if err != nil {
 		return "", err
 	}

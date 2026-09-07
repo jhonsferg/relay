@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gorilla "github.com/gorilla/websocket"
+
 	"github.com/jhonsferg/relay"
 	ws "github.com/jhonsferg/relay/ext/websocket"
 )
@@ -26,7 +27,7 @@ func echoServer(t *testing.T) *httptest.Server {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {
@@ -49,7 +50,7 @@ func headerEchoServer(t *testing.T) *httptest.Server {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		_ = conn.WriteMessage(gorilla.TextMessage, []byte(r.Header.Get("X-Auth")))
 	}))
 	return srv
@@ -73,11 +74,11 @@ func TestDial_Echo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	const want = "hello relay"
-	if err := conn.WriteText(want); err != nil {
-		t.Fatalf("WriteText: %v", err)
+	if writeErr := conn.WriteText(want); writeErr != nil {
+		t.Fatalf("WriteText: %v", writeErr)
 	}
 	msg, err := conn.ReadMessage()
 	if err != nil {
@@ -104,11 +105,11 @@ func TestDial_WriteBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	payload := []byte{0x01, 0x02, 0x03}
-	if err := conn.WriteBytes(payload); err != nil {
-		t.Fatalf("WriteBytes: %v", err)
+	if writeErr := conn.WriteBytes(payload); writeErr != nil {
+		t.Fatalf("WriteBytes: %v", writeErr)
 	}
 	msg, err := conn.ReadMessage()
 	if err != nil {
@@ -136,7 +137,7 @@ func TestDial_WithHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	msg, err := conn.ReadMessage()
 	if err != nil {
@@ -166,7 +167,7 @@ func TestDial_WithSigner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	msg, err := conn.ReadMessage()
 	if err != nil {
@@ -202,7 +203,7 @@ func TestConn_Underlying(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if conn.Underlying() == nil {
 		t.Error("Underlying() returned nil")

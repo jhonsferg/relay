@@ -38,7 +38,7 @@
 //
 //	limiter := relaydist.New(rdb, "rl:user:"+userID, 10, time.Minute)
 //
-// # Error behavior
+// # Error behaviour
 //
 // When the rate limit is exceeded, [relay.Client.Execute] returns
 // [ErrRateLimited]. When Redis is unavailable the limiter fails open (allows

@@ -238,10 +238,10 @@ func BenchmarkConnectionPooling_KeepAliveDisabled(b *testing.B) {
 	tr := &http.Transport{
 		DisableKeepAlives:   true,
 		MaxIdleConnsPerHost: 0,
-		Dial: (&net.Dialer{
+		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 0,
-		}).Dial,
+		}).DialContext,
 	}
 
 	client := relay.New(

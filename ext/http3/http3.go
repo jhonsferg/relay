@@ -36,8 +36,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jhonsferg/relay"
 	quichttp3 "github.com/quic-go/quic-go/http3"
+
+	"github.com/jhonsferg/relay"
 )
 
 // Config holds configuration for the HTTP/3 QUIC transport.

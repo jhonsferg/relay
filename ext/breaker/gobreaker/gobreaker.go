@@ -71,7 +71,7 @@ func WithGoBreaker(cb *gb.CircuitBreaker) relay.Option {
 // NewCircuitBreaker is a convenience wrapper around [gb.NewCircuitBreaker]
 // that fills in an explicit default IsSuccessful predicate (err == nil) when
 // one isn't set - functionally identical to sony/gobreaker's own default
-// for a nil Settings.IsSuccessful, so this constructor changes no behavior
+// for a nil Settings.IsSuccessful, so this constructor changes no behaviour
 // on its own. Treating HTTP 5xx responses as breaker failures happens
 // entirely in [gobreakerTransport.RoundTrip], which wraps a 5xx response in
 // an error before calling cb.Execute - that happens regardless of whether
