@@ -185,15 +185,28 @@ type Config struct {
 	// Only meaningful when RequestCompression is true.
 	RequestCompressionLevel int
 
-	// DisableTiming skips per-request timing instrumentation (httptrace).
-	// When true, [Response.Timing] fields are all zero and roughly 10
-	// allocations per request are avoided. Useful for high-throughput
-	// scenarios where timing metrics are not needed.
+	// Deprecated: timing is opt-in by default now; this field and
+	// [WithDisableTiming] are unused no-ops kept for source compatibility.
+	// Use [TimingEnabled] / [WithTiming] instead.
 	DisableTiming bool
+
+	// TimingEnabled turns on per-request timing instrumentation (httptrace).
+	// Off by default: [Response.Timing] fields stay zero and roughly 10
+	// allocations per request are avoided. Set via [WithTiming], or
+	// automatically forced on when [AdaptiveTimeoutConfig] is set (adaptive
+	// timeout needs latency samples to function).
+	TimingEnabled bool
 
 	// MaxRedirects is the maximum number of redirects to follow automatically.
 	// Set to 0 to disable redirect following.
 	MaxRedirects int
+
+	// DisableRedirectTracking skips populating [Response.RedirectCount] and
+	// [Response.RedirectChain] (always 0/empty when true), avoiding a
+	// per-request context allocation. [MaxRedirects] enforcement and
+	// [BeforeRedirectHooks] are unaffected. Set via
+	// [WithDisableRedirectTracking].
+	DisableRedirectTracking bool
 
 	// MaxResponseBodyBytes is the maximum number of body bytes buffered by
 	// [Execute]. Responses exceeding this limit are truncated and
@@ -300,8 +313,8 @@ type Config struct {
 	AutoIdempotencyKey bool
 
 	// AutoIdempotencyOnSafeRetries is like AutoIdempotencyKey but restricts
-	// key injection to HTTP methods that are semantically idempotent or safe:
-	// GET, HEAD, PUT, OPTIONS, and TRACE. POST, PATCH, and DELETE are skipped
+	// key injection to HTTP methods that are idempotent per RFC 9110 §9.2.2:
+	// GET, HEAD, PUT, DELETE, OPTIONS, and TRACE. POST and PATCH are skipped
 	// unless the caller sets the key explicitly. The same key is reused across
 	// all retry attempts for the request.
 	AutoIdempotencyOnSafeRetries bool
@@ -388,6 +401,14 @@ type Config struct {
 	// halt the background reload goroutine.
 	CertWatcher *CertWatcher
 
+	// ownsCertWatcher is true only when CertWatcher was created internally by
+	// WithDynamicTLSCert (exclusively owned by this client), as opposed to a
+	// caller-supplied watcher via WithCertWatcher (possibly shared across
+	// multiple clients). Client.Shutdown stops the watcher only when this
+	// client owns it, so Shutdown never stops a watcher another client might
+	// still be using.
+	ownsCertWatcher bool
+
 	// WebSocketDialTimeout is the handshake timeout for [Client.ExecuteWebSocket].
 	// Zero uses the client Timeout.
 	WebSocketDialTimeout time.Duration
@@ -403,6 +424,43 @@ type Config struct {
 	// dynamically computed from the percentile of recent latencies.
 	// When nil, adaptive timeout is disabled.
 	AdaptiveTimeoutConfig *AdaptiveTimeoutConfig
+
+	// extensions are registered via [WithExtension] and applied once during
+	// buildClient, after finalizeConfig and before the transport stack is
+	// built.
+	extensions []Extension
+
+	// appliedExtensions is the number of leading entries in extensions whose
+	// Apply has already run. clone() carries this count forward (along with
+	// the TransportMiddlewares/hooks that application already produced), so
+	// buildClient only applies the newly-added tail of extensions on a
+	// (*Client).With call instead of re-running every inherited extension
+	// - see buildClient's extensions loop for why re-running matters.
+	appliedExtensions int
+}
+
+// Extension bundles a relay client extension's transport middleware, hooks,
+// and construction-time config validation into one registration unit. It
+// exists to give extension authors a single, ergonomic seam instead of
+// hand-wiring [WithTransportMiddleware] plus assorted hook options.
+//
+// Register an Extension with [WithExtension].
+type Extension interface {
+	// Name identifies the extension, used in error/log messages.
+	Name() string
+	// Apply is called once during client construction, after all With*
+	// options have been applied and after cross-option interactions are
+	// resolved, but before the transport stack is built. It may register
+	// middleware and hooks on cfg. A non-nil error is logged via
+	// [Config.Logger] (the same construction-time-error handling used for
+	// invalid TLS pinning); it does not abort [New] or [Client.With].
+	Apply(cfg *Config) error
+}
+
+// WithExtension registers an [Extension]. Multiple extensions may be
+// registered; Apply runs in registration order.
+func WithExtension(ext Extension) Option {
+	return func(c *Config) { c.extensions = append(c.extensions, ext) }
 }
 
 // defaultConfig returns a Config populated with all production-ready defaults.
@@ -435,6 +493,18 @@ func defaultConfig() *Config {
 func (cfg *Config) clone() *Config {
 	c := *cfg
 
+	// A cloned Config shares cfg.CertWatcher's pointer (not deep-copied,
+	// like the other pointer sub-configs this func's doc comment describes),
+	// so once clone runs, two independent *Client values can reach the same
+	// watcher. ownsCertWatcher=true means "exclusively owned by this client
+	// (nothing else can reach it)" per WithDynamicTLSCert's doc comment -
+	// that invariant no longer holds for the clone, so Client.Shutdown on
+	// the clone must not stop a watcher the original client (or other
+	// clones) may still be relying on. The original client this Config was
+	// never cloned from keeps ownsCertWatcher=true and remains the sole
+	// owner responsible for stopping it.
+	c.ownsCertWatcher = false
+
 	c.DefaultHeaders = make(map[string]string, len(cfg.DefaultHeaders))
 	for k, v := range cfg.DefaultHeaders {
 		c.DefaultHeaders[k] = v
@@ -449,6 +519,7 @@ func (cfg *Config) clone() *Config {
 	c.BeforeRetryHooks = append([]BeforeRetryHookFunc(nil), cfg.BeforeRetryHooks...)
 	c.BeforeRedirectHooks = append([]BeforeRedirectHookFunc(nil), cfg.BeforeRedirectHooks...)
 	c.OnErrorHooks = append([]OnErrorHookFunc(nil), cfg.OnErrorHooks...)
+	c.extensions = append([]Extension(nil), cfg.extensions...)
 
 	if cfg.SchemeAdapters != nil {
 		c.SchemeAdapters = make(map[string]http.RoundTripper, len(cfg.SchemeAdapters))
@@ -458,6 +529,17 @@ func (cfg *Config) clone() *Config {
 	}
 
 	return &c
+}
+
+// finalizeConfig resolves cross-option interactions once at construction
+// time, rather than checking them per-request. Called by buildClient before
+// the transport stack is built.
+func finalizeConfig(cfg *Config) {
+	// Adaptive timeout needs latency samples to function; force timing on
+	// even if the caller never called WithTiming explicitly.
+	if cfg.AdaptiveTimeoutConfig != nil {
+		cfg.TimingEnabled = true
+	}
 }
 
 // NormaliseBaseURL ensures a base URL ends with a trailing slash if it has a
@@ -787,15 +869,28 @@ func WithDefaultHeaders(headers map[string]string) Option {
 // transparent response decompression by the transport.
 func WithDisableCompression() Option { return func(c *Config) { c.DisableCompression = true } }
 
-// WithDisableTiming skips per-request timing instrumentation.
-// When set, [Response.Timing] fields are all zero and approximately 10
-// allocations per [Client.Execute] call are avoided. Recommended for
-// high-throughput scenarios where timing metrics are not required.
-func WithDisableTiming() Option { return func(c *Config) { c.DisableTiming = true } }
+// Deprecated: timing is off by default now; this option is a no-op kept for
+// source compatibility. Use [WithTiming] to opt in.
+func WithDisableTiming() Option { return func(_ *Config) {} }
+
+// WithTiming enables per-request timing instrumentation (httptrace).
+// Off by default; when enabled, [Response.Timing] is populated at the cost
+// of approximately 10 additional allocations per [Client.Execute] call.
+// Automatically enabled when [WithAdaptiveTimeout] is used, since adaptive
+// timeout needs latency samples to function.
+func WithTiming() Option { return func(c *Config) { c.TimingEnabled = true } }
 
 // WithMaxRedirects sets the maximum number of redirects to follow
 // automatically. Set to 0 to disable redirect following entirely.
 func WithMaxRedirects(n int) Option { return func(c *Config) { c.MaxRedirects = n } }
+
+// WithDisableRedirectTracking skips populating [Response.RedirectCount] and
+// [Response.RedirectChain], avoiding a per-request context allocation.
+// [WithMaxRedirects] enforcement and [WithBeforeRedirectHook]s continue to
+// run unaffected — only the count/chain bookkeeping is skipped.
+func WithDisableRedirectTracking() Option {
+	return func(c *Config) { c.DisableRedirectTracking = true }
+}
 
 // WithMaxResponseBodyBytes limits how many bytes of a response body are
 // buffered by [Client.Execute]. Responses that exceed this limit are silently
@@ -895,12 +990,23 @@ func WithCertificatePinning(pins []string) Option {
 // WithRequestCoalescing enables deduplication of concurrent identical GET and
 // HEAD requests. Only one real HTTP call is made; all callers sharing the same
 // URL receive independent copies of the response body.
+//
+// Like [WithRequestDeduplication], the shared call runs under a detached
+// context, so no individual caller's [Request.WithTimeout] bounds it - only
+// the client-level [Config.Timeout] does.
 func WithRequestCoalescing() Option { return func(c *Config) { c.EnableCoalescing = true } }
 
 // WithRequestDeduplication enables singleflight-based deduplication for GET
 // and HEAD requests. Concurrent requests to the same URL are collapsed into a
 // single real HTTP call; all callers receive their own copy of the response.
 // Disabled by default. Use per-request WithDeduplication to override.
+//
+// The shared call runs under a detached context (propagating values but
+// never cancellation or a deadline) so that one caller's cancellation or
+// per-request timeout doesn't abort the request for other callers waiting on
+// the same key. A consequence is that no individual caller's
+// [Request.WithTimeout] bounds the shared call - only the client-level
+// [Config.Timeout] (net/http.Client.Timeout) still applies to it.
 func WithRequestDeduplication() Option {
 	return func(c *Config) { c.Deduplication.Enabled = true }
 }
@@ -1016,8 +1122,8 @@ func WithOnErrorHook(fn OnErrorHookFunc) Option {
 }
 
 // WithAutoIdempotencyOnSafeRetries automatically injects an X-Idempotency-Key
-// header for HTTP methods that are semantically idempotent or safe (GET, HEAD,
-// PUT, OPTIONS, TRACE). POST, PATCH, and DELETE are skipped unless the caller
+// header for HTTP methods that are idempotent per RFC 9110 §9.2.2 (GET, HEAD,
+// PUT, DELETE, OPTIONS, TRACE). POST and PATCH are skipped unless the caller
 // sets a key explicitly. The same key is reused across all retry attempts for
 // a given request.
 //
@@ -1100,6 +1206,8 @@ func WithTransportAdapter(scheme string, rt http.RoundTripper) Option {
 // response latencies. The client tracks recent response times and computes
 // per-request timeouts as a percentile of that data, multiplied by a factor.
 // When disabled (nil), all requests use the fixed client timeout.
+// Automatically enables timing instrumentation (see [WithTiming]), since
+// adaptive timeout needs latency samples to function.
 func WithAdaptiveTimeout(cfg AdaptiveTimeoutConfig) Option {
 	return func(c *Config) { c.AdaptiveTimeoutConfig = &cfg }
 }

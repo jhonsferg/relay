@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jhonsferg/relay"
@@ -28,7 +29,10 @@ type downloadConfig struct {
 	parallel    int    // max parallel downloads (>1 enables concurrent mode)
 }
 
-// downloadAll downloads one or more URLs according to cfg.
+// downloadAll downloads one or more URLs according to cfg. It returns a
+// non-nil error if at least one download failed, so callers (e.g. CI
+// pipelines chaining on the process exit code) can detect partial failure
+// instead of always observing success.
 // When a single URL without -o / -O is given it falls back to normal output.
 func downloadAll(ctx context.Context, client *relay.Client, urls []string, cfg downloadConfig) error {
 	if len(urls) == 1 && !cfg.remoteNames && cfg.outPath == "" {
@@ -36,10 +40,15 @@ func downloadAll(ctx context.Context, client *relay.Client, urls []string, cfg d
 	}
 
 	if cfg.parallel <= 1 {
+		var failed int
 		for _, u := range urls {
 			if err := downloadOne(ctx, client, u, cfg); err != nil {
 				fmt.Fprintf(os.Stderr, "error downloading %s: %v\n", u, err)
+				failed++
 			}
+		}
+		if failed > 0 {
+			return fmt.Errorf("%d of %d downloads failed", failed, len(urls))
 		}
 		return nil
 	}
@@ -47,6 +56,7 @@ func downloadAll(ctx context.Context, client *relay.Client, urls []string, cfg d
 	// Parallel downloads.
 	sem := make(chan struct{}, cfg.parallel)
 	var wg sync.WaitGroup
+	var failed atomic.Int64
 	for _, u := range urls {
 		sem <- struct{}{}
 		wg.Add(1)
@@ -55,10 +65,14 @@ func downloadAll(ctx context.Context, client *relay.Client, urls []string, cfg d
 			defer func() { <-sem }()
 			if err := downloadOne(ctx, client, rawURL, cfg); err != nil {
 				fmt.Fprintf(os.Stderr, "error downloading %s: %v\n", rawURL, err)
+				failed.Add(1)
 			}
 		}(u)
 	}
 	wg.Wait()
+	if n := failed.Load(); n > 0 {
+		return fmt.Errorf("%d of %d downloads failed", n, len(urls))
+	}
 	return nil
 }
 
@@ -179,13 +193,9 @@ func uploadFile(ctx context.Context, client *relay.Client, rawURL, filePath stri
 	}
 	total := info.Size()
 
-	var body io.Reader = f
 	if !quiet && isTerminal(os.Stderr) {
 		filename := filepath.Base(filePath)
 		fmt.Fprintf(os.Stderr, "  uploading %s (%s)\n", filename, formatBytes(total))
-		pw := newProgressWriter(io.Discard, filename, 0, total) // tracks but discards - actual write is to pw.dest below
-		_ = pw
-		// Use relay's built-in upload progress via WithUploadProgress.
 	}
 
 	req := client.Put(rawURL).
@@ -207,7 +217,6 @@ func uploadFile(ctx context.Context, client *relay.Client, rawURL, filePath stri
 				filename, bar, pct, formatBytes(sent), formatBytes(total))
 		})
 	}
-	_ = body
 
 	resp, err := client.Execute(req.WithContext(ctx))
 	if !quiet && isTerminal(os.Stderr) {

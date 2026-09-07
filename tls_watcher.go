@@ -22,8 +22,17 @@ type CertWatcher struct {
 }
 
 // newCertWatcher creates a CertWatcher that performs an initial load and then
-// reloads on the given interval. Returns an error if the initial load fails.
+// reloads on the given interval. Returns an error if the initial load fails
+// or if interval is not positive.
 func newCertWatcher(certFile, keyFile string, interval time.Duration) (*CertWatcher, error) {
+	if interval <= 0 {
+		// run's background goroutine calls time.NewTicker(w.interval), which
+		// panics for a non-positive duration - crashing the process (the
+		// goroutine is unrecovered). interval <= 0 is a plausible
+		// misconfiguration (a zero/unset value from a config struct, or an
+		// explicit but invalid attempt), so fail construction instead.
+		return nil, fmt.Errorf("tls_watcher: interval must be positive, got %s", interval)
+	}
 	w := &CertWatcher{
 		certFile: certFile,
 		keyFile:  keyFile,
@@ -86,7 +95,9 @@ func (w *CertWatcher) getClientCertificate(_ *tls.CertificateRequestInfo) (*tls.
 //
 // The interval controls how often the files are re-read. The returned
 // [CertWatcher] is stored in [Config] so callers can stop it via
-// [Config.CertWatcher].Stop() when done.
+// [Config.CertWatcher].Stop() when done - though this normally isn't
+// necessary: since the watcher is exclusively owned by this client (nothing
+// else can reach it), [Client.Shutdown] stops it automatically.
 func WithDynamicTLSCert(certFile, keyFile string, interval time.Duration) Option {
 	return func(c *Config) {
 		w, err := newCertWatcher(certFile, keyFile, interval)
@@ -94,6 +105,7 @@ func WithDynamicTLSCert(certFile, keyFile string, interval time.Duration) Option
 			return // initial load failed; leave TLS config unchanged
 		}
 		c.CertWatcher = w
+		c.ownsCertWatcher = true
 		if c.TLSConfig == nil {
 			c.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12} //nolint:gosec
 		}
@@ -103,7 +115,10 @@ func WithDynamicTLSCert(certFile, keyFile string, interval time.Duration) Option
 
 // WithCertWatcher attaches a pre-constructed [CertWatcher] to the client. The
 // watcher's GetClientCertificate hook is installed on the TLS config. Callers
-// are responsible for starting and stopping the watcher's lifecycle.
+// are responsible for starting and stopping the watcher's lifecycle -
+// [Client.Shutdown] does NOT stop it, since the same watcher may be shared
+// across multiple clients (unlike [WithDynamicTLSCert], which creates one
+// exclusively for the client it's attached to and does get auto-stopped).
 func WithCertWatcher(w *CertWatcher) Option {
 	return func(c *Config) {
 		if w == nil {

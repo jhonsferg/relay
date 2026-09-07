@@ -70,6 +70,13 @@ func main() {
 }
 ```
 
+> **Note:** per-phase timing instrumentation (DNS, TCP, TLS, TTFB) is
+> opt-in — [`Response.Timing`](https://pkg.go.dev/github.com/jhonsferg/relay#Response)
+> stays zero unless you ask for it. Pass
+> [`relay.WithTiming()`](https://pkg.go.dev/github.com/jhonsferg/relay#WithTiming)
+> to `relay.New` to enable it (it's also enabled automatically by
+> `relay.WithAdaptiveTimeout`, which needs the latency samples to work).
+
 ---
 
 ## Features

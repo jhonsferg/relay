@@ -28,12 +28,14 @@ package tracing
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jhonsferg/relay"
@@ -116,15 +118,16 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	spanName := req.Method + " " + req.URL.Hostname()
 
 	startAttrs := []attribute.KeyValue{
-		attribute.String("http.method", req.Method),
-		attribute.String("http.url", req.URL.String()),
-		attribute.String("http.host", req.Host),
-		attribute.String("http.target", req.URL.RequestURI()),
-		attribute.String("net.peer.name", req.URL.Hostname()),
+		semconv.HTTPRequestMethodKey.String(req.Method),
+		// semconv v1.26: url.full is the stable key for the full request URL
+		// (it supersedes the legacy http.url/http.target pair). Per spec,
+		// credentials (userinfo) MUST be redacted.
+		semconv.URLFullKey.String(redactURL(req.URL)),
+		semconv.ServerAddressKey.String(req.URL.Hostname()),
 	}
 	if port := req.URL.Port(); port != "" {
 		if portInt, err := strconv.Atoi(port); err == nil {
-			startAttrs = append(startAttrs, attribute.Int("net.peer.port", portInt))
+			startAttrs = append(startAttrs, semconv.ServerPortKey.Int(portInt))
 		}
 	}
 
@@ -147,7 +150,7 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	attrs := []attribute.KeyValue{
-		attribute.Int("http.status_code", resp.StatusCode),
+		semconv.HTTPResponseStatusCodeKey.Int(resp.StatusCode),
 	}
 	if cl := resp.Header.Get("Content-Length"); cl != "" {
 		if n, parseErr := strconv.ParseInt(cl, 10, 64); parseErr == nil {
@@ -163,4 +166,16 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	return resp, nil
+}
+
+// redactURL returns the URL string with the userinfo component removed.
+// Per OTel semconv v1.26, url.full MUST NOT contain credentials
+// (https://opentelemetry.io/schemas/1.26.0).
+func redactURL(u *url.URL) string {
+	if u.User == nil {
+		return u.String()
+	}
+	redacted := *u
+	redacted.User = nil
+	return redacted.String()
 }

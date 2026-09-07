@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -265,6 +267,128 @@ func TestCache_LRUEviction(t *testing.T) {
 	}
 }
 
+// TestInMemoryCacheStore_EvictPrefersExpiredOverOldest whitebox-tests evict's
+// two-pass strategy directly: pass 1 must remove every already-expired entry
+// before pass 2 falls back to evicting the oldest by insertion order. A live
+// entry that happens to be older than an expired one must survive.
+func TestInMemoryCacheStore_EvictPrefersExpiredOverOldest(t *testing.T) {
+	t.Parallel()
+	store := NewInMemoryCacheStore(3).(*inMemoryCacheStore)
+
+	// Insertion order: old-live, expired, newer-live. At capacity (3), the
+	// naive "oldest by insertion order" strategy alone would evict old-live;
+	// evict() must instead remove the expired one and keep both live entries.
+	store.Set("old-live", &CachedResponse{Body: []byte("1")})
+	store.Set("expired", &CachedResponse{Body: []byte("2"), ExpiresAt: time.Now().Add(-time.Hour)})
+	store.Set("newer-live", &CachedResponse{Body: []byte("3")})
+
+	// Triggers evict() since the store is now at capacity (3 >= maxEntries 3).
+	store.Set("fresh", &CachedResponse{Body: []byte("4")})
+
+	if _, ok := store.Get("expired"); ok {
+		t.Error("expired entry should have been evicted")
+	}
+	if _, ok := store.Get("old-live"); !ok {
+		t.Error("old-live entry should have survived - expired entries are evicted first")
+	}
+	if _, ok := store.Get("newer-live"); !ok {
+		t.Error("newer-live entry should have survived")
+	}
+	if _, ok := store.Get("fresh"); !ok {
+		t.Error("newly inserted entry should be present")
+	}
+}
+
+// TestInMemoryCacheStore_EvictCompactsInsertOrderAfterExpiry verifies that
+// once an expired key is evicted, insertOrder no longer references it - so a
+// later eviction round doesn't try to re-process (or double-delete) a
+// already-gone key. Verified indirectly: run eviction across enough rounds
+// that, if insertOrder still held stale references, the oldest-by-insertion
+// fallback (pass 2) would evict the wrong (already-gone) key and leave the
+// store over capacity or in an inconsistent state.
+func TestInMemoryCacheStore_EvictCompactsInsertOrderAfterExpiry(t *testing.T) {
+	t.Parallel()
+	store := NewInMemoryCacheStore(2).(*inMemoryCacheStore)
+
+	store.Set("a", &CachedResponse{Body: []byte("1"), ExpiresAt: time.Now().Add(-time.Hour)}) // expired
+	store.Set("b", &CachedResponse{Body: []byte("2")})
+	store.Set("c", &CachedResponse{Body: []byte("3")}) // triggers evict(): removes "a"
+
+	store.mu.Lock()
+	for _, k := range store.insertOrder {
+		if k == "a" {
+			t.Error("insertOrder still references the evicted expired key \"a\"")
+		}
+	}
+	gotLen := len(store.insertOrder)
+	store.mu.Unlock()
+	if gotLen != 2 {
+		t.Errorf("insertOrder length = %d, want 2 (b, c)", gotLen)
+	}
+
+	// One more insertion should now evict "b" (oldest live), not panic or
+	// misbehave from a stale reference to "a".
+	store.Set("d", &CachedResponse{Body: []byte("4")})
+	if _, ok := store.Get("b"); ok {
+		t.Error("expected \"b\" (oldest live) to be evicted next")
+	}
+	if _, ok := store.Get("c"); !ok {
+		t.Error("expected \"c\" to survive")
+	}
+	if _, ok := store.Get("d"); !ok {
+		t.Error("expected \"d\" to be present")
+	}
+}
+
+// TestInMemoryCacheStore_ConcurrentSetStaysWithinCapacity stresses Set/evict
+// under concurrent access from many goroutines and asserts the store never
+// exceeds its configured capacity - evict() runs under s.mu, so this should
+// hold even without a race detector available in this environment.
+func TestInMemoryCacheStore_ConcurrentSetStaysWithinCapacity(t *testing.T) {
+	t.Parallel()
+	const capacity = 16
+	store := NewInMemoryCacheStore(capacity).(*inMemoryCacheStore)
+
+	const goroutines = 32
+	const perGoroutine = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		g := g
+		go func() {
+			defer wg.Done()
+			for i := 0; i < perGoroutine; i++ {
+				key := fmt.Sprintf("g%d-k%d", g, i)
+				store.Set(key, &CachedResponse{Body: []byte("x")})
+			}
+		}()
+	}
+	wg.Wait()
+
+	store.mu.Lock()
+	entryCount := len(store.entries)
+	orderCount := len(store.insertOrder)
+	store.mu.Unlock()
+
+	if entryCount > capacity {
+		t.Errorf("entries = %d, exceeds capacity %d", entryCount, capacity)
+	}
+	if orderCount != entryCount {
+		t.Errorf("insertOrder length = %d, want equal to entries count %d (no stale references)", orderCount, entryCount)
+	}
+}
+
+// TestNewInMemoryCacheStore_DefaultsCapacity covers the maxEntries<=0 branch.
+func TestNewInMemoryCacheStore_DefaultsCapacity(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{0, -1, -100} {
+		store := NewInMemoryCacheStore(n).(*inMemoryCacheStore)
+		if store.maxEntries != 256 {
+			t.Errorf("NewInMemoryCacheStore(%d).maxEntries = %d, want 256", n, store.maxEntries)
+		}
+	}
+}
+
 func TestInMemoryCacheStore_GetSetDelete(t *testing.T) {
 	t.Parallel()
 	store := NewInMemoryCacheStore(10)
@@ -289,6 +413,41 @@ func TestInMemoryCacheStore_GetSetDelete(t *testing.T) {
 	_, ok = store.Get("key1")
 	if ok {
 		t.Error("expected cache miss after Delete")
+	}
+}
+
+// TestInMemoryCacheStore_DeleteThenReSetDoesNotCorruptEvictionOrder guards
+// against Delete leaving a stale reference in insertOrder. Without removing
+// it, re-Set-ing the same key later looked like a brand-new key (a second,
+// duplicate reference got appended), so the next eviction could pop the
+// stale first reference and delete the just-re-inserted live entry instead
+// of the genuinely oldest one.
+func TestInMemoryCacheStore_DeleteThenReSetDoesNotCorruptEvictionOrder(t *testing.T) {
+	t.Parallel()
+	store := NewInMemoryCacheStore(2)
+
+	entry := func(body string) *CachedResponse {
+		return &CachedResponse{StatusCode: http.StatusOK, Status: "200 OK", Body: []byte(body)}
+	}
+
+	store.Set("A", entry("a1")) // insertOrder: [A]
+	store.Set("B", entry("b1")) // insertOrder: [A, B]
+	store.Delete("A")           // insertOrder must become: [B]
+	store.Set("A", entry("a2")) // re-add: insertOrder must become: [B, A], not [B, A, A]
+	store.Set("C", entry("c1")) // at capacity (2) - must evict the oldest, B, not the freshly re-added A
+
+	if _, ok := store.Get("B"); ok {
+		t.Error("expected B (the genuinely oldest entry) to have been evicted")
+	}
+	got, ok := store.Get("A")
+	if !ok {
+		t.Fatal("expected A (re-added after B) to still be present")
+	}
+	if string(got.Body) != "a2" {
+		t.Errorf("A body = %q, want %q (the re-added value, not evicted)", got.Body, "a2")
+	}
+	if _, ok := store.Get("C"); !ok {
+		t.Error("expected C to be present")
 	}
 }
 

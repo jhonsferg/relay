@@ -287,6 +287,23 @@ func main() {
 
 ---
 
+## WithDisableRedirectTracking
+
+```go
+func WithDisableRedirectTracking() Option
+```
+
+Redirect tracking (populating `Response.RedirectCount` and `Response.RedirectChain`) is on by default and costs one small per-request allocation. If you don't read either field, `WithDisableRedirectTracking` skips that bookkeeping. `WithMaxRedirects` enforcement and `WithBeforeRedirectHook` continue to run unaffected — only the count/chain recording is skipped, so `resp.RedirectChain()` always returns an empty slice and `resp.RedirectCount` is always 0.
+
+```go
+client, err := relay.New(
+    relay.WithBaseURL("https://api.example.com"),
+    relay.WithDisableRedirectTracking(),
+)
+```
+
+---
+
 ## Inspecting the Chain After a Request
 
 Here is a complete example that inspects the redirect chain and logs a structured summary:
@@ -491,5 +508,6 @@ func main() {
 | Default limit | 10 redirects |
 | Custom limit | `WithMaxRedirects(n)` |
 | Disable redirect following | `WithDisableRedirect()` |
+| Disable count/chain tracking only | `WithDisableRedirectTracking()` |
 | Detect redirect loops | Check for `*relay.TooManyRedirectsError` |
 | URL shortener auditing | Iterate `resp.RedirectChain()` after GET |

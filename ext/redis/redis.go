@@ -35,6 +35,13 @@
 // [CacheStore.Clear] uses SCAN + DEL against a single connection. When rdb is
 // a *redis.ClusterClient, SCAN only iterates keys on a single shard. Use
 // per-shard ForEachMaster iteration in that case.
+//
+// # Testing
+//
+// redis_test.go tests against miniredis (an in-memory Redis simulator).
+// redis_docker_test.go (build tag "docker") additionally tests against a
+// real Redis container via testcontainers-go: run with
+// `go test -tags=docker ./...` (requires a local Docker daemon).
 package redis
 
 import (

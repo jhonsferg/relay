@@ -2,6 +2,7 @@ package gobreaker_test
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -137,6 +138,72 @@ func TestWithGoBreaker_NetworkErrorCountsAsFailure(t *testing.T) {
 		t.Errorf("error = %v, want ErrOpenState after network errors", err)
 	}
 }
+
+// trackingBody wraps an io.Reader and records whether Close was called.
+type trackingBody struct {
+	io.Reader
+	closed bool
+}
+
+func (b *trackingBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+// TestWithGoBreaker_OpenBreakerClosesRequestBody guards against a leak where
+// an Open (or half-open-saturated) breaker denies the request without ever
+// calling the base transport - the only place that would otherwise close
+// req.Body - violating http.RoundTripper's contract that the body must
+// always be closed, including on error paths.
+func TestWithGoBreaker_OpenBreakerClosesRequestBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	cb := relaybreaker.NewCircuitBreaker(settings("body-close", 1, 60*time.Second))
+
+	var body *trackingBody
+	// Placed before WithGoBreaker so it's the outermost middleware and
+	// intercepts the request first, tagging req.Body before the breaker
+	// sees it - see client.go's transport-stack composition order.
+	tagBody := relay.WithTransportMiddleware(func(next http.RoundTripper) http.RoundTripper {
+		return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body = &trackingBody{Reader: req.Body}
+			req.Body = body
+			return next.RoundTrip(req)
+		})
+	})
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL),
+		tagBody,
+		relay.WithDisableCircuitBreaker(),
+		relay.WithDisableRetry(),
+		relaybreaker.WithGoBreaker(cb),
+	)
+
+	// One 500 response trips the breaker (ConsecutiveFailures >= 1).
+	client.Execute(client.Post("/").WithBody([]byte("payload"))) //nolint:errcheck - 500
+
+	// Second call is rejected by the open breaker without reaching srv.
+	body = nil
+	_, err := client.Execute(client.Post("/").WithBody([]byte("payload")))
+	if !errors.Is(err, gb.ErrOpenState) {
+		t.Fatalf("error = %v, want ErrOpenState", err)
+	}
+	if body == nil {
+		t.Fatal("tagBody middleware never ran")
+	}
+	if !body.closed {
+		t.Error("req.Body was not closed when the breaker denied the request")
+	}
+}
+
+// roundTripFunc adapts a function to http.RoundTripper.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
 func TestNewCircuitBreaker_DefaultIsSuccessful(t *testing.T) {
 	// Verify NewCircuitBreaker sets a default IsSuccessful that doesn't panic.

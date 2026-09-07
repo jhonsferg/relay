@@ -266,14 +266,83 @@ func BenchmarkExecuteAsync(b *testing.B) {
 }
 
 // ---------------------------------------------------------------------------
-// BenchmarkExecute_NoTiming
+// BenchmarkExecute_ResilienceIdle_*
 //
-// Measures the Execute pipeline with timing instrumentation disabled via
-// [relay.WithDisableTiming]. Skipping httptrace avoids roughly 10 allocations
-// per call (timingCollector, ClientTrace, 7 closures, context value). Compare
-// against BenchmarkExecute_Simple to quantify the timing overhead.
+// Measures the "opt-in tax" of enabling retry/circuit-breaker/hedging when
+// they never actually trigger - the common steady-state case for a healthy
+// service. Every request in these benchmarks succeeds on the first attempt,
+// so the loop/retry/probe machinery itself never runs; what's measured is
+// purely the per-Execute overhead of having the feature configured at all
+// (extra checks, wrapped closures, additional pooled state). Compare against
+// BenchmarkExecute_Simple (retry and circuit breaker both disabled) as the
+// baseline.
 // ---------------------------------------------------------------------------
-func BenchmarkExecute_NoTiming(b *testing.B) {
+
+func BenchmarkExecute_ResilienceIdle_RetryEnabled(b *testing.B) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithRetry(&relay.RetryConfig{
+			MaxAttempts:     3,
+			InitialInterval: time.Microsecond,
+			MaxInterval:     time.Microsecond,
+			Multiplier:      1.0,
+			RandomFactor:    0,
+			RetryableStatus: []int{http.StatusServiceUnavailable},
+		}),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithTimeout(5*time.Second),
+	)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{"id":1}`})
+		resp, err := client.Execute(client.Get("/bench-idle-retry"))
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b.Fatalf("unexpected status %d", resp.StatusCode)
+		}
+	}
+}
+
+func BenchmarkExecute_ResilienceIdle_CircuitBreakerEnabled(b *testing.B) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithDisableRetry(),
+		relay.WithCircuitBreaker(&relay.CircuitBreakerConfig{
+			MaxFailures:      5,
+			ResetTimeout:     30 * time.Second,
+			HalfOpenRequests: 3,
+			SuccessThreshold: 2,
+		}),
+		relay.WithTimeout(5*time.Second),
+	)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{"id":1}`})
+		resp, err := client.Execute(client.Get("/bench-idle-cb"))
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b.Fatalf("unexpected status %d", resp.StatusCode)
+		}
+	}
+}
+
+func BenchmarkExecute_ResilienceIdle_HedgingEnabled(b *testing.B) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
@@ -281,7 +350,86 @@ func BenchmarkExecute_NoTiming(b *testing.B) {
 		relay.WithBaseURL(srv.URL()),
 		relay.WithDisableRetry(),
 		relay.WithDisableCircuitBreaker(),
-		relay.WithDisableTiming(),
+		// Hedge delay far longer than the mock server's response time, so
+		// the hedge attempt is never actually launched - only the setup
+		// (context, WaitGroup, buffered channel, timer) is measured.
+		relay.WithHedgingN(time.Hour, 2),
+		relay.WithTimeout(5*time.Second),
+	)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{"id":1}`})
+		resp, err := client.Execute(client.Get("/bench-idle-hedge"))
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b.Fatalf("unexpected status %d", resp.StatusCode)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BenchmarkExecute_WithTiming
+//
+// Measures the Execute pipeline with timing instrumentation enabled via
+// [relay.WithTiming] (off by default since timing became opt-in). httptrace
+// costs roughly 10 allocations per call (timingCollector, ClientTrace, 7
+// closures, context value). Compare against BenchmarkExecute_Simple, which
+// is now the zero-overhead default, to quantify the timing overhead.
+// ---------------------------------------------------------------------------
+func BenchmarkExecute_WithTiming(b *testing.B) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithTiming(),
+		relay.WithTimeout(5*time.Second),
+	)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		srv.Enqueue(testutil.MockResponse{
+			Status: http.StatusOK,
+			Body:   `{"id":1,"name":"relay"}`,
+		})
+
+		resp, err := client.Execute(client.Get("/bench"))
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b.Fatalf("unexpected status %d", resp.StatusCode)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BenchmarkExecute_NoRedirectTracking
+//
+// Measures the Execute pipeline with redirect tracking disabled via
+// [relay.WithDisableRedirectTracking]. Skipping it avoids the per-request
+// redirectState pool round-trip and context.WithValue allocation. Compare
+// against BenchmarkExecute_Simple, which has tracking on (the default), to
+// quantify the cost.
+// ---------------------------------------------------------------------------
+func BenchmarkExecute_NoRedirectTracking(b *testing.B) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	client := relay.New(
+		relay.WithBaseURL(srv.URL()),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithDisableRedirectTracking(),
 		relay.WithTimeout(5*time.Second),
 	)
 

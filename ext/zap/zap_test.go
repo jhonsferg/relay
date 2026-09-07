@@ -154,3 +154,29 @@ func TestNewAdapter_NoArgsDoesNotPanic(t *testing.T) {
 	adapter.Warn("plain message")
 	adapter.Error("plain message")
 }
+
+// TestNewAdapter_NilLoggerDoesNotPanic guards against NewAdapter(nil) calling
+// Sugar() on a nil *zap.Logger (a nil pointer dereference) - it must fall
+// back to zap's global logger instead, matching ext/slog's convention of
+// defaulting rather than panicking on a nil logger.
+func TestNewAdapter_NilLoggerDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	adapter := relayzap.NewAdapter(nil)
+	adapter.Debug("msg")
+	adapter.Info("msg")
+	adapter.Warn("msg")
+	adapter.Error("msg", "key", "value")
+}
+
+// TestNewSugaredAdapter_NilLoggerDoesNotPanic is the same guard as
+// TestNewAdapter_NilLoggerDoesNotPanic, for the already-sugared constructor.
+func TestNewSugaredAdapter_NilLoggerDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	adapter := relayzap.NewSugaredAdapter(nil)
+	adapter.Debug("msg")
+	adapter.Info("msg")
+	adapter.Warn("msg")
+	adapter.Error("msg", "key", "value")
+}

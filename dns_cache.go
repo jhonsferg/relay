@@ -7,41 +7,45 @@ import (
 	"time"
 )
 
-// call represents an in-flight or completed DNS resolution.
-type call struct {
-	addresses []string
-	err       error
-	done      chan struct{}
+// call represents an in-flight or completed singleflight-coalesced operation.
+type call[T any] struct {
+	result T
+	err    error
+	done   chan struct{}
 }
 
-// flightGroup coalesces concurrent lookups for the same key so only one
-// goroutine performs the resolution; all others share the result.
-type flightGroup struct {
+// flightGroup coalesces concurrent calls for the same key so only one
+// goroutine performs the (typically I/O-bound) operation; all others share
+// the result. Used by dnsCache (A/AAAA lookups, T = []string) and
+// SRVResolver (SRV lookups, T = []srvTarget) to avoid a thundering herd of
+// duplicate DNS queries when many concurrent callers miss the cache for the
+// same key at once.
+type flightGroup[T any] struct {
 	mu    sync.Mutex
-	calls map[string]*call
+	calls map[string]*call[T]
 }
 
-func (g *flightGroup) do(key string, fn func() ([]string, error)) ([]string, error) {
+func (g *flightGroup[T]) do(key string, fn func() (T, error)) (T, error) {
 	g.mu.Lock()
 	if g.calls == nil {
-		g.calls = make(map[string]*call)
+		g.calls = make(map[string]*call[T])
 	}
 	if c, ok := g.calls[key]; ok {
 		g.mu.Unlock()
 		<-c.done
-		return c.addresses, c.err
+		return c.result, c.err
 	}
-	c := &call{done: make(chan struct{})}
+	c := &call[T]{done: make(chan struct{})}
 	g.calls[key] = c
 	g.mu.Unlock()
 
-	c.addresses, c.err = fn()
+	c.result, c.err = fn()
 	close(c.done)
 
 	g.mu.Lock()
 	delete(g.calls, key)
 	g.mu.Unlock()
-	return c.addresses, c.err
+	return c.result, c.err
 }
 
 // DNSCacheConfig controls client-side DNS result caching.
@@ -64,18 +68,21 @@ type dnsCacheEntry struct {
 // dnsCache caches DNS lookups for a configurable TTL.
 // It is safe for concurrent use.
 type dnsCache struct {
-	mu       sync.RWMutex
-	entries  map[string]dnsCacheEntry
-	ttl      time.Duration
-	resolver *net.Resolver
-	flights  flightGroup // coalesces concurrent cache-miss resolutions
+	mu      sync.RWMutex
+	entries map[string]dnsCacheEntry
+	ttl     time.Duration
+	// lookupHost resolves host to a list of IP addresses. A field (rather
+	// than calling net.DefaultResolver.LookupHost directly) so tests can
+	// substitute a stub without doing real DNS I/O.
+	lookupHost func(ctx context.Context, host string) ([]string, error)
+	flights    flightGroup[[]string] // coalesces concurrent cache-miss resolutions
 }
 
 func newDNSCache(ttl time.Duration) *dnsCache {
 	return &dnsCache{
-		entries:  make(map[string]dnsCacheEntry),
-		ttl:      ttl,
-		resolver: net.DefaultResolver,
+		entries:    make(map[string]dnsCacheEntry),
+		ttl:        ttl,
+		lookupHost: net.DefaultResolver.LookupHost,
 	}
 }
 
@@ -105,7 +112,11 @@ func (c *dnsCache) lookup(ctx context.Context, host, port, cacheKey string) ([]s
 			return entry.addresses, nil
 		}
 
-		ips, lookupErr := c.resolver.LookupHost(ctx, host)
+		// Use a detached context so the first caller's cancellation/timeout
+		// does not abort resolution for other goroutines coalesced onto the
+		// same in-flight lookup (mirrors deduplicator.RoundTrip in
+		// singleflight.go and coalesceTransport.RoundTrip in coalesce.go).
+		ips, lookupErr := c.lookupHost(newDetachedContext(ctx), host)
 		if lookupErr != nil {
 			return nil, lookupErr
 		}

@@ -5,7 +5,9 @@ package relay
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -227,6 +229,39 @@ func TestDNSCache_DialContextCachedHostname(t *testing.T) {
 		if resp.StatusCode != 200 {
 			t.Errorf("request %d: status = %d", i, resp.StatusCode)
 		}
+	}
+}
+
+// TestDNSCache_DialContextRealHostname exercises the actual DNS-resolution +
+// dial-loop path in cachedDialer.DialContext (net.SplitHostPort succeeds,
+// net.ParseIP fails since "localhost" isn't an IP literal, so the request
+// goes through cache.lookup + the resolved-address dial loop) - as opposed
+// to TestDNSCache_DialContextCachedHostname above and
+// TestDNSCache_DialContextIPLiteral, which both use the mock server's
+// 127.0.0.1-based URL directly and so only ever hit the IP-literal bypass,
+// never real hostname resolution.
+func TestDNSCache_DialContextRealHostname(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	t.Cleanup(srv.Close)
+	srv.Enqueue(testutil.MockResponse{Status: 200, Body: "ok"})
+
+	u, err := url.Parse(srv.URL())
+	if err != nil {
+		t.Fatalf("parse mock server URL: %v", err)
+	}
+	_, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	c := New(WithDNSCache(30*time.Second), WithDisableRetry(), WithDisableCircuitBreaker())
+	resp, err := c.Execute(c.Get("http://localhost:" + port + "/"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
 }
 

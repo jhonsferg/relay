@@ -18,6 +18,13 @@
 //	        Scopes:       []string{"read", "write"},
 //	    }),
 //	)
+//
+// # Testing
+//
+// oauth_test.go tests against testutil.MockServer. oauth_docker_test.go
+// (build tag "docker") additionally tests against a real Keycloak
+// container: run with `go test -tags=docker ./...` (requires a local
+// Docker daemon).
 package oauth
 
 import (
@@ -54,6 +61,16 @@ type Config struct {
 
 	// ExtraParams are additional form parameters sent in the token request.
 	ExtraParams map[string]string
+
+	// TokenRequestTimeout bounds each token fetch/refresh HTTP call to the
+	// token endpoint. Defaults to 30 seconds. The token fetch runs outside
+	// the relay client's own retry/circuit-breaker/rate-limit pipeline (it's
+	// a plain http.Client call made from within a transport middleware), so
+	// without an independent timeout here, a hung or slow-black-holing token
+	// endpoint would block every request through the client indefinitely
+	// whenever the caller doesn't also set its own per-request timeout or
+	// context deadline.
+	TokenRequestTimeout time.Duration
 }
 
 // WithClientCredentials returns a [relay.Option] that enables automatic Bearer
@@ -64,14 +81,19 @@ func WithClientCredentials(cfg Config) relay.Option {
 	if cfg.ExpiryDelta == 0 {
 		cfg.ExpiryDelta = 30 * time.Second
 	}
+	if cfg.TokenRequestTimeout == 0 {
+		cfg.TokenRequestTimeout = 30 * time.Second
+	}
 	return relay.WithTransportMiddleware(func(next http.RoundTripper) http.RoundTripper {
 		src := &tokenSource{
 			cfg: cfg,
 			// Use http.DefaultTransport so token requests respect the same
 			// proxy and TLS environment variables (HTTP_PROXY, HTTPS_PROXY,
 			// NO_PROXY) as the rest of the process. A bare &http.Transport{}
-			// would bypass those settings.
-			httpClient: &http.Client{Transport: http.DefaultTransport},
+			// would bypass those settings. Timeout is an independent floor -
+			// see Config.TokenRequestTimeout - on top of whatever deadline
+			// the triggering request's own context carries.
+			httpClient: &http.Client{Transport: http.DefaultTransport, Timeout: cfg.TokenRequestTimeout},
 		}
 		return &roundTripper{base: next, source: src}
 	})
@@ -181,9 +203,20 @@ func (s *tokenSource) fetch(ctx context.Context) (*token, error) {
 		return nil, fmt.Errorf("relay/oauth: token endpoint returned empty access_token")
 	}
 
+	// RFC 6749 §5.1: expires_in is OPTIONAL. A missing or zero value means
+	// the server didn't say when the token expires, not that it expires
+	// immediately - treat it as effectively non-expiring (matching
+	// golang.org/x/oauth2's convention for a zero Token.Expiry), rather
+	// than computing expiresAt as ~now, which would defeat caching
+	// entirely and force a full token re-fetch on every outgoing request.
+	expiresAt := time.Now().Add(100 * 365 * 24 * time.Hour)
+	if tokenResp.ExpiresIn > 0 {
+		expiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+	}
+
 	return &token{
 		accessToken: tokenResp.AccessToken,
-		expiresAt:   time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+		expiresAt:   expiresAt,
 	}, nil
 }
 

@@ -53,8 +53,22 @@ func (t *digestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("relay: digest auth: %w", err)
 	}
 
-	// Clone request for the retry.
+	// Clone request for the retry. http.Request.Clone only shallow-copies
+	// Body (same reader as the original, already drained by the first,
+	// unauthenticated attempt above), so a fresh body must be obtained via
+	// GetBody for methods that carry one - otherwise the authenticated retry
+	// would silently send an empty body.
 	retryReq := req.Clone(req.Context())
+	if req.Body != nil && req.Body != http.NoBody {
+		if req.GetBody == nil {
+			return nil, fmt.Errorf("relay: digest auth: request body is not replayable (no GetBody) - cannot retry %s with authentication", req.Method)
+		}
+		freshBody, getBodyErr := req.GetBody()
+		if getBodyErr != nil {
+			return nil, fmt.Errorf("relay: digest auth: rewinding request body for retry: %w", getBodyErr)
+		}
+		retryReq.Body = freshBody
+	}
 	retryReq.Header.Set("Authorization", authHeader)
 
 	return t.base.RoundTrip(retryReq)

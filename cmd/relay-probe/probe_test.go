@@ -84,7 +84,7 @@ func TestCheck_LatencyExceeded(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := relay.New(relay.WithDisableRetry())
+	client := relay.New(relay.WithDisableRetry(), relay.WithTiming())
 	defer func() { _ = client.Shutdown(context.Background()) }()
 	p := &probe{url: srv.URL, client: client}
 

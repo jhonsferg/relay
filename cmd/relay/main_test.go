@@ -107,7 +107,10 @@ func TestBuildRequestMethods(t *testing.T) {
 
 	methods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "unknown"}
 	for _, m := range methods {
-		req := buildRequest(client, m, "https://example.com/", nil, nil, nil, "", "", "")
+		req, err := buildRequest(client, m, "https://example.com/", nil, nil, nil, "", "", "")
+		if err != nil {
+			t.Errorf("buildRequest(%q): unexpected error: %v", m, err)
+		}
 		if req == nil {
 			t.Errorf("buildRequest(%q) returned nil", m)
 		}
@@ -120,7 +123,10 @@ func TestBuildRequestHeadersAndQuery(t *testing.T) {
 
 	headers := multiFlag{"X-Test: value", "malformed-header"}
 	query := multiFlag{"key=value", "malformed-param"}
-	req := buildRequest(client, "GET", "https://example.com/", headers, query, nil, "", "", "custom-agent")
+	req, err := buildRequest(client, "GET", "https://example.com/", headers, query, nil, "", "", "custom-agent")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if req == nil {
 		t.Fatal("expected non-nil request")
 	}
@@ -131,7 +137,10 @@ func TestBuildRequestWithFormData(t *testing.T) {
 	defer func() { _ = client.Shutdown(context.Background()) }()
 
 	fields := multiFlag{"name=Alice", "malformed"}
-	req := buildRequest(client, "GET", "https://example.com/", nil, nil, fields, "", "", "")
+	req, err := buildRequest(client, "GET", "https://example.com/", nil, nil, fields, "", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if req == nil {
 		t.Fatal("expected non-nil request")
 	}
@@ -141,9 +150,38 @@ func TestBuildRequestWithRawBody(t *testing.T) {
 	client := relay.New()
 	defer func() { _ = client.Shutdown(context.Background()) }()
 
-	req := buildRequest(client, "POST", "https://example.com/", nil, nil, nil, "raw-body-data", "", "")
+	req, err := buildRequest(client, "POST", "https://example.com/", nil, nil, nil, "raw-body-data", "", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if req == nil {
 		t.Fatal("expected non-nil request")
+	}
+}
+
+func TestBuildRequestInvalidJSON(t *testing.T) {
+	client := relay.New()
+	defer func() { _ = client.Shutdown(context.Background()) }()
+
+	req, err := buildRequest(client, "POST", "https://example.com/", nil, nil, nil, "", "{not valid json", "")
+	if err == nil {
+		t.Fatal("expected an error for invalid JSON body")
+	}
+	if req != nil {
+		t.Error("expected nil request on error")
+	}
+}
+
+func TestBuildRequestBodyFromMissingFile(t *testing.T) {
+	client := relay.New()
+	defer func() { _ = client.Shutdown(context.Background()) }()
+
+	req, err := buildRequest(client, "POST", "https://example.com/", nil, nil, nil, "@/no/such/file", "", "")
+	if err == nil {
+		t.Fatal("expected an error when the body file does not exist")
+	}
+	if req != nil {
+		t.Error("expected nil request on error")
 	}
 }
 
@@ -289,6 +327,81 @@ func TestWriteResponsePretty(t *testing.T) {
 	}
 
 	writeResponse(resp, false, true, false, "")
+}
+
+// TestRun_CookieJarPersistedOnServerError guards against a regression where
+// nearly every exit path in main() called os.Exit() directly, which skips
+// all pending defers - including the one flushing the cookie jar to disk.
+// A login request that captures cookies but responds with a non-2xx status
+// would silently lose those cookies. run() must reach its return statement
+// (not os.Exit) on every path so the deferred jar.Save() always executes.
+func TestRun_CookieJarPersistedOnServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "abc123"}) // #nosec G124 -- test-only cookie on a local httptest server, not a real session
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	jarPath := filepath.Join(dir, "cookies.txt")
+
+	code := run([]string{"-c", jarPath, "-s", srv.URL})
+	if code != 5 {
+		t.Errorf("exit code = %d, want 5 (server error)", code)
+	}
+
+	data, err := os.ReadFile(jarPath) // #nosec G304 -- jarPath is a test-controlled temp file
+	if err != nil {
+		t.Fatalf("expected cookie jar file to be written even on a server error, got: %v", err)
+	}
+	if !strings.Contains(string(data), "session") || !strings.Contains(string(data), "abc123") {
+		t.Errorf("cookie jar file missing expected cookie: %s", data)
+	}
+}
+
+// TestRun_CookieJarPersistedInDownloadMode is the download-mode counterpart
+// to TestRun_CookieJarPersistedOnServerError: the download code paths used
+// to call os.Exit(0) unconditionally on success, which would also have
+// skipped the deferred jar.Save().
+func TestRun_CookieJarPersistedInDownloadMode(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "dl456"}) // #nosec G124 -- test-only cookie on a local httptest server, not a real session
+		_, _ = w.Write([]byte("data"))
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	jarPath := filepath.Join(dir, "cookies.txt")
+	outPath := filepath.Join(dir, "out.bin")
+
+	code := run([]string{"-c", jarPath, "-o", outPath, "-s", srv.URL})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+
+	data, err := os.ReadFile(jarPath) // #nosec G304 -- jarPath is a test-controlled temp file
+	if err != nil {
+		t.Fatalf("expected cookie jar file to be written in download mode, got: %v", err)
+	}
+	if !strings.Contains(string(data), "dl456") {
+		t.Errorf("cookie jar file missing expected cookie: %s", data)
+	}
+}
+
+// TestRun_NoArgsReturnsUsageError guards the basic run() plumbing: no
+// positional URL argument should return a non-zero exit code rather than
+// panicking or exiting the test process.
+func TestRun_NoArgsReturnsUsageError(t *testing.T) {
+	if code := run(nil); code != 1 {
+		t.Errorf("run(nil) = %d, want 1", code)
+	}
+}
+
+// TestRun_VersionFlag exercises the -version short-circuit path.
+func TestRun_VersionFlag(t *testing.T) {
+	if code := run([]string{"-version"}); code != 0 {
+		t.Errorf("run([-version]) = %d, want 0", code)
+	}
 }
 
 func TestBasicAuthEncoding(t *testing.T) {

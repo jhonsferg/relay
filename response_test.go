@@ -451,3 +451,35 @@ func TestResponse_Decode_PoolReuse(t *testing.T) {
 		t.Error("pooled response leaked decode func from previous client")
 	}
 }
+
+// TestResponse_BodyBufferReusedAfterPutResponse is a regression test for the
+// newResponse body-buffer fix: the read buffer now lives directly on
+// Response.body (reused across PutResponse-recycled instances) instead of
+// being borrowed from a separate tiered pool and left unreturned whenever the
+// caller skips PutResponse. Bodies of varying lengths (including empty, which
+// must decode to a nil Body()) are read across repeated Get+PutResponse
+// cycles to catch any stale-byte leakage from reusing a previous response's
+// backing array.
+func TestResponse_BodyBufferReusedAfterPutResponse(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+
+	bodies := []string{"a", "bbbbbbbbbbbbbbbbbbbb", "cc", "", "ddddd"}
+	for i, want := range bodies {
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: want})
+		resp, err := c.Execute(c.Get(srv.URL() + "/"))
+		if err != nil {
+			t.Fatalf("iteration %d: Execute: %v", i, err)
+		}
+		if got := string(resp.Body()); got != want {
+			t.Errorf("iteration %d: body = %q, want %q", i, got, want)
+		}
+		if want == "" && resp.Body() != nil {
+			t.Errorf("iteration %d: expected nil Body() for empty response, got %v", i, resp.Body())
+		}
+		PutResponse(resp)
+	}
+}

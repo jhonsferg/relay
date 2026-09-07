@@ -261,6 +261,34 @@ func TestAdaptiveTimeoutTracker_Nil_Config(t *testing.T) {
 	}
 }
 
+// TestAdaptiveTimeoutTracker_ZeroWindowSizeDoesNotPanic guards against a
+// non-nil config with WindowSize left at its zero value (e.g. a caller sets
+// Percentile/Multiplier but forgets WindowSize) causing record() to compute
+// count % WindowSize once the (empty, zero-capacity) window "fills" - which
+// happens on the very first call - panicking with an integer divide by
+// zero. WindowSize <= 0 must fall back to the documented default.
+func TestAdaptiveTimeoutTracker_ZeroWindowSizeDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	tracker := newAdaptiveTimeoutTracker(&AdaptiveTimeoutConfig{
+		Percentile:     0.95,
+		Multiplier:     2.0,
+		MinTimeout:     100 * time.Millisecond,
+		MaxTimeout:     30 * time.Second,
+		InitialTimeout: 5 * time.Second,
+		// WindowSize intentionally omitted (zero value).
+	})
+
+	if tracker.cfg.WindowSize <= 0 {
+		t.Fatalf("expected WindowSize to be defaulted to a positive value, got %d", tracker.cfg.WindowSize)
+	}
+
+	// Must not panic across multiple records, including past the (defaulted)
+	// window boundary where the circular-overwrite branch runs.
+	for i := 0; i < 10; i++ {
+		tracker.record(time.Duration(i+1) * time.Millisecond)
+	}
+}
+
 func TestAdaptiveTimeoutTracker_EdgeCase_OneObservation(t *testing.T) {
 	t.Parallel()
 	cfg := &AdaptiveTimeoutConfig{

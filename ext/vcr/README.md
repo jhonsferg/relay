@@ -107,14 +107,16 @@ Cassettes are stored as JSON files with the following structure:
         "header": {
           "Authorization": "Bearer token"
         },
-        "body": ""
+        "body": "",
+        "body_encoding": "base64"
       },
       "response": {
         "status": 200,
         "header": {
           "Content-Type": "application/json"
         },
-        "body": "[{\"id\":1,\"name\":\"John\"}]"
+        "body": "W3siaWQiOjEsIm5hbWUiOiJKb2huIn1d",
+        "body_encoding": "base64"
       }
     }
   ]
@@ -123,8 +125,16 @@ Cassettes are stored as JSON files with the following structure:
 
 ## Notes
 
-- In record mode, the cassette is automatically saved after each request
+- In record mode, the cassette is saved after each request for the first 20
+  interactions, and every 10th interaction after that, so a large recording
+  session (hundreds of interactions) doesn't pay the cost of rewriting the
+  entire cassette file on every single request. Always call `recorder.Save()`
+  when the recording session ends (as in the example above) to flush any
+  interactions recorded since the last automatic save.
 - In playback mode, interactions are matched sequentially (first match wins)
-- Request and response bodies are stored as strings in the cassette
+- Request and response bodies are stored base64-encoded in the cassette so
+  binary bodies (images, protobuf, gzip) round-trip correctly. Cassettes
+  written by earlier versions of this package (plain-text bodies, no
+  `body_encoding` field) still load correctly.
 - Only the first value of multi-valued headers is recorded
 - Cassettes are human-readable and can be edited manually if needed

@@ -178,8 +178,11 @@ func (c *Conn) ReadMessage() (Message, error) {
 	return Message{Type: t, Data: data}, nil
 }
 
-// Close sends a close frame and then closes the underlying connection
-// immediately. For a graceful shutdown, use [CloseGracefully].
+// Close closes the underlying network connection immediately, without
+// sending or waiting for a close frame - the peer sees an abrupt TCP
+// teardown (an abnormal closure, e.g. code 1006), not a clean RFC 6455
+// close. For a graceful shutdown that sends a close frame and waits for the
+// peer to acknowledge it, use [CloseGracefully].
 func (c *Conn) Close() error {
 	return c.ws.Close()
 }

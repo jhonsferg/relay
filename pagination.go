@@ -51,6 +51,10 @@ func (c *Client) Paginate(ctx context.Context, req *Request, fn PageFunc) error 
 // PaginateWith iterates through pages of results using a custom next-page
 // extractor. nextFn is called after each page to get the URL for the next
 // page; an empty string signals the end.
+//
+// Every page after the first preserves the original req's headers, query
+// params, timeout, and other customization (e.g. Authorization) - only the
+// URL changes.
 func (c *Client) PaginateWith(ctx context.Context, req *Request, nextFn NextPageFunc, fn PageFunc) error {
 	req = req.WithContext(ctx)
 	for {
@@ -69,7 +73,13 @@ func (c *Client) PaginateWith(ctx context.Context, req *Request, nextFn NextPage
 		if nextURL == "" {
 			return nil
 		}
-		req = c.Get(nextURL)
+		// Clone (not c.Get(nextURL)) so headers, query params, timeout, and
+		// any other per-request customization set on the original req -
+		// most importantly Authorization - survive onto every subsequent
+		// page. c.Get(nextURL) would silently drop all of that, since a
+		// fresh request only carries client-level defaults.
+		req = req.Clone()
+		req.rawURL = nextURL
 		req = req.WithContext(ctx)
 	}
 }

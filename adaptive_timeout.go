@@ -59,6 +59,20 @@ func newAdaptiveTimeoutTracker(cfg *AdaptiveTimeoutConfig) *adaptiveTimeoutTrack
 	if cfg == nil {
 		cfg = defaultAdaptiveTimeoutConfig()
 	}
+	if cfg.WindowSize <= 0 {
+		// record() computes idx := t.count % t.cfg.WindowSize once the
+		// window fills - with WindowSize <= 0 that happens on the very
+		// first call (an empty slice's len is never less than a
+		// non-positive bound), causing an integer-divide-by-zero panic.
+		// WithAdaptiveTimeout takes the caller's struct verbatim with no
+		// validation, so a caller who sets Percentile/Multiplier but
+		// forgets WindowSize (whose zero value is 0) would crash the
+		// request goroutine on the second recorded latency. Fall back to
+		// the documented default instead.
+		cfgCopy := *cfg
+		cfgCopy.WindowSize = defaultAdaptiveTimeoutConfig().WindowSize
+		cfg = &cfgCopy
+	}
 	windowSize := cfg.WindowSize
 	return &adaptiveTimeoutTracker{
 		cfg:          cfg,

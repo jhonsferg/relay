@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -337,5 +338,119 @@ func TestCircuitBreaker_IsHealthy(t *testing.T) {
 	cb.RecordFailure()
 	if c.IsHealthy() {
 		t.Error("should not be healthy when open")
+	}
+}
+
+// TestWithDisableCircuitBreaker_NoBreakerBuilt guards against a regression
+// where buildClient called newCircuitBreaker(nil) unconditionally: since
+// newCircuitBreaker falls back to defaultCircuitBreakerConfig on a nil
+// argument, that produced a live breaker (5-failure default threshold) even
+// though the caller asked to disable it entirely.
+func TestWithDisableCircuitBreaker_NoBreakerBuilt(t *testing.T) {
+	c := New(WithDisableCircuitBreaker())
+	if c.circuitBreaker != nil {
+		t.Error("WithDisableCircuitBreaker should leave c.circuitBreaker nil, not a default-configured breaker")
+	}
+}
+
+// TestCircuitBreaker_AbandonedHalfOpenProbeDoesNotStickForever guards against
+// a regression where a half-open probe slot granted by Allow() leaked
+// permanently when the request was rejected downstream (by the bulkhead)
+// before it could reach RecordSuccess/RecordFailure. Without releasing the
+// slot, HalfOpenRequests eventually saturates with abandoned probes and the
+// breaker stops admitting any further recovery attempt - stuck in
+// StateHalfOpen forever, since there is no StateOpen-style auto-recovery
+// timeout for that state.
+func TestCircuitBreaker_AbandonedHalfOpenProbeDoesNotStickForever(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK})
+
+	resetTimeout := 10 * time.Millisecond
+	c := New(
+		WithDisableRetry(),
+		WithMaxConcurrentRequests(1),
+		WithCircuitBreaker(&CircuitBreakerConfig{
+			MaxFailures:      1,
+			ResetTimeout:     resetTimeout,
+			HalfOpenRequests: 1,
+			SuccessThreshold: 1,
+		}),
+	)
+	cb := c.circuitBreaker
+
+	// Trip the breaker directly, bypassing HTTP.
+	cb.RecordFailure()
+	if cb.State() != StateOpen {
+		t.Fatal("breaker should be open")
+	}
+	time.Sleep(resetTimeout + 20*time.Millisecond)
+
+	// Consume the implicit Open->HalfOpen transition slot (Allow() grants
+	// this one without incrementing halfOpenRequests), so the *next* Allow()
+	// call is the one that actually reserves a tracked probe slot.
+	if !cb.Allow() {
+		t.Fatal("Allow() should transition Open->HalfOpen and return true")
+	}
+	if cb.State() != StateHalfOpen {
+		t.Fatalf("expected StateHalfOpen, got %s", cb.State())
+	}
+
+	// Saturate the sole bulkhead slot so the next Execute's acquireBulkhead
+	// call is guaranteed to fail via context cancellation.
+	releaseBulkhead, err := c.acquireBulkhead(context.Background(), c.Get(srv.URL()+"/"))
+	if err != nil {
+		t.Fatalf("failed to saturate bulkhead: %v", err)
+	}
+
+	// This request's Allow() call reserves the one tracked half-open probe
+	// slot, but acquireBulkhead fails immediately because the bulkhead is
+	// saturated and the request's own timeout is very short.
+	_, err = c.Execute(c.Get(srv.URL() + "/").WithTimeout(5 * time.Millisecond))
+	if err == nil {
+		t.Fatal("expected acquireBulkhead to fail while the bulkhead is saturated")
+	}
+
+	releaseBulkhead()
+
+	// With the fix, the abandoned probe slot was released, so the breaker
+	// can still admit a probe. Without it, halfOpenRequests stays pinned at
+	// the HalfOpenRequests limit (1) and every future Allow() call in
+	// StateHalfOpen returns false forever.
+	resp, err := c.Execute(c.Get(srv.URL() + "/"))
+	if err != nil {
+		t.Fatalf("breaker should still admit a probe after the abandoned attempt, got err: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// TestCircuitBreaker_DisabledNeverTrips is the behavioural counterpart to
+// TestWithDisableCircuitBreaker_NoBreakerBuilt: it drives more consecutive
+// failures than the default MaxFailures (5) through a disabled breaker and
+// asserts it never opens and never rejects a request with ErrCircuitOpen.
+func TestCircuitBreaker_DisabledNeverTrips(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	for i := 0; i < 10; i++ {
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusInternalServerError})
+	}
+
+	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+
+	for i := 0; i < 10; i++ {
+		_, err := c.Execute(c.Get(srv.URL() + "/"))
+		if err == ErrCircuitOpen {
+			t.Fatalf("request %d: circuit breaker tripped despite WithDisableCircuitBreaker", i)
+		}
+	}
+
+	if c.CircuitBreakerState() != StateClosed {
+		t.Errorf("expected StateClosed with circuit breaker disabled, got %s", c.CircuitBreakerState())
+	}
+	if got := srv.RequestCount(); got != 10 {
+		t.Errorf("expected all 10 requests to reach the server, got %d", got)
 	}
 }

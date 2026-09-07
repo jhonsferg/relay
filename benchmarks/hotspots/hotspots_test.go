@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	relay "github.com/jhonsferg/relay"
 	"github.com/jhonsferg/relay/testutil"
@@ -66,8 +67,17 @@ func BenchmarkHotspot_ContextWithTimeout(b *testing.B) {
 			Body:   `{"id":1}`,
 		})
 
-		// Each request creates a new timeout context
-		req := client.Get("/bench").WithTimeout(5000) // 5 second timeout
+		// Each request creates a new timeout context.
+		//
+		// WithTimeout takes a time.Duration (nanoseconds), so a bare literal
+		// 5000 here previously meant 5000ns (5µs) - not "5 second timeout"
+		// as the comment claimed. Every request blew that deadline
+		// immediately, so this benchmark was actually measuring the
+		// timeout-error path (context deadline exceeded + error wrapping),
+		// not context-wrapping cost on a normal successful request as
+		// intended - explaining its outlier allocation/timing numbers
+		// relative to comparably-shaped hotspot benchmarks.
+		req := client.Get("/bench").WithTimeout(5 * time.Second)
 		resp, _ := client.Execute(req)
 		_ = resp
 	}
@@ -362,8 +372,11 @@ func BenchmarkHotspot_MultipleContextWrap(b *testing.B) {
 			Body:   `{"id":1}`,
 		})
 
-		// Request with custom timeout triggers context wrapping
-		req := client.Get("/api/data").WithTimeout(5000)
+		// Request with custom timeout triggers context wrapping. See the
+		// comment in BenchmarkHotspot_ContextWithTimeout above: this must be
+		// a real duration (5s), not a bare 5000 (which means 5000ns and
+		// would make every request fail its deadline immediately).
+		req := client.Get("/api/data").WithTimeout(5 * time.Second)
 		resp, _ := client.Execute(req)
 		_ = resp
 	}

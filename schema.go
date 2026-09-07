@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // SchemaValidator validates a decoded JSON response against constraints.
@@ -168,6 +169,18 @@ func applyRule(rule, fieldName string, fv reflect.Value) error {
 // Supported keywords: type, required, properties, minLength, maxLength, minimum, maximum, pattern.
 type JSONSchemaValidator struct {
 	schema map[string]interface{}
+
+	// patternCache holds compiled "pattern" keyword regexes, keyed by the
+	// pattern string, populated lazily on first use. The schema is immutable
+	// after construction, so cached patterns never go stale. Without this,
+	// every response field validated against a "pattern" keyword recompiled
+	// the regex from scratch on every single Validate call - regexp
+	// compilation costs far more than matching, and it's avoidable entirely
+	// since the same pattern strings repeat across calls for a given
+	// validator. sync.Map since Validate must be safe for concurrent use
+	// (the same validator is typically shared across a client used by
+	// multiple goroutines).
+	patternCache sync.Map
 }
 
 // NewJSONSchemaValidator creates a JSONSchemaValidator from a JSON Schema string.
@@ -181,10 +194,28 @@ func NewJSONSchemaValidator(schemaJSON string) (*JSONSchemaValidator, error) {
 
 // Validate validates v against the JSON Schema.
 func (j *JSONSchemaValidator) Validate(v interface{}) error {
-	return validateJSONSchema(v, j.schema, "")
+	return j.validateJSONSchema(v, j.schema, "")
 }
 
-func validateJSONSchema(v interface{}, schema map[string]interface{}, path string) error {
+// compiledPattern returns a compiled regexp for pat, using patternCache to
+// avoid recompiling the same pattern string across repeated Validate calls.
+func (j *JSONSchemaValidator) compiledPattern(pat string) (*regexp.Regexp, error) {
+	if cached, ok := j.patternCache.Load(pat); ok {
+		if err, isErr := cached.(error); isErr {
+			return nil, err
+		}
+		return cached.(*regexp.Regexp), nil
+	}
+	re, err := regexp.Compile(pat)
+	if err != nil {
+		j.patternCache.Store(pat, err)
+		return nil, err
+	}
+	j.patternCache.Store(pat, re)
+	return re, nil
+}
+
+func (j *JSONSchemaValidator) validateJSONSchema(v interface{}, schema map[string]interface{}, path string) error {
 	fieldLabel := func(name string) string {
 		if path == "" {
 			return name
@@ -225,11 +256,21 @@ func validateJSONSchema(v interface{}, schema map[string]interface{}, path strin
 			if propSchema == nil {
 				continue
 			}
-			var propVal interface{}
-			if isObj {
-				propVal = obj[propName]
+			// A property absent from the object (indexing a nil map, when v
+			// isn't even an object, also reports !present) is only an error
+			// if it's listed in "required" - already checked above. An
+			// absent optional property has nothing to validate: without
+			// this check, propVal defaulted to nil/zero value and got
+			// validated as if the object had explicitly set the field to
+			// JSON null, failing any type-checked ("string", "integer",
+			// etc.) optional property that was simply omitted - making
+			// every typed property effectively mandatory regardless of
+			// "required".
+			propVal, present := obj[propName]
+			if !present {
+				continue
 			}
-			if err := validateJSONSchema(propVal, propSchema, fieldLabel(propName)); err != nil {
+			if err := j.validateJSONSchema(propVal, propSchema, fieldLabel(propName)); err != nil {
 				return err
 			}
 		}
@@ -251,11 +292,11 @@ func validateJSONSchema(v interface{}, schema map[string]interface{}, path strin
 		}
 		if patVal, ok := schema["pattern"]; ok {
 			pat, _ := patVal.(string)
-			matched, err := regexp.MatchString(pat, strVal)
+			re, err := j.compiledPattern(pat)
 			if err != nil {
 				return &ValidationError{Field: path, Message: fmt.Sprintf("invalid pattern %q: %s", pat, err)}
 			}
-			if !matched {
+			if !re.MatchString(strVal) {
 				return &ValidationError{Field: path, Message: fmt.Sprintf("value %q does not match pattern %q", strVal, pat)}
 			}
 		}

@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptrace"
 	"testing"
 	"time"
 
@@ -11,9 +13,12 @@ import (
 func TestTiming_TotalIsPositiveAfterExecute(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
-	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "timing-body"})
+	// A small delay guards against a flaky failure on platforms/CI runners
+	// with coarse timer resolution, where an in-process round-trip fast
+	// enough to land within a single clock tick can measure as exactly 0.
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "timing-body", Delay: 10 * time.Millisecond})
 
-	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	c := New(WithTiming(), WithDisableRetry(), WithDisableCircuitBreaker())
 	resp, err := c.Execute(c.Get(srv.URL() + "/"))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -35,7 +40,7 @@ func TestTiming_TotalReflectsActualElapsed(t *testing.T) {
 		Delay:  delay,
 	})
 
-	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	c := New(WithTiming(), WithDisableRetry(), WithDisableCircuitBreaker())
 	start := time.Now()
 	resp, err := c.Execute(c.Get(srv.URL() + "/slow"))
 	wallClock := time.Since(start)
@@ -58,7 +63,7 @@ func TestTiming_NonNegativeBreakdown(t *testing.T) {
 	defer srv.Close()
 	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "breakdown"})
 
-	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	c := New(WithTiming(), WithDisableRetry(), WithDisableCircuitBreaker())
 	resp, err := c.Execute(c.Get(srv.URL() + "/"))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -136,19 +141,66 @@ func TestTiming_MultipleRequests(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
+	// A small delay guards against a flaky failure on platforms/CI runners
+	// with coarse timer resolution, where an in-process round-trip fast
+	// enough to land within a single clock tick can measure as exactly 0.
 	for i := 0; i < 3; i++ {
-		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "multi"})
+		srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "multi", Delay: 10 * time.Millisecond})
 	}
 
-	c := New(WithDisableRetry(), WithDisableCircuitBreaker())
+	c := New(WithTiming(), WithDisableRetry(), WithDisableCircuitBreaker())
 
 	for i := 0; i < 3; i++ {
 		resp, err := c.Execute(c.Get(srv.URL() + "/"))
 		if err != nil {
 			t.Fatalf("Execute %d: %v", i, err)
 		}
-		if resp.Timing.Total < 0 {
-			t.Errorf("request %d: Timing.Total should be >= 0, got %v", i, resp.Timing.Total)
+		if resp.Timing.Total <= 0 {
+			t.Errorf("request %d: Timing.Total should be > 0, got %v", i, resp.Timing.Total)
 		}
+	}
+}
+
+// TestInjectTraceContext_NoCrossRequestCorruption guards against a data
+// corruption bug: an earlier version pooled a single
+// (*timingCollector, *httptrace.ClientTrace) pair via sync.Pool and reused
+// it across unrelated requests. Since the trace's closures close over the
+// collector by reference, a callback that fires "late" (e.g. from a
+// net/http dialParallel "loser" goroutine racing IPv4/IPv6, which can fire
+// after the request that raced it already completed) wrote into whichever
+// *different* request had since been leased the same reused object -
+// silently corrupting its Response.Timing with a foreign timestamp.
+//
+// This reproduces it deterministically without needing a real network dial
+// race: lease A, return A's collector, lease B, fire A's now-stale
+// callback directly, and confirm B's field was NOT written by it.
+func TestInjectTraceContext_NoCrossRequestCorruption(t *testing.T) {
+	// Lease 1: simulate "request A".
+	ctxA, colA := injectTraceContext(context.Background())
+	traceA := httptrace.ContextClientTrace(ctxA)
+	if traceA == nil {
+		t.Fatal("no trace attached to ctxA")
+	}
+
+	// Request A finishes and returns its collector - simulating a "loser"
+	// dial goroutine still in flight, not yet having fired its callback.
+	putTimingCollector(colA)
+
+	// Lease 2: simulate "request B" starting immediately after.
+	_, colB := injectTraceContext(context.Background())
+
+	// request A's late "loser" dial goroutine now fires ConnectDone.
+	traceA.ConnectDone("tcp", "10.0.0.1:443", nil)
+
+	// colA and colB must be independent instances - A's stale callback must
+	// only ever be able to write into colA, never colB.
+	if colA == colB {
+		t.Fatal("collectors are pooled/shared across requests - this test cannot demonstrate independence")
+	}
+	if colB.connDone.Load() != 0 {
+		t.Errorf("request B's connDone = %d, want 0 (untouched) - request A's stale callback corrupted it", colB.connDone.Load())
+	}
+	if colA.connDone.Load() == 0 {
+		t.Error("request A's own connDone was not set by its own callback - test setup is broken")
 	}
 }

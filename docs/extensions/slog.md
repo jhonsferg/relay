@@ -19,6 +19,19 @@ client := relay.New(
 )
 ```
 
+> **Required if you're upgrading relay**: the `duration_ms` field (see "Log
+> Fields" below) reads `Response.Timing.Total`, which is now opt-in on the
+> core client. Add `relay.WithTiming()` to your client's options, or every
+> log line will report `"duration_ms": 0`.
+>
+> ```go
+> client := relay.New(
+>     relay.WithBaseURL("https://api.example.com"),
+>     relay.WithTiming(), // required for duration_ms
+>     relayslog.Middleware(nil),
+> )
+> ```
+
 ## Custom Logger
 
 ```go

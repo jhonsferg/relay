@@ -21,11 +21,17 @@
 // # Tracing
 //
 // Each request creates a span named "HTTP {METHOD}" with the following
-// attributes:
-//   - http.method        - request method (e.g. GET)
-//   - http.url           - full request URL
-//   - http.status_code   - response status code
+// semconv v1.26 attributes:
+//   - http.request.method          - request method (e.g. GET)
+//   - url.full                     - full request URL, credentials redacted
+//   - http.response.status_code    - response status code
 //   - http.response_content_length - response body size (when Content-Length is set)
+//
+// The span's trace context is also injected into the outgoing request headers
+// via the global [propagation.TextMapPropagator] (W3C tracecontext by
+// default), so downstream services can continue the distributed trace -
+// the same propagation github.com/jhonsferg/relay/ext/tracing provides,
+// plus the metrics below, in one option.
 //
 // Transport errors are recorded on the span and the span status is set to
 // [codes.Error].
@@ -48,6 +54,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -55,7 +62,10 @@ import (
 )
 
 // WithTracing returns a [relay.Option] that creates an OpenTelemetry client
-// span for every outgoing request. Pass nil to use the global TracerProvider.
+// span for every outgoing request and injects the current trace context into
+// the outgoing request headers using the global [propagation.TextMapPropagator]
+// (via [gotel.GetTextMapPropagator]), so downstream services can continue the
+// distributed trace. Pass nil to use the global TracerProvider.
 //
 // Span name: "HTTP {METHOD}"
 // Attributes: http.method, http.url, http.status_code,
@@ -66,7 +76,7 @@ func WithTracing(tracer trace.Tracer) relay.Option {
 		tracer = gotel.GetTracerProvider().Tracer("github.com/jhonsferg/relay/ext/otel")
 	}
 	return relay.WithTransportMiddleware(func(next http.RoundTripper) http.RoundTripper {
-		return &tracingTransport{base: next, tracer: tracer}
+		return &tracingTransport{base: next, tracer: tracer, propagator: gotel.GetTextMapPropagator()}
 	})
 }
 
@@ -102,10 +112,12 @@ func WithOtel(tracer trace.Tracer, meter metric.Meter) relay.Option {
 	}
 }
 
-// tracingTransport is an http.RoundTripper that creates a span per request.
+// tracingTransport is an http.RoundTripper that creates a span per request
+// and injects the trace context into the outgoing request headers.
 type tracingTransport struct {
-	base   http.RoundTripper
-	tracer trace.Tracer
+	base       http.RoundTripper
+	tracer     trace.Tracer
+	propagator propagation.TextMapPropagator
 }
 
 func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -124,7 +136,12 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	)
 	defer span.End()
 
-	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	req = req.WithContext(ctx)
+	if t.propagator != nil {
+		t.propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
+	}
+
+	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

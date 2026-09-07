@@ -16,15 +16,43 @@ import (
 // Using a named type avoids collisions with keys from other packages.
 type contextKey int
 
-// redirectCountKey is the context key used to pass the redirect counter from
-// the CheckRedirect policy back to Execute so it can populate
-// [Response.RedirectCount].
-const redirectCountKey contextKey = 0
+// redirectStateKey is the context key used to pass a *redirectState from the
+// CheckRedirect policy back to Execute so it can populate
+// [Response.RedirectCount] and [Response.RedirectChain].
+const redirectStateKey contextKey = 0
 
-// redirectChainKey is the context key used to pass the redirect chain from
-// the CheckRedirect policy back to Execute so it can populate
-// [Response.RedirectChain].
-const redirectChainKey contextKey = 1
+// redirectState carries per-request redirect bookkeeping through context so
+// the client-wide CheckRedirect callback (one closure shared by every
+// request on a Client) can write back into whichever specific Execute call
+// is currently in flight. Every request pays for this regardless of whether
+// a redirect ever happens, so it's pooled - like [timingCollector] - instead
+// of allocated fresh (and combined into one context.WithValue instead of two)
+// on every call.
+type redirectState struct {
+	count int
+	chain []RedirectInfo
+}
+
+var redirectStatePool = sync.Pool{
+	New: func() any { return new(redirectState) },
+}
+
+// getRedirectState returns a pooled redirectState, cleared for reuse.
+func getRedirectState() *redirectState {
+	s := redirectStatePool.Get().(*redirectState)
+	s.count = 0
+	s.chain = s.chain[:0]
+	return s
+}
+
+// putRedirectState returns a redirectState to the pool for reuse. Must only
+// be called after the state's values have been consumed (e.g. copied into a
+// Response), since the backing chain slice is reused by the next caller.
+func putRedirectState(s *redirectState) {
+	if s != nil {
+		redirectStatePool.Put(s)
+	}
+}
 
 // Client is a production-grade HTTP client with a configurable transport stack,
 // automatic retry/backoff, circuit breaker, token-bucket rate limiter, HTTP
@@ -122,10 +150,29 @@ func (c *Client) With(opts ...Option) *Client {
 //	HTTP Transport → TLS Pinning (via TLSConfig) → Cache →
 //	Digest Auth → Coalescing → HAR → External Middlewares
 func buildClient(cfg *Config) *Client {
+	// Resolve cross-option interactions (e.g. adaptive timeout forcing
+	// timing on) once, before anything else reads cfg.
+	finalizeConfig(cfg)
+
 	// Ensure a logger is always set.
 	if cfg.Logger == nil {
 		cfg.Logger = NoopLogger()
 	}
+
+	// Apply registered extensions before the transport stack is built, so
+	// their middleware/hooks are included. An extension error is logged,
+	// not fatal - mirrors the TLS pinning error handling just below.
+	//
+	// Only the tail past appliedExtensions runs: cfg may be a clone from
+	// (*Client).With, which already carries forward the middleware/hooks
+	// that its inherited extensions' Apply produced on the parent. Re-running
+	// them here would duplicate that effect on every With call.
+	for _, ext := range cfg.extensions[cfg.appliedExtensions:] {
+		if err := ext.Apply(cfg); err != nil {
+			cfg.Logger.Warn("extension apply failed", "extension", ext.Name(), "error", err)
+		}
+	}
+	cfg.appliedExtensions = len(cfg.extensions)
 
 	// Apply TLS certificate pinning to the TLS config before building transport.
 	if len(cfg.TLSPins) > 0 {
@@ -170,10 +217,8 @@ func buildClient(cfg *Config) *Client {
 	// CheckRedirect writes the redirect count into the per-request context so
 	// Execute can report it on the Response.
 	redirectPolicy := func(req *http.Request, via []*http.Request) error {
-		if countPtr, ok := req.Context().Value(redirectCountKey).(*int); ok {
-			*countPtr = len(via)
-		}
-		if chainPtr, ok := req.Context().Value(redirectChainKey).(*[]RedirectInfo); ok {
+		if st, ok := req.Context().Value(redirectStateKey).(*redirectState); ok {
+			st.count = len(via)
 			var statusCode int
 			if req.Response != nil {
 				statusCode = req.Response.StatusCode
@@ -182,14 +227,14 @@ func buildClient(cfg *Config) *Client {
 			if len(via) > 0 {
 				from = via[len(via)-1].URL.String()
 			}
-			*chainPtr = append(*chainPtr, RedirectInfo{
+			st.chain = append(st.chain, RedirectInfo{
 				From:       from,
 				To:         req.URL.String(),
 				StatusCode: statusCode,
 			})
 		}
 		if len(via) >= cfg.MaxRedirects {
-			return fmt.Errorf("stopped after %d redirects", cfg.MaxRedirects)
+			return fmt.Errorf("stopped after %d redirects: %w", cfg.MaxRedirects, errMaxRedirectsExceeded)
 		}
 		for _, hook := range cfg.BeforeRedirectHooks {
 			if hookErr := hook(req, via); hookErr != nil {
@@ -209,11 +254,21 @@ func buildClient(cfg *Config) *Client {
 	bgCtx, bgCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: bgCancel is stored in Client and called in Shutdown
 
 	c := &Client{
-		httpClient:     httpClient,
-		config:         cfg,
-		circuitBreaker: newCircuitBreaker(cfg.CircuitBreakerConfig),
-		retrier:        newRetrier(cfg.RetryConfig),
-		bgCancel:       bgCancel,
+		httpClient: httpClient,
+		config:     cfg,
+		retrier:    newRetrier(cfg.RetryConfig),
+		bgCancel:   bgCancel,
+	}
+
+	// Only build a circuit breaker when one was actually configured. Calling
+	// newCircuitBreaker unconditionally with a nil CircuitBreakerConfig (the
+	// state WithDisableCircuitBreaker leaves it in) would silently fall back
+	// to defaultCircuitBreakerConfig, producing a live breaker that still
+	// trips after 5 failures - defeating "disable" entirely. Every read site
+	// already nil-checks c.circuitBreaker (see Allow/RecordFailure/RecordSuccess
+	// call sites in Execute and ExecuteStream), so leaving it nil here is safe.
+	if cfg.CircuitBreakerConfig != nil {
+		c.circuitBreaker = newCircuitBreaker(cfg.CircuitBreakerConfig)
 	}
 
 	if cfg.RetryBudget != nil {
@@ -372,7 +427,11 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	}
 
 	// Apply default Accept header when not already set on the request (F4).
-	if c.config.DefaultAccept != "" && req.headers["Accept"] == "" {
+	// Checked case-insensitively: req.headers is keyed by whatever casing the
+	// caller used, so an exact "Accept" lookup would miss e.g. a
+	// caller-provided "accept" header, injecting a second, differently-cased
+	// entry that build() would then apply in a nondeterministic order.
+	if c.config.DefaultAccept != "" && !req.hasHeaderFold("Accept") {
 		req = req.WithHeader("Accept", c.config.DefaultAccept)
 	}
 
@@ -390,6 +449,13 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 	// not consume additional slots (F2).
 	releaseBulkhead, err := c.acquireBulkhead(ctx, req)
 	if err != nil {
+		// The circuit breaker already granted this request a half-open probe
+		// slot (in Allow() above); since it never reaches executeOnce, no
+		// RecordSuccess/RecordFailure will resolve it. Release it now so it
+		// doesn't leak permanently.
+		if c.circuitBreaker != nil {
+			c.circuitBreaker.abandon()
+		}
 		return nil, err
 	}
 	defer releaseBulkhead()
@@ -405,15 +471,19 @@ func (c *Client) Execute(req *Request) (resp *Response, err error) {
 // from after the circuit breaker and bulkhead checks. It is called by
 // Execute for the normal path and by executeHedged for each hedge attempt.
 func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeout bool) (*Response, error) {
-	// Embed a redirect counter and chain so CheckRedirect can populate them.
-	var redirectCount int
-	var redirectChain []RedirectInfo
-	ctx = context.WithValue(ctx, redirectCountKey, &redirectCount)
-	ctx = context.WithValue(ctx, redirectChainKey, &redirectChain)
+	// Embed a redirect counter and chain so CheckRedirect can populate them,
+	// unless the caller opted out of redirect tracking.
+	var redirectSt *redirectState
+	if !c.config.DisableRedirectTracking {
+		redirectSt = getRedirectState()
+		defer putRedirectState(redirectSt)
+		ctx = context.WithValue(ctx, redirectStateKey, redirectSt)
+	}
 
-	// Inject httptrace for request timing unless the caller has disabled it.
+	// Inject httptrace for request timing only when explicitly enabled (see
+	// WithTiming / WithAdaptiveTimeout).
 	var timingCol *timingCollector
-	if !c.config.DisableTiming {
+	if c.config.TimingEnabled {
 		ctx, timingCol = injectTraceContext(ctx)
 		defer putTimingCollector(timingCol)
 	}
@@ -500,6 +570,18 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 				return nil, fmt.Errorf("request signer: %w", signErr)
 			}
 		}
+		// redirectSt is shared across every retry attempt (it's captured once
+		// per executeOnce, not per attempt), so it must be reset here before
+		// each Do call. Otherwise a redirect hop recorded during a failed,
+		// discarded attempt would linger in the chain reported on the
+		// eventual successful response, while redirectSt.count (overwritten
+		// wholesale by CheckRedirect from len(via)) would reflect only the
+		// last attempt - leaving RedirectChain() and RedirectCount mutually
+		// inconsistent.
+		if redirectSt != nil {
+			redirectSt.count = 0
+			redirectSt.chain = redirectSt.chain[:0]
+		}
 		resp, doErr := c.httpClient.Do(httpReq)
 		// Always release the pooled reader after Do returns.
 		req.releasePooledReader()
@@ -545,6 +627,11 @@ func (c *Client) executeOnce(ctx context.Context, req *Request, hasRequestTimeou
 	maxBody := c.config.MaxResponseBodyBytes
 	if req.maxBodyBytes != 0 {
 		maxBody = req.maxBodyBytes
+	}
+	var redirectCount int
+	var redirectChain []RedirectInfo
+	if redirectSt != nil {
+		redirectCount, redirectChain = redirectSt.count, redirectSt.chain
 	}
 	resp, err := newResponse(httpResp, maxBody, redirectCount, redirectChain)
 	if err != nil {
@@ -616,14 +703,23 @@ func (c *Client) ExecuteJSON(req *Request, out interface{}) (*Response, error) {
 
 // Shutdown gracefully stops the client. It marks the client as closed (new
 // [Execute] calls immediately return [ErrClientClosed]), cancels all background
-// goroutines (health check, etc.), waits for all in-flight requests - including
-// open streaming bodies - to finish, then closes idle connections in the pool.
+// goroutines (health check, dynamic TLS cert watcher if owned by this client,
+// etc.), waits for all in-flight requests - including open streaming bodies -
+// to finish, then closes idle connections in the pool.
 //
 // If ctx expires before the drain completes, Shutdown returns ctx.Err() but
 // does NOT forcefully abort in-flight requests - their own contexts govern that.
 func (c *Client) Shutdown(ctx context.Context) error {
 	c.closed.Store(true)
 	c.bgCancel() // stop health check and any other background goroutines
+
+	// Stop the dynamic TLS cert watcher's reload goroutine, but only if this
+	// client created it exclusively (via WithDynamicTLSCert) - a
+	// caller-supplied watcher (WithCertWatcher) may be shared across
+	// multiple clients and remains the caller's responsibility to stop.
+	if c.config.CertWatcher != nil && c.config.ownsCertWatcher {
+		c.config.CertWatcher.Stop()
+	}
 
 	// Close priority queue to prevent new enqueues
 	if c.priorityQueue != nil {
@@ -699,3 +795,10 @@ func (c *Client) CloseIdleConnections() { c.httpClient.CloseIdleConnections() }
 // if no base URL was set. Useful when composing relay clients with other
 // libraries that need to inherit the URL (e.g. traverse).
 func (c *Client) BaseURL() string { return c.config.BaseURL }
+
+// Config returns a copy of this client's configuration, primarily useful
+// for [ResolveTest] to debug URL resolution against a real client's actual
+// settings. The returned Config is an independent copy (mutating it does
+// not affect this client); to change the client's own behaviour, use
+// [Client.With] instead.
+func (c *Client) Config() *Config { return c.config.clone() }

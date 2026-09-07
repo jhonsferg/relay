@@ -73,6 +73,10 @@ func WithPrometheusLabels(labels ...string) func(*PrometheusConfig) {
 //   - {namespace}_request_body_bytes (histogram, labels: method, host)
 //   - {namespace}_response_body_bytes (histogram, labels: method, host, status_code)
 //   - {namespace}_requests_in_flight (gauge, labels: host)
+//
+// Panics if metric registration fails for a reason other than a benign
+// duplicate registration (e.g. a namespace collision with an incompatible,
+// differently-shaped collector already registered under registry).
 func WithPrometheus(registry prometheus.Registerer, namespace string, opts ...func(*PrometheusConfig)) relay.Option {
 	if registry == nil {
 		registry = prometheus.DefaultRegisterer
@@ -192,21 +196,45 @@ func newMetrics(registry prometheus.Registerer, namespace string, cfg Prometheus
 		inFlightLabels:    inFlightLabels,
 	}
 
-	// Register metrics, ignoring already-registered errors for hot-reload
-	// scenarios (e.g. tests that re-create the client multiple times).
-	// Any other registration failure is a programming error and must not be
-	// silently swallowed.
-	for _, col := range []prometheus.Collector{
-		m.requestsTotal, m.requestDuration, m.activeRequests,
-		m.reqDurationHist, m.reqBodyHist, m.respBodyHist, m.inFlightGauge,
-	} {
-		if err := registry.Register(col); err != nil {
-			if !errors.As(err, new(prometheus.AlreadyRegisteredError)) {
-				panic(fmt.Sprintf("relay prometheus: failed to register metric: %v", err))
-			}
-		}
-	}
+	// Register each metric, reusing the already-registered collector on a
+	// collision (e.g. two relay.New() clients sharing the same namespace)
+	// instead of silently discarding the fresh one - see registerOrReuse.
+	m.requestsTotal = registerOrReuse(registry, m.requestsTotal)
+	m.requestDuration = registerOrReuse(registry, m.requestDuration)
+	m.activeRequests = registerOrReuse(registry, m.activeRequests)
+	m.reqDurationHist = registerOrReuse(registry, m.reqDurationHist)
+	m.reqBodyHist = registerOrReuse(registry, m.reqBodyHist)
+	m.respBodyHist = registerOrReuse(registry, m.respBodyHist)
+	m.inFlightGauge = registerOrReuse(registry, m.inFlightGauge)
 	return m
+}
+
+// registerOrReuse registers col with registry and returns it. If a collector
+// with an equal fully-qualified name is already registered - e.g. two
+// relay.New() clients sharing the same Prometheus namespace - it reuses the
+// already-registered instance instead of registering (and then silently
+// discarding) a fresh one. Without this, the second client's
+// Observe()/Inc() calls would target an orphaned collector that is never
+// exposed via /metrics, and its data would silently never appear.
+//
+// Panics if the existing collector is not assignable to T, which indicates
+// a genuine incompatible collision (same namespace+name, different
+// collector shape/label set) rather than a benign duplicate registration -
+// consistent with this function panicking on any other registration
+// failure, since both are programming errors at client-construction time.
+func registerOrReuse[T prometheus.Collector](registry prometheus.Registerer, col T) T {
+	if err := registry.Register(col); err != nil {
+		var already prometheus.AlreadyRegisteredError
+		if !errors.As(err, &already) {
+			panic(fmt.Sprintf("relay prometheus: failed to register metric: %v", err))
+		}
+		existing, ok := already.ExistingCollector.(T)
+		if !ok {
+			panic(fmt.Sprintf("relay prometheus: metric already registered under an incompatible collector type: %v", err))
+		}
+		return existing
+	}
+	return col
 }
 
 // labelValues constructs a prometheus.Labels map for the given label names,

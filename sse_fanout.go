@@ -53,6 +53,12 @@ type SSEFanOut struct {
 // NewSSEFanOut creates a new fan-out multiplexer. The client and req define
 // the upstream SSE source. bufferSize is the per-subscriber channel buffer;
 // it defaults to 64 when 0.
+//
+// An SSEFanOut is single-use: once [SSEFanOut.Stop] has been called (or
+// [SSEFanOut.Start] has returned on its own), calling Start again on the same
+// instance returns immediately without consuming the upstream stream, since
+// the internal stop signal is a one-shot channel closed exactly once for the
+// instance's lifetime. Create a new SSEFanOut via NewSSEFanOut to restart.
 func NewSSEFanOut(client *Client, req *Request, bufferSize int) *SSEFanOut {
 	if bufferSize == 0 {
 		bufferSize = defaultFanOutBufferSize
@@ -103,6 +109,9 @@ func (f *SSEFanOut) SubscriberCount() int {
 // trigger automatic reconnects after a short delay.
 //
 // All subscriber channels are closed when Start returns.
+//
+// Start must not be called again after Stop or a prior Start has already
+// returned - see [NewSSEFanOut].
 func (f *SSEFanOut) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -122,12 +131,12 @@ func (f *SSEFanOut) Start(ctx context.Context) error {
 	reconnectDelay := 3 * time.Second
 
 	for {
-		// Shallow-copy the request and attach the cancellable context so the
-		// underlying HTTP transport tears down the connection on cancellation,
-		// allowing the blocking scanner to return rather than waiting forever.
-		attempt := *f.req
-		attempt = *attempt.WithContext(ctx)
-		events, errs := f.client.ExecuteSSEStream(ctx, &attempt)
+		// ExecuteSSEStream itself now clones f.req and attaches ctx before
+		// executing, so the underlying HTTP transport tears down the
+		// connection on cancellation (allowing the blocking scanner to
+		// return rather than waiting forever) without this loop needing to
+		// do it manually.
+		events, errs := f.client.ExecuteSSEStream(ctx, f.req)
 
 		var streamErr error
 		for events != nil || errs != nil {
@@ -170,7 +179,8 @@ func (f *SSEFanOut) Start(ctx context.Context) error {
 
 // Stop signals the fan-out to halt and closes all subscriber channels.
 // It is safe to call Stop concurrently with Start and from multiple goroutines;
-// only the first call has any effect.
+// only the first call has any effect. After Stop, this SSEFanOut instance
+// cannot be restarted - see [NewSSEFanOut].
 func (f *SSEFanOut) Stop() {
 	f.stopOnce.Do(func() {
 		close(f.stopCh)

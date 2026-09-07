@@ -21,6 +21,27 @@ func TestRequest_WithContext(t *testing.T) {
 	}
 }
 
+func TestRequest_Context(t *testing.T) {
+	t.Parallel()
+
+	// A freshly built request is never nil - it defaults to context.Background.
+	req := newRequest(http.MethodGet, "/")
+	if req.Context() == nil {
+		t.Fatal("Context() should never return nil for a freshly built request")
+	}
+	if req.Context() != context.Background() {
+		t.Error("expected a freshly built request's Context() to be context.Background()")
+	}
+
+	// Round-trips whatever was set via WithContext.
+	type ctxKey struct{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "val")
+	req = req.WithContext(ctx)
+	if req.Context().Value(ctxKey{}) != "val" {
+		t.Error("Context() did not return the value set via WithContext")
+	}
+}
+
 func TestRequest_WithTimeout(t *testing.T) {
 	t.Parallel()
 	req := newRequest(http.MethodGet, "/").WithTimeout(5 * time.Second)

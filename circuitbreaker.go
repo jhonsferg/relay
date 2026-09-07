@@ -190,6 +190,21 @@ func (cb *CircuitBreaker) Allow() bool {
 	return false
 }
 
+// abandon releases a half-open probe slot that Allow() granted but that never
+// resulted in a RecordSuccess/RecordFailure call (e.g. the request was
+// rejected downstream - by the bulkhead - before it could be attempted).
+// Without this, a probe slot consumed by Allow() but never resolved leaks
+// permanently: HalfOpenRequests eventually saturates with abandoned probes
+// and the breaker stops admitting any further recovery attempts. No-op
+// outside StateHalfOpen, since only that state tracks a probe budget.
+func (cb *CircuitBreaker) abandon() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	if cb.state == StateHalfOpen && cb.halfOpenRequests > 0 {
+		cb.halfOpenRequests--
+	}
+}
+
 // RecordSuccess records a successful response. In StateClosed it resets the
 // failure counter. In StateHalfOpen it increments the success counter and
 // transitions to StateClosed once SuccessThreshold is reached.

@@ -196,4 +196,80 @@ func TestSRVResolver_ConcurrentResolveNoRace(t *testing.T) {
 	for err := range errs {
 		t.Errorf("Resolve error: %v", err)
 	}
+
+	// All 20 goroutines raced the very first (cache-empty) lookup
+	// simultaneously, so singleflight coalescing should collapse them into a
+	// single real DNS query - see TestSRVResolver_CoalescesConcurrentMisses
+	// for a more direct assertion of this property.
+	if got := callCount.Load(); got != 1 {
+		t.Errorf("lookupSRV called %d times, want 1 (concurrent cache-miss lookups should be coalesced)", got)
+	}
+}
+
+// TestSRVResolver_CoalescesConcurrentMisses guards against a regression
+// where every concurrent caller that missed the cache performed an
+// independent DNS SRV lookup - a thundering herd of duplicate queries right
+// when the cache expires under concurrent load, exactly the problem
+// dns_cache.go's flightGroup already solved for A/AAAA lookups but
+// SRVResolver didn't share.
+func TestSRVResolver_CoalescesConcurrentMisses(t *testing.T) {
+	var callCount atomic.Int64
+	blocking := make(chan struct{})
+	lookup := func(_ context.Context, _, _, _ string) (string, []*net.SRV, error) {
+		callCount.Add(1)
+		<-blocking // hold every concurrent caller until they've all arrived
+		return "", []*net.SRV{{Target: "host1.", Port: 8080}}, nil
+	}
+
+	r := NewSRVResolver("http", "tcp", "myservice.example.com", "http")
+	r.lookupSRV = lookup
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := r.Resolve(context.Background()); err != nil {
+				t.Errorf("Resolve: %v", err)
+			}
+		}()
+	}
+
+	// Give every goroutine a chance to reach the (blocked) lookup before
+	// releasing it, so they're all genuinely racing the same miss.
+	time.Sleep(20 * time.Millisecond)
+	close(blocking)
+	wg.Wait()
+
+	if got := callCount.Load(); got != 1 {
+		t.Errorf("lookupSRV called %d times for %d concurrent callers, want 1 (coalesced)", got, goroutines)
+	}
+}
+
+// TestSRVResolver_DetachesLeaderContext guards against a regression where
+// the coalesced lookup ran under the triggering caller's own context: if
+// that caller's context was canceled while the shared lookup was still in
+// flight, every other goroutine waiting on the same coalesced call would
+// receive that same cancellation error too - even ones whose own context
+// was healthy. Mirrors dns_cache.go's equivalent fix.
+func TestSRVResolver_DetachesLeaderContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	lookup := func(lookupCtx context.Context, _, _, _ string) (string, []*net.SRV, error) {
+		// Simulate the triggering caller's own context expiring while the
+		// shared lookup is still in flight.
+		cancel()
+		if err := lookupCtx.Err(); err != nil {
+			return "", nil, err
+		}
+		return "", []*net.SRV{{Target: "host1.", Port: 8080}}, nil
+	}
+
+	r := NewSRVResolver("http", "tcp", "myservice.example.com", "http")
+	r.lookupSRV = lookup
+
+	if _, err := r.Resolve(ctx); err != nil {
+		t.Fatalf("expected success despite the triggering context being canceled mid-flight, got: %v", err)
+	}
 }

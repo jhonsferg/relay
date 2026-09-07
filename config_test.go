@@ -2,8 +2,13 @@ package relay
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -210,6 +215,200 @@ func TestWithMaxRedirects(t *testing.T) {
 	}
 }
 
+func TestWithDisableRedirectTracking(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+	c := New(WithDisableRedirectTracking())
+	if !c.config.DisableRedirectTracking {
+		t.Error("expected DisableRedirectTracking=true")
+	}
+}
+
+func TestFinalizeConfig_AdaptiveTimeoutForcesTiming(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	cfg := AdaptiveTimeoutConfig{
+		Percentile:     0.95,
+		Multiplier:     2.0,
+		WindowSize:     100,
+		MinTimeout:     100 * time.Millisecond,
+		MaxTimeout:     30 * time.Second,
+		InitialTimeout: 5 * time.Second,
+	}
+
+	// Regardless of option order, adaptive timeout must force TimingEnabled.
+	c1 := New(WithAdaptiveTimeout(cfg), WithDisableTiming())
+	if !c1.config.TimingEnabled {
+		t.Error("expected TimingEnabled=true when WithAdaptiveTimeout is set (option order: adaptive then disable)")
+	}
+
+	c2 := New(WithDisableTiming(), WithAdaptiveTimeout(cfg))
+	if !c2.config.TimingEnabled {
+		t.Error("expected TimingEnabled=true when WithAdaptiveTimeout is set (option order: disable then adaptive)")
+	}
+
+	c3 := New()
+	if c3.config.TimingEnabled {
+		t.Error("expected TimingEnabled=false by default with no adaptive timeout")
+	}
+}
+
+// fakeExtension is a minimal Extension used to test WithExtension wiring.
+type fakeExtension struct {
+	name    string
+	applyFn func(cfg *Config) error
+}
+
+func (f *fakeExtension) Name() string { return f.name }
+func (f *fakeExtension) Apply(cfg *Config) error {
+	return f.applyFn(cfg)
+}
+
+func TestWithExtension_ApplyRuns(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	var applied bool
+	ext := &fakeExtension{
+		name: "test-ext",
+		applyFn: func(cfg *Config) error {
+			applied = true
+			cfg.TransportMiddlewares = append(cfg.TransportMiddlewares, func(rt http.RoundTripper) http.RoundTripper {
+				return rt
+			})
+			return nil
+		},
+	}
+
+	c := New(WithExtension(ext))
+	if !applied {
+		t.Error("expected Extension.Apply to be called during construction")
+	}
+	if len(c.config.TransportMiddlewares) != 1 {
+		t.Errorf("expected extension's middleware to be registered, got %d middlewares", len(c.config.TransportMiddlewares))
+	}
+}
+
+func TestWithExtension_ErrorIsLogged(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	logger := &configTestLogger{}
+	ext := &fakeExtension{
+		name: "broken-ext",
+		applyFn: func(_ *Config) error {
+			return errors.New("boom")
+		},
+	}
+
+	// Construction must not fail/panic even though the extension errors.
+	c := New(WithLogger(logger), WithExtension(ext))
+	if c == nil {
+		t.Fatal("expected New to return a client despite the extension error")
+	}
+
+	if !logger.hasWarnContaining("broken-ext") {
+		t.Errorf("expected a Warn log mentioning the failing extension name, got: %+v", logger.entries)
+	}
+}
+
+// TestWithExtension_NotReappliedOnWith guards against a bug where
+// (*Client).With re-runs Extension.Apply for every extension the parent
+// already applied. With clones c.config (config.go's clone() copies both
+// cfg.extensions and the already-mutated cfg.TransportMiddlewares it
+// produced), then buildClient's `for _, ext := range cfg.extensions { ...
+// ext.Apply(cfg) ... }` loop applies every inherited extension a second
+// time on top of a config that already reflects its first application. An
+// Extension.Apply that appends middleware/hooks (the pattern the Extension
+// interface's own doc comment and TestWithExtension_ApplyRuns describe) ends
+// up registered twice after a single With call, and N+1 times after N
+// chained With calls, for effects the extension author only asked to add
+// once per client.
+func TestWithExtension_NotReappliedOnWith(t *testing.T) {
+	testMu.Lock()
+	defer testMu.Unlock()
+
+	var applyCount int
+	ext := &fakeExtension{
+		name: "counting-ext",
+		applyFn: func(cfg *Config) error {
+			applyCount++
+			cfg.TransportMiddlewares = append(cfg.TransportMiddlewares, func(rt http.RoundTripper) http.RoundTripper {
+				return rt
+			})
+			return nil
+		},
+	}
+
+	parent := New(WithExtension(ext))
+	if applyCount != 1 {
+		t.Fatalf("after New: applyCount = %d, want 1", applyCount)
+	}
+	if len(parent.config.TransportMiddlewares) != 1 {
+		t.Fatalf("after New: %d middlewares registered, want 1", len(parent.config.TransportMiddlewares))
+	}
+
+	child := parent.With(WithTimeout(5 * time.Second))
+	if applyCount != 1 {
+		t.Errorf("after one With call: applyCount = %d, want 1 (extension re-applied on inherited config)", applyCount)
+	}
+	if len(child.config.TransportMiddlewares) != 1 {
+		t.Errorf("after one With call: %d middlewares registered, want 1 (extension's middleware duplicated)", len(child.config.TransportMiddlewares))
+	}
+
+	grandchild := child.With(WithTimeout(10 * time.Second))
+	if applyCount != 1 {
+		t.Errorf("after a second chained With call: applyCount = %d, want 1", applyCount)
+	}
+	if len(grandchild.config.TransportMiddlewares) != 1 {
+		t.Errorf("after a second chained With call: %d middlewares registered, want 1", len(grandchild.config.TransportMiddlewares))
+	}
+
+	var applyCount2 int
+	ext2 := &fakeExtension{
+		name: "second-ext",
+		applyFn: func(cfg *Config) error {
+			applyCount2++
+			cfg.TransportMiddlewares = append(cfg.TransportMiddlewares, func(rt http.RoundTripper) http.RoundTripper {
+				return rt
+			})
+			return nil
+		},
+	}
+	withNewExt := grandchild.With(WithExtension(ext2))
+	if applyCount != 1 {
+		t.Errorf("after With(WithExtension(new)): first extension's applyCount = %d, want 1 (still shouldn't re-run)", applyCount)
+	}
+	if applyCount2 != 1 {
+		t.Errorf("after With(WithExtension(new)): second extension's applyCount = %d, want 1", applyCount2)
+	}
+	if len(withNewExt.config.TransportMiddlewares) != 2 {
+		t.Errorf("after With(WithExtension(new)): %d middlewares registered, want 2 (one per extension)", len(withNewExt.config.TransportMiddlewares))
+	}
+}
+
+// configTestLogger captures Warn calls for TestWithExtension_ErrorIsLogged.
+type configTestLogger struct {
+	entries []string
+}
+
+func (l *configTestLogger) Debug(msg string, _ ...any) {}
+func (l *configTestLogger) Info(msg string, _ ...any)  {}
+func (l *configTestLogger) Warn(msg string, args ...any) {
+	l.entries = append(l.entries, fmt.Sprintf("%s %v", msg, args))
+}
+func (l *configTestLogger) Error(msg string, _ ...any) {}
+
+func (l *configTestLogger) hasWarnContaining(substr string) bool {
+	for _, e := range l.entries {
+		if strings.Contains(e, substr) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestWithMaxResponseBodyBytes(t *testing.T) {
 	testMu.Lock()
 	defer testMu.Unlock()
@@ -290,6 +489,43 @@ func TestWithDNSOverride(t *testing.T) {
 	c := New(WithDNSOverride(map[string]string{"api.internal": "10.0.0.1"}))
 	if c.config.DNSOverrides["api.internal"] != "10.0.0.1" {
 		t.Errorf("expected DNS override to be set, got %q", c.config.DNSOverrides["api.internal"])
+	}
+}
+
+// TestWithDNSOverride_RedirectsDial exercises overrideDialer.DialContext
+// end-to-end (not just that the option populates Config.DNSOverrides): a
+// nonexistent hostname is overridden to the mock server's real loopback IP,
+// so a successful request proves the override actually rewrote the dial
+// target rather than falling through to real DNS resolution (which would
+// fail for a made-up hostname).
+func TestWithDNSOverride_RedirectsDial(t *testing.T) {
+	t.Parallel()
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: "overridden"})
+
+	u, err := url.Parse(srv.URL())
+	if err != nil {
+		t.Fatalf("parse mock server URL: %v", err)
+	}
+	_, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		t.Fatalf("split host port: %v", err)
+	}
+
+	const fakeHost = "relay-dns-override-test.invalid"
+	c := New(
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithDNSOverride(map[string]string{fakeHost: "127.0.0.1"}),
+	)
+
+	resp, err := c.Execute(c.Get("http://" + fakeHost + ":" + port + "/"))
+	if err != nil {
+		t.Fatalf("Execute (override should have redirected the dial to 127.0.0.1): %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
 	}
 }
 

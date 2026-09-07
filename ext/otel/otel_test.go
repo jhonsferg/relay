@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	gotel "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -52,6 +54,35 @@ func TestWithTracing_SpanCreated(t *testing.T) {
 	}
 	if !found {
 		t.Error("span missing http.method=GET attribute")
+	}
+}
+
+// TestWithTracing_InjectsPropagationHeaders guards against a regression where
+// ext/otel created spans but never injected the trace context into outgoing
+// request headers, so downstream services had no way to continue the trace
+// (unlike ext/tracing, which always propagated).
+func TestWithTracing_InjectsPropagationHeaders(t *testing.T) {
+	var gotTraceparent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTraceparent = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	prevProp := gotel.GetTextMapPropagator()
+	gotel.SetTextMapPropagator(propagation.TraceContext{})
+	defer gotel.SetTextMapPropagator(prevProp)
+
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	tracer := tp.Tracer("test")
+
+	c := relay.New(relayotel.WithTracing(tracer))
+
+	_, _ = c.Execute(c.Get(srv.URL))
+
+	if gotTraceparent == "" {
+		t.Error("expected WithTracing to inject a traceparent header via the global propagator, got none")
 	}
 }
 

@@ -149,6 +149,69 @@ func TestWithSentry_Captures5xx(t *testing.T) {
 	}
 }
 
+// TestWithSentry_StripsSensitiveHeaders guards against sending
+// Authorization/Cookie/etc. credentials to Sentry. SendDefaultPII: true
+// mirrors a host app that wants full PII from other Sentry integrations -
+// sentry-go itself only redacts headers when SendDefaultPII is false (the
+// default), so this specifically exercises the case where relay's own
+// independent stripping is the only thing preventing a leak.
+//
+// Uses the transport-error path (CaptureException on a connection failure)
+// rather than the 5xx path: buildEvent constructs its own headerless
+// sentrygo.Request for captured 5xx/4xx events, which shadows whatever
+// scope.SetRequest contributed - CaptureException builds a bare event with
+// no pre-set Request, so it's scope.ApplyToEvent that fills in Request
+// (headers included, confirmed by inspecting the raw SDK behavior), making
+// this the path that actually exercises what scope.SetRequest is given.
+func TestWithSentry_StripsSensitiveHeaders(t *testing.T) {
+	t.Parallel()
+
+	ct := &captureTransport{}
+	client, _ := sentrygo.NewClient(sentrygo.ClientOptions{
+		Transport:        ct,
+		TracesSampleRate: 0,
+		SendDefaultPII:   true,
+	})
+	hub := sentrygo.NewHub(client, sentrygo.NewScope())
+	c := relay.New(
+		relay.WithBaseURL("http://127.0.0.1:1"), // nothing listening - forces a transport error
+		relaysentry.WithSentry(hub),
+		relay.WithDisableRetry(),
+		relay.WithDisableCircuitBreaker(),
+		relay.WithTimeout(200*time.Millisecond),
+	)
+
+	req := c.Get("/secret")
+	req.WithHeader("Authorization", "Bearer super-secret-token")
+	req.WithHeader("Cookie", "session=super-secret-session")
+	req.WithHeader("X-Api-Key", "super-secret-api-key")
+	req.WithHeader("X-Custom", "not-sensitive")
+
+	if _, err := c.Execute(req); err == nil {
+		t.Fatal("expected connection error, got nil")
+	}
+
+	events := ct.Events()
+	if len(events) != 1 {
+		t.Fatalf("captured events = %d, want 1", len(events))
+	}
+	sentryReq := events[0].Request
+	if sentryReq == nil {
+		t.Fatal("event.Request is nil")
+	}
+	for _, h := range []string{"Authorization", "Cookie", "X-Api-Key"} {
+		if v, ok := sentryReq.Headers[h]; ok {
+			t.Errorf("event.Request.Headers[%q] = %q, want header absent", h, v)
+		}
+	}
+	if sentryReq.Cookies != "" {
+		t.Errorf("event.Request.Cookies = %q, want empty", sentryReq.Cookies)
+	}
+	if v := sentryReq.Headers["X-Custom"]; v != "not-sensitive" {
+		t.Errorf("non-sensitive header X-Custom = %q, want preserved as \"not-sensitive\"", v)
+	}
+}
+
 func TestWithSentry_ServerErrorsDisabled(t *testing.T) {
 	t.Parallel()
 

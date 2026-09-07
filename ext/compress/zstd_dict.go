@@ -130,6 +130,14 @@ func (t *zstdDictTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		r.Body = io.NopCloser(bytes.NewReader(compressed))
 		r.ContentLength = int64(len(compressed))
 		r.Header.Set("Content-Encoding", "zstd")
+		// r was Clone()'d from req, so GetBody (if any) still points at a
+		// closure returning the original, uncompressed bytes. Left
+		// unpatched, a redirect requiring body resend would replay the
+		// uncompressed body while r.Header/r.ContentLength still describe
+		// the compressed one - update it to match what was actually sent.
+		r.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(compressed)), nil
+		}
 	}
 
 	// Advertise zstd support.
@@ -164,10 +172,10 @@ func (t *zstdDictTransport) RoundTrip(req *http.Request) (*http.Response, error)
 // closed is an atomic flag so that Close is idempotent and safe to call
 // concurrently with the last Read.
 type zstdReadCloser struct {
-	comp   *ZstdDictCompressor
-	src    io.ReadCloser
-	buf    *bytes.Reader
-	once   sync.Once
+	comp    *ZstdDictCompressor
+	src     io.ReadCloser
+	buf     *bytes.Reader
+	once    sync.Once
 	initErr error
 	closed  atomic.Bool
 }

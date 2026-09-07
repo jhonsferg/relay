@@ -44,6 +44,14 @@
 // NewCacheStore accepts a [Client] interface rather than the concrete
 // *memcache.Client, making it easy to swap in a test double without needing
 // a real memcached daemon.
+//
+// # Testing
+//
+// memcached_test.go tests against a hand-rolled in-memory fake.
+// memcached_docker_test.go (build tag "docker") additionally tests against a
+// real Memcached container via testcontainers-go, exercising the real wire
+// protocol (including key-encoding constraints the fake can't catch): run
+// with `go test -tags=docker ./...` (requires a local Docker daemon).
 package memcached
 
 import (
@@ -181,7 +189,13 @@ func (s *CacheStore) Set(key string, entry *relay.CachedResponse) {
 		if d <= 0 {
 			return // already expired; do not store
 		}
-		secs := int32(d.Seconds())
+		// Ceiling division, not truncation: int32(d.Seconds()) truncates
+		// toward zero (e.g. 1.5s -> 1), which - combined with the secs==0
+		// guard below only catching sub-second remainders, not fractional
+		// ones - understated the TTL relative to entry.ExpiresAt, causing
+		// memcached to evict up to ~1s earlier than relay's own ExpiresAt
+		// still considers the entry valid for.
+		secs := int32((d + time.Second - 1) / time.Second)
 		if secs == 0 {
 			secs = 1 // at least 1 s to avoid immediate eviction
 		}

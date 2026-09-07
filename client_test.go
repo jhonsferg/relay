@@ -468,10 +468,12 @@ func TestIsHealthy_NoBreakerAlwaysTrue(t *testing.T) {
 	}
 }
 
-func TestExecute_WithDisableTiming_TimingIsZero(t *testing.T) {
+func TestExecute_TimingDisabledByDefault_TimingIsZero(t *testing.T) {
 	srv := testutil.NewMockServer()
 	defer srv.Close()
 
+	// WithDisableTiming is a deprecated no-op; timing is off by default
+	// regardless, and this call must not change that.
 	c := New(
 		WithBaseURL(srv.URL()),
 		WithDisableRetry(),
@@ -487,7 +489,62 @@ func TestExecute_WithDisableTiming_TimingIsZero(t *testing.T) {
 	}
 
 	if resp.Timing.Total != 0 || resp.Timing.DNSLookup != 0 {
-		t.Errorf("expected zero timing when disabled, got %+v", resp.Timing)
+		t.Errorf("expected zero timing by default, got %+v", resp.Timing)
+	}
+}
+
+func TestExecute_WithTiming_PopulatesTiming(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithTiming(),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{}`})
+
+	resp, err := c.Execute(c.Get("/check"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if resp.Timing.Total <= 0 {
+		t.Errorf("expected Timing.Total > 0 with WithTiming, got %v", resp.Timing.Total)
+	}
+}
+
+func TestExecute_AdaptiveTimeoutAlone_PopulatesTiming(t *testing.T) {
+	srv := testutil.NewMockServer()
+	defer srv.Close()
+
+	// WithAdaptiveTimeout must force timing on internally, without needing
+	// WithTiming, since adaptive timeout needs latency samples to function.
+	c := New(
+		WithBaseURL(srv.URL()),
+		WithDisableRetry(),
+		WithDisableCircuitBreaker(),
+		WithAdaptiveTimeout(AdaptiveTimeoutConfig{
+			Percentile:     0.95,
+			Multiplier:     2.0,
+			WindowSize:     100,
+			MinTimeout:     100 * time.Millisecond,
+			MaxTimeout:     30 * time.Second,
+			InitialTimeout: 5 * time.Second,
+		}),
+	)
+
+	srv.Enqueue(testutil.MockResponse{Status: http.StatusOK, Body: `{}`})
+
+	resp, err := c.Execute(c.Get("/check"))
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	if resp.Timing.Total <= 0 {
+		t.Errorf("expected Timing.Total > 0 with WithAdaptiveTimeout alone, got %v", resp.Timing.Total)
 	}
 }
 

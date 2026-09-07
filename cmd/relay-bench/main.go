@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -25,53 +26,69 @@ func (m *multiFlag) String() string     { return strings.Join(*m, ", ") }
 func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 
 func main() {
+	os.Exit(run(os.Args[1:]))
+}
+
+// run parses args and executes the benchmark, returning the process exit
+// code. All work happens here (rather than directly in main) so deferred
+// cleanup - shutting down the client's connection pool - always runs via a
+// normal function return instead of being skipped by a direct os.Exit call.
+func run(args []string) int {
 	var headers multiFlag
 
-	method := flag.String("m", "GET", "HTTP `method`")
-	body := flag.String("b", "", "request body")
-	jsonBody := flag.String("j", "", "JSON request body (sets Content-Type: application/json)")
-	count := flag.Int("n", 100, "total number of requests (ignored when -d is set)")
-	conc := flag.Int("c", 10, "concurrency - simultaneous in-flight requests")
-	dur := flag.Duration("d", 0, "run duration (e.g. 30s); overrides -n when set")
-	reqTout := flag.Duration("timeout", 10*time.Second, "per-request timeout")
-	rateLimit := flag.Float64("rate", 0, "requests per second limit (0 = unlimited)")
-	cbEnable := flag.Bool("cb", false, "enable circuit breaker (trips at 10 consecutive failures)")
-	warm := flag.Int("warm", 0, "warm-up requests sent before measurement (results discarded)")
-	jsonOut := flag.Bool("json", false, "output results as JSON")
-	quiet := flag.Bool("q", false, "suppress progress output during benchmark")
-	showVer := flag.Bool("version", false, "print version and exit")
+	fs := flag.NewFlagSet("relay-bench", flag.ContinueOnError)
 
-	flag.Var(&headers, "H", "add request `header` as \"Key: Value\" (repeatable)")
-	flag.Usage = func() {
+	method := fs.String("m", "GET", "HTTP `method`")
+	body := fs.String("b", "", "request body")
+	jsonBody := fs.String("j", "", "JSON request body (sets Content-Type: application/json)")
+	count := fs.Int("n", 100, "total number of requests (ignored when -d is set)")
+	conc := fs.Int("c", 10, "concurrency - simultaneous in-flight requests")
+	dur := fs.Duration("d", 0, "run duration (e.g. 30s); overrides -n when set")
+	reqTout := fs.Duration("timeout", 10*time.Second, "per-request timeout")
+	rateLimit := fs.Float64("rate", 0, "requests per second limit (0 = unlimited)")
+	cbEnable := fs.Bool("cb", false, "enable circuit breaker (trips at 10 consecutive failures)")
+	warm := fs.Int("warm", 0, "warm-up requests sent before measurement (results discarded)")
+	jsonOut := fs.Bool("json", false, "output results as JSON")
+	quiet := fs.Bool("q", false, "suppress progress output during benchmark")
+	showVer := fs.Bool("version", false, "print version and exit")
+
+	fs.Var(&headers, "H", "add request `header` as \"Key: Value\" (repeatable)")
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "relay-bench %s - HTTP load tester powered by relay\n\n", version)
 		fmt.Fprintf(os.Stderr, "Usage:\n  relay-bench [OPTIONS] <URL>\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
+		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  relay-bench -n 500 -c 25 https://httpbin.org/get\n")
 		fmt.Fprintf(os.Stderr, "  relay-bench -d 30s -c 50 --rate 200 https://api.example.com/ping\n")
 		fmt.Fprintf(os.Stderr, "  relay-bench -n 1000 -c 100 --cb --json https://api.example.com/v1\n")
 	}
 
-	flag.Parse()
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 1
+	}
 
 	if *showVer {
 		fmt.Printf("relay-bench %s\n", version)
-		os.Exit(0)
+		return 0
 	}
 
-	args := flag.Args()
-	if len(args) == 0 {
-		flag.Usage()
-		os.Exit(1)
+	positional := fs.Args()
+	if len(positional) == 0 {
+		fs.Usage()
+		return 1
 	}
 
-	rawURL := args[0]
+	rawURL := positional[0]
 
 	opts := []relay.Option{
 		relay.WithTimeout(*reqTout),
 		relay.WithConnectionPool(*conc+10, *conc, *conc+10),
 		relay.WithDisableRetry(),
+		relay.WithTiming(), // bench reports per-request latency
 	}
 
 	if *rateLimit > 0 {
@@ -147,8 +164,9 @@ func main() {
 	}
 
 	if stats.Errors > 0 || stats.Failures > 0 {
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 // makeFactory returns a function that creates a fresh *relay.Request on each call.
