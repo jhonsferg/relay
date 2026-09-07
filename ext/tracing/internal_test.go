@@ -19,7 +19,7 @@ func TestRedactURL(t *testing.T) {
 			in:   "https://example.com/path?q=1",
 			want: "https://example.com/path?q=1",
 		},
-		{
+		{ //nolint:gosec // test fixture URL below, not a real credential
 			name: "userinfo stripped",
 			in:   "https://user:secret@example.com/path",
 			want: "https://example.com/path",
