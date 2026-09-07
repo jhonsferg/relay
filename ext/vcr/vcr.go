@@ -50,7 +50,7 @@ type RecordedRequest struct {
 
 // MarshalJSON base64-encodes Body so binary bodies (images, protobuf, gzip)
 // round-trip byte-for-byte instead of being corrupted by encoding/json's
-// replacement of invalid UTF-8 sequences with U+FFFD when marshaling a Go
+// replacement of invalid UTF-8 sequences with U+FFFD when marshalling a Go
 // string directly.
 func (r RecordedRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(recordedRequestJSON{
