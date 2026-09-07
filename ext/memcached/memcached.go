@@ -30,7 +30,7 @@
 // ExpiresAt are stored with expiration 0, meaning they never expire unless
 // evicted by the server's memory pressure (LRU).
 //
-// # Clear behavior
+// # Clear behaviour
 //
 // [CacheStore.Clear] calls the underlying client's FlushAll which purges the
 // entire server. If this CacheStore shares a memcached instance with other
@@ -59,6 +59,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"time"
 
@@ -195,7 +196,13 @@ func (s *CacheStore) Set(key string, entry *relay.CachedResponse) {
 		// ones - understated the TTL relative to entry.ExpiresAt, causing
 		// memcached to evict up to ~1s earlier than relay's own ExpiresAt
 		// still considers the entry valid for.
-		secs := int32((d + time.Second - 1) / time.Second)
+		secsD := (d + time.Second - 1) / time.Second
+		var secs int32
+		if secsD > math.MaxInt32 {
+			secs = math.MaxInt32
+		} else {
+			secs = int32(secsD)
+		}
 		if secs == 0 {
 			secs = 1 // at least 1 s to avoid immediate eviction
 		}
@@ -216,10 +223,7 @@ func (s *CacheStore) Set(key string, entry *relay.CachedResponse) {
 
 // Delete removes the entry for key. It is a no-op if the key is absent.
 func (s *CacheStore) Delete(key string) {
-	err := s.mc.Delete(s.encodeKey(key))
-	if err != nil && !errors.Is(err, memcache.ErrCacheMiss) {
-		// Ignore; delete is best-effort.
-	}
+	_ = s.mc.Delete(s.encodeKey(key)) // best-effort; errors (including ErrCacheMiss) are ignored
 }
 
 // Clear flushes the entire Memcached server. See the package documentation
