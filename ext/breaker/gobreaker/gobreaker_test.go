@@ -67,8 +67,8 @@ func TestWithGoBreaker_TripsOnConsecutiveFailures(t *testing.T) {
 	)
 
 	// Two 500 responses trip the breaker (ConsecutiveFailures >= 2).
-	client.Execute(client.Get("/")) //nolint:errcheck - 500
-	client.Execute(client.Get("/")) //nolint:errcheck - 500
+	client.Execute(client.Get("/")) //nolint:errcheck // 500
+	client.Execute(client.Get("/")) //nolint:errcheck // 500
 
 	// Third call should be rejected by the open breaker (no server hit).
 	_, err := client.Execute(client.Get("/"))
@@ -130,8 +130,8 @@ func TestWithGoBreaker_NetworkErrorCountsAsFailure(t *testing.T) {
 		relaybreaker.WithGoBreaker(cb),
 	)
 
-	client.Execute(client.Get("/")) //nolint:errcheck - network error
-	client.Execute(client.Get("/")) //nolint:errcheck - network error
+	client.Execute(client.Get("/")) //nolint:errcheck // network error
+	client.Execute(client.Get("/")) //nolint:errcheck // network error
 
 	_, err := client.Execute(client.Get("/"))
 	if !errors.Is(err, gb.ErrOpenState) {
@@ -184,7 +184,7 @@ func TestWithGoBreaker_OpenBreakerClosesRequestBody(t *testing.T) {
 	)
 
 	// One 500 response trips the breaker (ConsecutiveFailures >= 1).
-	client.Execute(client.Post("/").WithBody([]byte("payload"))) //nolint:errcheck - 500
+	client.Execute(client.Post("/").WithBody([]byte("payload"))) //nolint:errcheck // 500
 
 	// Second call is rejected by the open breaker without reaching srv.
 	body = nil
