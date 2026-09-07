@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gorilla "github.com/gorilla/websocket"
+
 	"github.com/jhonsferg/relay"
 	ws "github.com/jhonsferg/relay/ext/websocket"
 )
@@ -27,7 +28,7 @@ func benchEchoServer(b *testing.B) *httptest.Server {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {
@@ -87,7 +88,7 @@ func BenchmarkMessageRoundTrip(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Dial: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	const payload = "the quick brown fox jumps over the lazy dog"
 
