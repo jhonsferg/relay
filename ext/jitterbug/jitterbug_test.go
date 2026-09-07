@@ -21,11 +21,11 @@ func failThenSucceed(n int, statusCode int) (http.Handler, *atomic.Int32) {
 		c := calls.Add(1)
 		if int(c) <= n {
 			w.WriteHeader(statusCode)
-			fmt.Fprintf(w, `{"attempt":%d,"error":true}`, c)
+			_, _ = fmt.Fprintf(w, `{"attempt":%d,"error":true}`, c)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"attempt":%d,"ok":true}`, c)
+		_, _ = fmt.Fprintf(w, `{"attempt":%d,"ok":true}`, c)
 	}), &calls
 }
 
