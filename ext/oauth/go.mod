@@ -2,7 +2,7 @@ module github.com/jhonsferg/relay/ext/oauth
 
 go 1.25.0
 
-require github.com/jhonsferg/relay v0.4.3
+require github.com/jhonsferg/relay v0.4.8
 
 require (
 	github.com/andybalholm/brotli v1.2.2 // indirect
