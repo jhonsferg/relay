@@ -331,6 +331,106 @@ func TestDefaultLoggerIsUsedWhenNilIsProvided(t *testing.T) {
 	}
 }
 
+func TestLogRetry_WithResponse(t *testing.T) {
+	handler := &testLogHandler{}
+	logger := slog.New(handler)
+
+	client := relay.New(relay.WithBaseURL("http://example.com"))
+	req := client.Get("/test")
+
+	httpReq, _ := http.NewRequest(http.MethodGet, "http://example.com/redirected", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusServiceUnavailable,
+		Request:    httpReq,
+	}
+
+	logRetry(context.Background(), logger, 2, req, resp, nil)
+
+	if len(handler.records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(handler.records))
+	}
+	record := handler.records[0]
+	if record.Level != slog.LevelError {
+		t.Errorf("expected LevelError for 5xx status, got %v", record.Level)
+	}
+	if record.Message != "http_retry" {
+		t.Errorf("expected message http_retry, got %q", record.Message)
+	}
+
+	attrs := extractAttrs(&record)
+	if attrs["url"] != "http://example.com/redirected" {
+		t.Errorf("expected url from httpResp.Request, got %v", attrs["url"])
+	}
+	if attrs["method"] != http.MethodGet {
+		t.Errorf("expected method from httpResp.Request, got %v", attrs["method"])
+	}
+}
+
+func TestLogRetry_WithResponse_4xxLogsAtWarn(t *testing.T) {
+	handler := &testLogHandler{}
+	logger := slog.New(handler)
+
+	client := relay.New(relay.WithBaseURL("http://example.com"))
+	req := client.Get("/test")
+
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests}
+
+	logRetry(context.Background(), logger, 1, req, resp, nil)
+
+	if len(handler.records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(handler.records))
+	}
+	if handler.records[0].Level != slog.LevelWarn {
+		t.Errorf("expected LevelWarn for 4xx status, got %v", handler.records[0].Level)
+	}
+}
+
+func TestLogRetry_WithError(t *testing.T) {
+	handler := &testLogHandler{}
+	logger := slog.New(handler)
+
+	client := relay.New(relay.WithBaseURL("http://example.com"))
+	req := client.Get("/test")
+
+	logRetry(context.Background(), logger, 3, req, nil, fmt.Errorf("dial tcp: connection refused"))
+
+	if len(handler.records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(handler.records))
+	}
+	record := handler.records[0]
+	if record.Level != slog.LevelError {
+		t.Errorf("expected LevelError for transport error, got %v", record.Level)
+	}
+	if record.Message != "http_retry" {
+		t.Errorf("expected message http_retry, got %q", record.Message)
+	}
+
+	attrs := extractAttrs(&record)
+	if attrs["url"] != req.URL() {
+		t.Errorf("expected url = %q, got %v", req.URL(), attrs["url"])
+	}
+	if attrs["method"] != req.Method() {
+		t.Errorf("expected method = %q, got %v", req.Method(), attrs["method"])
+	}
+	if _, ok := attrs["error"]; !ok {
+		t.Error("expected error field to be present")
+	}
+}
+
+func TestLogError_NilErrorIsNoOp(t *testing.T) {
+	handler := &testLogHandler{}
+	logger := slog.New(handler)
+
+	client := relay.New(relay.WithBaseURL("http://example.com"))
+	req := client.Get("/test")
+
+	logError(context.Background(), logger, req, nil)
+
+	if len(handler.records) != 0 {
+		t.Errorf("expected no log records for nil error, got %d", len(handler.records))
+	}
+}
+
 func extractAttrs(record *slog.Record) map[string]any {
 	attrs := make(map[string]any)
 	record.Attrs(func(attr slog.Attr) bool {
