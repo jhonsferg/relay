@@ -82,15 +82,6 @@ func (c *fakeClient) FlushAll() error {
 	return nil
 }
 
-// forceExpire sets the creation time of key to the past so it appears expired.
-func (c *fakeClient) forceExpire(key string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if it, ok := c.items[key]; ok {
-		it.createdAt = time.Now().Add(-time.Hour)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -360,7 +351,7 @@ func TestCacheStore_IntegrationWithRelayClient(t *testing.T) {
 		hits++
 		w.Header().Set("Cache-Control", "max-age=60")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"hits":%d}`, hits)
+		_, _ = fmt.Fprintf(w, `{"hits":%d}`, hits)
 	}))
 	defer srv.Close()
 
