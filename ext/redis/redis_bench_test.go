@@ -26,7 +26,7 @@ func newBenchStore(b *testing.B) *relayredis.CacheStore {
 	return relayredis.NewCacheStore(rdb, "relay:bench:")
 }
 
-// BenchmarkCacheStore_Set measures the per-request cost of serializing and
+// BenchmarkCacheStore_Set measures the per-request cost of serialising and
 // writing a cache entry to Redis.
 func BenchmarkCacheStore_Set(b *testing.B) {
 	store := newBenchStore(b)
@@ -41,7 +41,7 @@ func BenchmarkCacheStore_Set(b *testing.B) {
 }
 
 // BenchmarkCacheStore_Get measures the per-request cost of reading and
-// deserializing a cache entry from Redis (cache hit path).
+// deserialising a cache entry from Redis (cache hit path).
 func BenchmarkCacheStore_Get(b *testing.B) {
 	store := newBenchStore(b)
 	entry := sampleEntry(time.Minute)
