@@ -20,7 +20,7 @@ func TestBuildStats_Empty(t *testing.T) {
 		t.Errorf("expected all-zero counters for empty results, got %+v", s)
 	}
 	if s.StatusCodes == nil {
-		t.Error("StatusCodes map should be initialized, got nil")
+		t.Error("StatusCodes map should be initialised, got nil")
 	}
 }
 
