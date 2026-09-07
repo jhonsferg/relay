@@ -4,8 +4,9 @@ go 1.25.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
-	github.com/jhonsferg/relay v0.4.3
-	github.com/redis/go-redis/v9 v9.21.0
+	github.com/jhonsferg/relay v0.4.8
+	github.com/redis/go-redis/v9 v9.22.0
+	github.com/testcontainers/testcontainers-go/modules/redis v0.44.0
 )
 
 require (
@@ -30,7 +31,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mdelapenya/tlscert v0.2.0 // indirect
@@ -51,7 +52,6 @@ require (
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/testcontainers/testcontainers-go v0.44.0 // indirect
-	github.com/testcontainers/testcontainers-go/modules/redis v0.44.0 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yuin/gopher-lua v1.1.2 // indirect
