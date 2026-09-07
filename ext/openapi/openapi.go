@@ -233,8 +233,8 @@ func (t *validatingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		Options:    t.filterOpts,
 	}
 
-	if err := openapi3filter.ValidateRequest(ctx, reqInput); err != nil {
-		return nil, &ValidationError{Phase: "request", Cause: err}
+	if valErr := openapi3filter.ValidateRequest(ctx, reqInput); valErr != nil {
+		return nil, &ValidationError{Phase: "request", Cause: valErr}
 	}
 
 	resp, err := t.base.RoundTrip(req)
@@ -247,7 +247,7 @@ func (t *validatingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		var respBody []byte
 		if resp.Body != nil {
 			respBody, err = io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if err != nil {
 				return nil, err
 			}
