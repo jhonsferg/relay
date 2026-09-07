@@ -152,7 +152,7 @@ func TestCacheStore_ClearOnlyRemovesPrefixedKeys(t *testing.T) {
 	defer mr.Close()
 
 	rdb := redisclient.NewClient(&redisclient.Options{Addr: mr.Addr()})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	// Two stores sharing the same Redis but different prefixes.
 	storeA := relayredis.NewCacheStore(rdb, "relay:a:")
