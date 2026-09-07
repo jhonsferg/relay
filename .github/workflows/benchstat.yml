@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -34,7 +34,7 @@ jobs:
           go test -bench=. -benchmem -run=^$ -count=6 ./benchmarks/... 2>&1 | tee pr.txt
 
       - name: Checkout master branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: master
           clean: false
