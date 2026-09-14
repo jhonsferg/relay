@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/tracing
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/jhonsferg/relay v0.4.8
@@ -18,6 +18,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 )
