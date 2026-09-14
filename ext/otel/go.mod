@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/otel
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/jhonsferg/relay v0.4.8
@@ -23,7 +23,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 )
 
 replace github.com/jhonsferg/relay v0.1.22 => ../../
