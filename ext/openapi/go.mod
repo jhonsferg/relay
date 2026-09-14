@@ -1,6 +1,6 @@
 module github.com/jhonsferg/relay/ext/openapi
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/getkin/kin-openapi v0.146.0
@@ -12,7 +12,7 @@ replace github.com/jhonsferg/relay v0.1.1 => ../../
 require (
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/go-openapi/jsonpointer v1.0.0 // indirect
+	github.com/go-openapi/jsonpointer v1.0.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
