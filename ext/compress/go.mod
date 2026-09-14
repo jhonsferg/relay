@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/compress
 go 1.25.0
 
 require (
-	github.com/jhonsferg/relay v0.4.8
+	github.com/jhonsferg/relay v0.4.12
 	github.com/klauspost/compress v1.20.0
 )
 
