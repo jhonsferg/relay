@@ -176,34 +176,33 @@ func (r *SRVResolver) pickTarget(targets []srvTarget) string {
 	return fmt.Sprintf("%s:%d", t.host, t.port)
 }
 
-// srvRoundTripper is an http.RoundTripper that rewrites the request host
-// using an SRVResolver before forwarding to the next transport.
-type srvRoundTripper struct {
-	next     http.RoundTripper
-	resolver *SRVResolver
-}
-
-func (s srvRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	target, err := s.resolver.Resolve(req.Context())
-	if err != nil {
-		return nil, fmt.Errorf("srv resolve: %w", err)
+// ReportFailure implements [FailureReporter]. A transport failure against a
+// target means the cached record set may be stale (an instance went away
+// before its record expired), so the cache is dropped and the next request
+// performs a fresh SRV lookup instead of waiting for the TTL. Concurrent
+// failures collapse into a single lookup through the resolver's
+// singleflight group.
+func (r *SRVResolver) ReportFailure(_ string, _ error) {
+	if r.ttl <= 0 {
+		return // nothing cached
 	}
-	reqCopy := req.Clone(req.Context())
-	reqCopy.URL.Host = target
-	reqCopy.Host = target
-	return s.next.RoundTrip(reqCopy)
+	r.mu.Lock()
+	r.cached = nil
+	r.cacheExp = time.Time{}
+	r.mu.Unlock()
 }
 
 // RoundTripperMiddleware returns a relay-compatible middleware that rewrites
-// the request host to the SRV-resolved address before each request.
+// the request host to the SRV-resolved address before each request. It is
+// [DiscoveryMiddleware] applied to r.
 func (r *SRVResolver) RoundTripperMiddleware() func(http.RoundTripper) http.RoundTripper {
-	return func(next http.RoundTripper) http.RoundTripper {
-		return srvRoundTripper{next: next, resolver: r}
-	}
+	return DiscoveryMiddleware(r)
 }
 
 // WithSRVDiscovery sets an SRVResolver on the client. Before each request,
-// the resolver is called and the request Host is replaced with the resolved target.
+// the resolver is called and the request Host is replaced with the resolved
+// target. It is [WithDiscovery] applied to resolver; a transport failure
+// against a target drops the resolver's cache (see [SRVResolver.ReportFailure]).
 func WithSRVDiscovery(resolver *SRVResolver) Option {
-	return WithTransportMiddleware(resolver.RoundTripperMiddleware())
+	return WithDiscovery(resolver)
 }
