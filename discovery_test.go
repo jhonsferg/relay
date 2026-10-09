@@ -16,7 +16,7 @@ import (
 // listResolver round-robins over a fixed list and records failure reports.
 type listResolver struct {
 	targets []string
-	next    atomic.Uint64
+	next    atomic.Int64
 
 	mu       sync.Mutex
 	failures []string
@@ -24,7 +24,7 @@ type listResolver struct {
 
 func (l *listResolver) Resolve(context.Context) (string, error) {
 	i := l.next.Add(1) - 1
-	return l.targets[int(i%uint64(len(l.targets)))], nil
+	return l.targets[i%int64(len(l.targets))], nil
 }
 
 func (l *listResolver) ReportFailure(target string, _ error) {
