@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/getkin/kin-openapi v0.149.0
-	github.com/jhonsferg/relay v0.4.8
+	github.com/jhonsferg/relay v0.4.12
 )
 
 replace github.com/jhonsferg/relay v0.1.1 => ../../
@@ -21,6 +21,6 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 )
