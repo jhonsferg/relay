@@ -20,6 +20,10 @@ updates:
       - dependency-type: "direct"
       - dependency-type: "indirect"
     # Limit to 5 open PRs to avoid overwhelming maintenance
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
     open-pull-requests-limit: 5
 
   # GitHub Actions
@@ -36,11 +40,44 @@ updates:
       - "ci"
       - "github-actions"
     # Limit to 2 open PRs for GitHub Actions (need careful review)
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     open-pull-requests-limit: 2
 
-  # Extension modules - gobreaker
+  # Extension modules and examples: one grouped PR per week instead of one
+  # PR per module and dependency
   - package-ecosystem: "gomod"
-    directory: "/ext/breaker/gobreaker"
+    directories:
+      - "/ext/breaker/gobreaker"
+      - "/ext/brotli"
+      - "/ext/cache/lru"
+      - "/ext/cache/twolevel"
+      - "/ext/chaos"
+      - "/ext/compress"
+      - "/ext/graphql"
+      - "/ext/grpc"
+      - "/ext/http3"
+      - "/ext/jitterbug"
+      - "/ext/memcached"
+      - "/ext/metrics"
+      - "/ext/mock"
+      - "/ext/oauth"
+      - "/ext/oidc"
+      - "/ext/openapi"
+      - "/ext/otel"
+      - "/ext/prometheus"
+      - "/ext/ratelimit/distributed"
+      - "/ext/redis"
+      - "/ext/sentry"
+      - "/ext/sigv4"
+      - "/ext/slog"
+      - "/ext/tracing"
+      - "/ext/vcr"
+      - "/ext/websocket"
+      - "/ext/zap"
+      - "/examples"
     schedule:
       interval: "weekly"
     labels:
@@ -49,358 +86,8 @@ updates:
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - brotli
-  - package-ecosystem: "gomod"
-    directory: "/ext/brotli"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - cache/lru
-  - package-ecosystem: "gomod"
-    directory: "/ext/cache/lru"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - cache/twolevel
-  - package-ecosystem: "gomod"
-    directory: "/ext/cache/twolevel"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - grpc
-  - package-ecosystem: "gomod"
-    directory: "/ext/grpc"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - jitterbug
-  - package-ecosystem: "gomod"
-    directory: "/ext/jitterbug"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - memcached
-  - package-ecosystem: "gomod"
-    directory: "/ext/memcached"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - metrics
-  - package-ecosystem: "gomod"
-    directory: "/ext/metrics"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - mock
-  - package-ecosystem: "gomod"
-    directory: "/ext/mock"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - oauth
-  - package-ecosystem: "gomod"
-    directory: "/ext/oauth"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - openapi
-  - package-ecosystem: "gomod"
-    directory: "/ext/openapi"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - prometheus
-  - package-ecosystem: "gomod"
-    directory: "/ext/prometheus"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - ratelimit/distributed
-  - package-ecosystem: "gomod"
-    directory: "/ext/ratelimit/distributed"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - redis
-  - package-ecosystem: "gomod"
-    directory: "/ext/redis"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - sentry
-  - package-ecosystem: "gomod"
-    directory: "/ext/sentry"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - sigv4
-  - package-ecosystem: "gomod"
-    directory: "/ext/sigv4"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - tracing
-  - package-ecosystem: "gomod"
-    directory: "/ext/tracing"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - zap
-  - package-ecosystem: "gomod"
-    directory: "/ext/zap"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - http3
-  # Added retroactively: this module (and the 8 below) existed since April 2026
-  # but was never wired into Dependabot, so its golang.org/x/crypto CVEs went
-  # unmonitored for months. See dependabot alerts for the backlog this exposed.
-  - package-ecosystem: "gomod"
-    directory: "/ext/http3"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - otel
-  - package-ecosystem: "gomod"
-    directory: "/ext/otel"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - vcr
-  - package-ecosystem: "gomod"
-    directory: "/ext/vcr"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - websocket
-  - package-ecosystem: "gomod"
-    directory: "/ext/websocket"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - chaos
-  - package-ecosystem: "gomod"
-    directory: "/ext/chaos"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - compress
-  - package-ecosystem: "gomod"
-    directory: "/ext/compress"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - graphql
-  - package-ecosystem: "gomod"
-    directory: "/ext/graphql"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - oidc
-  - package-ecosystem: "gomod"
-    directory: "/ext/oidc"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Extension modules - slog
-  - package-ecosystem: "gomod"
-    directory: "/ext/slog"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ext"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    open-pull-requests-limit: 5
-
-  # Examples
-  - package-ecosystem: "gomod"
-    directory: "/examples"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "examples"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
     open-pull-requests-limit: 5
