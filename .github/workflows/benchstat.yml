@@ -18,7 +18,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v5
         with:
           go-version: "1.26"
           cache: false
@@ -89,7 +89,7 @@ jobs:
 
       - name: Post benchstat results as PR comment
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const benchstatResult = process.env.BENCHSTAT_RESULT || '(no output)';
