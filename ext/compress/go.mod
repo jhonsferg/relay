@@ -10,5 +10,5 @@ require (
 require (
 	github.com/andybalholm/brotli v1.2.6 // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 )
