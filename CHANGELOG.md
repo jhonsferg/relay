@@ -108,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `fix(ext/otel)`: `WithTracing`/`WithOtel` now inject the trace context into outgoing request headers via the global `propagation.TextMapPropagator` (W3C tracecontext by default), matching what `ext/tracing` already did. Previously spans were created but never propagated downstream, so a service using only `ext/otel` silently broke distributed tracing continuity.
 - `fix(ext/tracing)`: migrate span attributes from hardcoded legacy keys (`http.method`, `http.url`, `http.host`, `http.target`, `net.peer.name`, `net.peer.port`, `http.status_code`) to `semconv` v1.26 stable keys (`http.request.method`, `url.full`, `server.address`, `server.port`, `http.response.status_code`), aligning with `ext/otel`. `url.full` now also redacts URL userinfo before recording it, closing the same credential-leak class fixed in `ext/otel` at v0.3.19.
 
+
+- CI: `github/codeql-action` (init, autobuild, analyze, upload-sarif) to v4.38.2 together, since mixed versions are rejected, and `actions/download-artifact` to v8.0.1.
 ### Changed
 
 - Dependency refresh across 27 `ext/*` modules and `examples`: `golang.org/x/*`, `brotli`, `klauspost/compress`, `relay` 0.4.12, OpenTelemetry and others, applied in one batch. The `ext/*` modules now require Go 1.26 (needed by `golang.org/x/net` 0.59), and CI runs on Go 1.26.
