@@ -112,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: `github/codeql-action` (init, autobuild, analyze, upload-sarif) to v4.38.2 together, since mixed versions are rejected, and `actions/download-artifact` to v8.0.1.
 ### Changed
 
-- Dependency refresh across 27 `ext/*` modules and `examples`: `golang.org/x/*`, `brotli`, `klauspost/compress`, `relay` 0.4.12, OpenTelemetry and others, applied in one batch. The `ext/*` modules now require Go 1.26 (needed by `golang.org/x/net` 0.59), and CI runs on Go 1.26.
+- Dependency refresh across 27 `ext/*` modules and `examples`: `golang.org/x/*`, `brotli`, `klauspost/compress`, `relay` 0.4.12, OpenTelemetry and others, applied in one batch. The minimum Go version is now 1.26 for the core and every `ext/*` module (needed by `golang.org/x/net` 0.59); older versions are no longer supported. CI runs on Go 1.26.
 
 - `go.mod` (core, `ext/otel`, `ext/tracing`): lower the minimum Go version from 1.25.0 to 1.24.0. No code in these modules uses a Go 1.25-only language or stdlib feature; the floor had drifted up via routine dependency-bump commits rather than an actual requirement, needlessly narrowing the pool of consumers who can adopt relay.
 - Quick-start docs (`README.md`, `doc.go`): call out that per-request timing (`Response.Timing`) is collected by default and is opt-out via `WithDisableTiming()`, not opt-in — previously this was only documented on the `Config.DisableTiming` field comment. **Superseded by the next entry.**
