@@ -115,11 +115,13 @@ jobs:
         run: go mod download
 
       - name: golangci-lint (core)
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         env:
           GOWORK: "off"
         with:
-          version: latest
+          # Pinned: "latest" let new linter releases fail CI on unchanged
+          # code. Bump deliberately, fixing any new findings in the same PR.
+          version: v2.14.0
           args: --timeout=5m ./...
 
       - name: golangci-lint (extensions)
