@@ -1,5 +1,17 @@
 name: Trivy Vulnerability Scanning
 
+# Filesystem scan of every module (go.mod/go.sum under ./ and ext/*),
+# the workflows and other configuration, and committed secrets.
+#
+# - HIGH and CRITICAL findings are reported to Security > Code scanning
+#   (category "Trivy-Go") without failing the build.
+# - The build fails only on CRITICAL findings: a misconfiguration, or a
+#   vulnerability that already has a fixed version.
+#
+# govulncheck.yml is the blocking gate for Go vulnerabilities: it only
+# reports code relay actually reaches, while Trivy also lists vulnerable
+# modules that are merely present.
+
 on:
   push:
     branches:
@@ -13,86 +25,47 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  statuses: write
-  pull-requests: write
 
 jobs:
   trivy-scan:
     name: Scan for CVEs
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+      security-events: write
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Run Trivy Go module scan
-        uses: aquasecurity/trivy-action@master
+      - name: Trivy report (HIGH/CRITICAL, SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          scan-type: 'config'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'  # Don't fail the build, just report
-
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
+          version: v0.76.0
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH
+          format: sarif
+          output: trivy-results.sarif
           exit-code: '0'
 
       - name: Upload Trivy results to GitHub Security tab
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
-          category: 'Trivy-Go'
+          sarif_file: trivy-results.sarif
+          category: Trivy-Go
 
-      - name: Check for critical vulnerabilities
-        run: |
-          # Run scan with exit code 1 if CRITICAL found
-          trivy config . --exit-code 0 --severity CRITICAL --format json > trivy-check.json
-          CRITICAL_COUNT=$(jq '[.Results[]? | select(.Misconfigurations[]?.Severity=="CRITICAL")] | length' trivy-check.json)
-          if [ "$CRITICAL_COUNT" -gt 0 ]; then
-            echo "❌ Found $CRITICAL_COUNT CRITICAL vulnerabilities"
-            exit 1
-          fi
-          echo "✅ No CRITICAL vulnerabilities found"
-
-      - name: Comment PR with Trivy results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+      - name: Fail on CRITICAL findings
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          script: |
-            const fs = require('fs');
-            const results = JSON.parse(fs.readFileSync('trivy-check.json', 'utf8'));
-            
-            let comment = '## 🔍 Trivy Security Scan Results\n\n';
-            
-            if (!results.Results || results.Results.length === 0) {
-              comment += '✅ **No vulnerabilities found**';
-            } else {
-              comment += '⚠️ **Vulnerabilities detected:**\n\n';
-              results.Results.forEach(result => {
-                if (result.Misconfigurations) {
-                  result.Misconfigurations.forEach(config => {
-                    comment += `- **${config.Type}**: ${config.Title}\n`;
-                    comment += `  - Severity: ${config.Severity}\n`;
-                    comment += `  - ID: ${config.ID}\n\n`;
-                  });
-                }
-              });
-            }
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+          version: v0.76.0
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: '1'
+          skip-setup-trivy: true

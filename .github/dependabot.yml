@@ -9,8 +9,6 @@ updates:
       interval: "weekly"
       day: "sunday"
       time: "02:00"
-    reviewers:
-      - "jhonsferg"
     labels:
       - "dependencies"
       - "go"
@@ -34,8 +32,6 @@ updates:
       interval: "monthly"  # Reduced from weekly to monthly
       day: "sunday"
       time: "03:00"
-    reviewers:
-      - "jhonsferg"
     labels:
       - "ci"
       - "github-actions"

@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # dispatch sbom-sign.yml for the new release
 
 jobs:
   version-and-release:
@@ -20,7 +21,7 @@ jobs:
       !startsWith(github.event.head_commit.message, 'chore(release)') &&
       github.actor != 'github-actions[bot]'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -129,6 +130,18 @@ jobs:
             --verify-tag
 
           echo "✅ Released $NEW_TAG"
+
+      # Releases created with GITHUB_TOKEN don't fire `release` events in
+      # other workflows, so start the SBOM generation and signing explicitly.
+      - name: Generate and sign the release SBOM
+        if: steps.bump.outputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run sbom-sign.yml \
+            --repo "${{ github.repository }}" \
+            --ref master \
+            -f tag="${{ steps.version.outputs.new_tag }}"
 
       - name: Skip message
         if: steps.bump.outputs.bump == 'none'
