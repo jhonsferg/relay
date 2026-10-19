@@ -1,5 +1,11 @@
 name: License Compliance Check
 
+# Checks the licenses of every dependency of every module (core, ext/*,
+# examples) with google/go-licenses, and fails on forbidden, restricted
+# (e.g. GPL, AGPL), or unidentifiable licenses. relay's own modules are
+# skipped: they're covered by the repository's LICENSE, which go-licenses
+# doesn't look for above each ext/* module directory.
+
 on:
   schedule:
     # Run weekly on Monday at 9 AM UTC
@@ -7,30 +13,26 @@ on:
   pull_request:
     branches: [master]
     paths:
-      - 'go.mod'
-      - 'go.sum'
+      - '**/go.mod'
+      - '**/go.sum'
       - '.github/workflows/license-check.yml'
   push:
     branches: [master]
     paths:
-      - 'go.mod'
-      - 'go.sum'
+      - '**/go.mod'
+      - '**/go.sum'
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v5
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: "1.26"
           cache: false
@@ -38,143 +40,40 @@ jobs:
       - name: Pin toolchain
         run: go env -w GOTOOLCHAIN=local
 
-      - name: Download dependencies
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses/v2@v2.0.1
+
+      - name: Check licenses in every module
         env:
           GOWORK: "off"
         run: |
-          go mod download
-          go mod verify
-
-      - name: Generate dependency list
-        id: deps
-        env:
-          GOWORK: "off"
-        run: |
-          go list -m all > /tmp/modules.txt
-          cat /tmp/modules.txt
-
-      - name: Install license scanner
-        run: |
-          go install github.com/fossa-contrib/fossa-cli/cmd/fossa@latest || \
-          go install github.com/ryankurte/go-license-checker@latest || \
-          echo "Using fallback method"
-
-      - name: Check for problematic licenses
-        id: license-scan
-        run: |
-          set +e
-          
-          # Use go-license-checker if available
-          if command -v go-license-checker &> /dev/null; then
-            OUTPUT=$(go-license-checker -json ./... 2>&1)
-            
-            # Check for viral licenses (GPL, AGPL)
-            VIRAL=$(echo "$OUTPUT" | grep -i 'GPL\|AGPL' | head -5)
-            
-            if [ -n "$VIRAL" ]; then
-              echo "viral_licenses=true" >> "$GITHUB_OUTPUT"
-              echo "viral_details=$VIRAL" >> "$GITHUB_OUTPUT"
-              echo "⚠️ Viral licenses detected:"
-              echo "$VIRAL"
+          set -u
+          failed=0
+          {
+            echo "## Dependency Licenses"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          : > license-report.csv
+          for dir in $(find . -name go.mod -not -path '*/testdata/*' -exec dirname {} \; | sort); do
+            echo "::group::$dir"
+            if (cd "$dir" && go-licenses check ./... \
+                  --disallowed_types=forbidden,restricted,unknown \
+                  --ignore github.com/jhonsferg/relay); then
+              echo "- \`$dir\`: ok" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "viral_licenses=false" >> "$GITHUB_OUTPUT"
+              echo "- \`$dir\`: **disallowed or unknown license**" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
             fi
-          else
-            # Fallback: simple grep for common license patterns
-            echo "Using fallback license detection..."
-            MODS=$(GOWORK=off go list -m all)
-            VIRAL=false
-            DETAILS=""
-            
-            while IFS= read -r line; do
-              MOD=$(echo "$line" | awk '{print $1}')
-              # Try to fetch go.mod and check license comments
-              LICENSE_CHECK=$(go mod graph 2>&1 | grep -i "gpl\|agpl" | head -1 || echo "")
-              if [ -n "$LICENSE_CHECK" ]; then
-                VIRAL=true
-                DETAILS="$DETAILS\n$MOD might have GPL/AGPL dependencies"
-              fi
-            done <<< "$MODS"
-            
-            if [ "$VIRAL" = true ]; then
-              echo "viral_licenses=true" >> "$GITHUB_OUTPUT"
-              echo "viral_details=$DETAILS" >> "$GITHUB_OUTPUT"
-            else
-              echo "viral_licenses=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-          
-          set -e
-
-      - name: Generate license report
-        run: |
-          echo "## Dependency Licenses" > /tmp/license_report.md
-          echo "" >> /tmp/license_report.md
-          echo "### Core Module (go.mod)" >> /tmp/license_report.md
-          echo "\`\`\`" >> /tmp/license_report.md
-          GOWORK=off go list -m all >> /tmp/license_report.md
-          echo "\`\`\`" >> /tmp/license_report.md
-          
-          # Check extension modules
-          if [ -d "ext" ]; then
-            for modfile in ext/*/go.mod; do
-              if [ -f "$modfile" ]; then
-                dir=$(dirname "$modfile")
-                echo "" >> /tmp/license_report.md
-                echo "### Extension Module: $(basename $dir)" >> /tmp/license_report.md
-                echo "\`\`\`" >> /tmp/license_report.md
-                (cd "$dir" && go list -m all) >> /tmp/license_report.md
-                echo "\`\`\`" >> /tmp/license_report.md
-              fi
-            done
-          fi
-          
-          cat /tmp/license_report.md
-
-      - name: Comment license report on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('/tmp/license_report.md', 'utf8');
-            
-            let comment = '### 📋 License Compliance Report\n\n';
-            comment += report;
-            
-            if ('${{ steps.license-scan.outputs.viral_licenses }}' === 'true') {
-              comment += '\n\n### ⚠️ Potential Issues\n\n';
-              comment += '**Viral Licenses Detected:**\n';
-              comment += '${{ steps.license-scan.outputs.viral_details }}\n\n';
-              comment += 'These licenses may have restrictions for closed-source use or require source code disclosure. Review carefully.';
-            } else {
-              comment += '\n\n✅ No viral or problematic licenses detected.';
-            }
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-
-      - name: Fail if viral licenses found
-        if: steps.license-scan.outputs.viral_licenses == 'true'
-        run: |
-          echo "❌ Viral/incompatible licenses detected in dependencies"
-          echo "Details:"
-          echo "${{ steps.license-scan.outputs.viral_details }}"
-          echo ""
-          echo "Review the licenses and either:"
-          echo "1. Update to a compatible version of the dependency"
-          echo "2. Add an exception for the dependency"
-          echo "3. Coordinate with the team on license implications"
-          exit 1
+            (cd "$dir" && go-licenses report ./... --ignore github.com/jhonsferg/relay 2>/dev/null) \
+              | sed "s|^|$dir,|" >> license-report.csv
+            echo "::endgroup::"
+          done
+          exit "$failed"
 
       - name: Save license report as artifact
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: license-report
-          path: /tmp/license_report.md
+          path: license-report.csv
           retention-days: 30
