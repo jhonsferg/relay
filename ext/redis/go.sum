@@ -56,8 +56,8 @@ github.com/jhonsferg/relay v0.5.2 h1:ivyO5CYt4UWED/kLx4CmOKcfZj4m+STp/JNlR0CUZe4
 github.com/jhonsferg/relay v0.5.2/go.mod h1:5NBj9KLyWkYnb9em5mmLphONyfvq1Al0ffb8ftwf3lk=
 github.com/klauspost/compress v1.20.3 h1:zWNoFqq/lSuYQRim3dUXlXeA0IqwuZGicdG5ZTfY5j4=
 github.com/klauspost/compress v1.20.3/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
-github.com/klauspost/cpuid/v2 v2.4.0 h1:S6Hrbc7+ywsr0r+RLapfGBHfyefhCTwEh3A0tV913Dw=
-github.com/klauspost/cpuid/v2 v2.4.0/go.mod h1:19jmZ9mjzoF//ddRSUsv0zfBTJWh3QJh9FNxZTMrGxU=
+github.com/klauspost/cpuid/v2 v2.4.1 h1:I9KxadAkvo+QjtcEE2f2tyfEvmIla/T0m+14PrZNl0U=
+github.com/klauspost/cpuid/v2 v2.4.1/go.mod h1:19jmZ9mjzoF//ddRSUsv0zfBTJWh3QJh9FNxZTMrGxU=
 github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e h1:Q6MvJtQK/iRcRtzAscm/zF23XxJlbECiGPyRicsX+Ak=
 github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e/go.mod h1:autxFIvghDt3jPTLoqZ9OZ7s9qTGNAWmYCjVFWPX/zg=
 github.com/magiconair/properties v1.18.12 h1:sT9zQpvTB3B4gzrX0tmZNTEaGyg8Zw55MFYRE32Mr9I=
