@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/jhonsferg/relay v0.4.12
-	github.com/quic-go/quic-go v0.64.0
+	github.com/quic-go/quic-go v0.64.1
 )
 
 require (
