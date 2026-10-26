@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/andybalholm/brotli v1.2.6
-	github.com/jhonsferg/relay v0.4.12
+	github.com/jhonsferg/relay v0.6.1
 )
 
 require (
