@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/oauth
 go 1.26.0
 
 require (
-	github.com/jhonsferg/relay v0.5.2
+	github.com/jhonsferg/relay v0.6.1
 	github.com/testcontainers/testcontainers-go v0.44.0
 )
 

@@ -3,7 +3,7 @@ module github.com/jhonsferg/relay/ext/breaker/gobreaker
 go 1.26.0
 
 require (
-	github.com/jhonsferg/relay v0.4.12
+	github.com/jhonsferg/relay v0.6.1
 	github.com/sony/gobreaker v1.0.0
 )
 

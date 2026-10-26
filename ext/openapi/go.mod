@@ -3,8 +3,8 @@ module github.com/jhonsferg/relay/ext/openapi
 go 1.26.0
 
 require (
-	github.com/getkin/kin-openapi v0.151.0
-	github.com/jhonsferg/relay v0.4.12
+	github.com/getkin/kin-openapi v0.152.0
+	github.com/jhonsferg/relay v0.6.1
 )
 
 replace github.com/jhonsferg/relay v0.1.1 => ../../
